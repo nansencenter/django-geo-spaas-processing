@@ -1,0 +1,7 @@
+---
+# Dictionary associating URLs to settings to pass to the downloaders
+'https://scihub.copernicus.eu':
+  username: 'topvoys'
+  password_env_var: 'COPERNICUS_OPEN_HUB_PASSWORD'
+  max_parallel_downloads: 2
+...

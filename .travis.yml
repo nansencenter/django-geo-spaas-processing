@@ -1,0 +1,74 @@
+---
+language: shell
+services:
+  - docker
+
+# Environment variables defined as part of the Travis CI repository configuration are:
+# - COVERALLS_REPO_TOKEN: token for authentication to Coveralls
+# - DOCKER_ORG: the docker hub organization (or user) to which the image will be pushed
+# - DOCKER_USER: the docker hub user used to log in to the docker hub
+# - DOCKER_PASS: the password of this user
+# - GEOSPAAS_DB_PASSWORD: the password for connecting to the test database
+
+env:
+  global:
+    - BASE_IMAGE_NAME="${DOCKER_ORG}/geospaas:v1.0.1"
+    - IMAGE_NAME="${DOCKER_ORG}/geospaas_processing_worker"
+jobs:
+  include:
+    - stage: 'Unit tests'
+      if: 'type = push'
+      env:
+        - GEOSPAAS_DB_HOST='db'
+        - GEOSPAAS_DB_USER='test'
+      install:
+        - docker network create testing
+        - >
+          docker run -d --rm
+          --network testing
+          --name "$GEOSPAAS_DB_HOST"
+          -e "POSTGRES_USER=$GEOSPAAS_DB_USER" -e "POSTGRES_PASSWORD=$GEOSPAAS_DB_PASSWORD"
+          'postgis/postgis:12-3.0'
+        - >
+          docker build .
+          -t "${IMAGE_NAME}"
+          --build-arg "BASE_IMAGE=${BASE_IMAGE_NAME}"
+          --target base
+      script:
+        - >
+          docker run --rm
+          --network testing
+          -v "$(pwd):/src"
+          -e "COVERALLS_REPO_TOKEN=$COVERALLS_REPO_TOKEN"
+          -e "TRAVIS=true" -e "TRAVIS_JOB_ID=$TRAVIS_JOB_ID"
+          -e "TRAVIS_BRANCH=$TRAVIS_BRANCH" -e "TRAVIS_PULL_REQUEST=$TRAVIS_PULL_REQUEST"
+          -e "GEOSPAAS_DB_HOST=$GEOSPAAS_DB_HOST"
+          -e "GEOSPAAS_DB_USER=$GEOSPAAS_DB_USER" -e "GEOSPAAS_DB_PASSWORD=$GEOSPAAS_DB_PASSWORD"
+          --entrypoint bash
+          "${IMAGE_NAME}"
+          -c "source /opt/conda/bin/activate
+          && coverage run --source=./geospaas_processing /src/runtests.py
+          && coveralls"
+      after_script:
+        - docker stop "$GEOSPAAS_DB_HOST"
+
+    - stage: 'Build docker image'
+      if: type = pull_request OR tag IS present
+      env:
+        - DOCKER_TMP_TAG='tmp'
+      install:
+        - docker pull "${IMAGE_NAME}" || true
+      script:
+        - >
+          docker build .
+          --cache-from "${IMAGE_NAME}"
+          --build-arg "BASE_IMAGE=$BASE_IMAGE_NAME"
+          -t "${IMAGE_NAME}:${DOCKER_TMP_TAG}"
+      before_deploy:
+        - docker login -u "${DOCKER_USER}" -p "${DOCKER_PASS}"
+      deploy:
+        provider: script
+        on:
+          tags: true
+        script: /bin/bash scripts/docker_push.sh "${TRAVIS_TAG}" latest
+...

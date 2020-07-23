@@ -1,0 +1,5 @@
+-t sentinel3/olci/L2
+-o collection = sentinel3_olci_l2_wfr
+   downscale = yes
+   gcp_spacing = 128
+-i geoloc_spacing = 128

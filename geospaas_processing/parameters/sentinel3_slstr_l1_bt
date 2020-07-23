@@ -1,0 +1,5 @@
+-t sentinel3/slstr/L1/bt
+-o collection = sentinel3_slstr_l1_bt
+   gcp_spacing = 128
+-i sst_coeffs_path = auxiliary/S3A_SL_2_N2_CAX_20160216T000000_20991231T235959_20170330T120000___________________MPC_O_AL_004.SEN3/SL_2_N2_CAX.v4.3.1.nc
+   geoloc_spacing = 128

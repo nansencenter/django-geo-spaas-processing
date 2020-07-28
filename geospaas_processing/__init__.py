@@ -1,7 +1,7 @@
-"""Setup Django for the whole package"""
-import os
+"""Load Django configuration for the geospaas_processing module when it is used as standalone"""
+import django.conf
+from .settings import django_settings
 
-import django
-
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'geospaas_processing.settings')
-django.setup()
+if not django.conf.settings.configured:
+    django.conf.settings.configure(**django_settings)
+    django.setup()

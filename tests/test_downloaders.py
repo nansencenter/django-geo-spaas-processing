@@ -212,6 +212,13 @@ class DownloadLockTestCase(unittest.TestCase):
             lock.__exit__()
             mock_eval.assert_not_called()
 
+    def test_acquired_if_max_downloads_is_none(self):
+        """The lock must be acquired if there is the max_downloads is left as None"""
+        lock = downloaders.DownloadLock('url', None, redis_host='test', redis_port=6379)
+        with mock.patch('geospaas_processing.downloaders.Redis.eval'):
+            self.assertTrue(lock.__enter__())
+
+
 class DownloadManagerTestCase(django.test.TestCase):
     """Tests for the DownloadManager"""
 
@@ -279,6 +286,17 @@ class DownloadManagerTestCase(django.test.TestCase):
             provider_settings_path=os.path.join(os.path.dirname(__file__),
                                                 'data/provider_settings.yml'))
         self.assertDictEqual(download_manager.get_provider_settings('https://foo.bar'), {})
+
+    def test_trigger_download_if_no_max_downloads_settings_found(self):
+        """
+        The download must be triggered if no max_parallel_downloads property exists for the provider
+        """
+        download_manager = downloaders.DownloadManager()
+        with mock.patch.object(downloaders.DownloadManager, 'get_provider_settings') as mock_p_s:
+            mock_p_s.return_value = {}
+            with mock.patch.object(downloaders.HTTPDownloader, 'download_url') as mock_dl_url:
+                download_manager.download_dataset(Dataset.objects.get(pk=1))
+                mock_dl_url.assert_called()
 
     def test_find_dataset_file(self):
         """Test that a downloaded dataset file is correctly found"""

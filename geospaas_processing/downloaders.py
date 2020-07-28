@@ -145,7 +145,7 @@ class DownloadLock():
         Redis and this method returns True.
         If not, it returns False.
         """
-        if self.redis:
+        if self.max_downloads and self.redis:
             # Increment or initialize downloads count
             LOGGER.debug("Incrementing downloads count for %s", self.base_url)
             incremented_current_downloads = self.redis.eval(
@@ -239,7 +239,7 @@ class DownloadManager():
                 return filename
 
             # Launch download if the maximum number of parallel downloads has not been reached
-            with DownloadLock(dataset_uri_prefix, extra_settings['max_parallel_downloads'],
+            with DownloadLock(dataset_uri_prefix, extra_settings.get('max_parallel_downloads'),
                               self.redis_host, self.redis_port) as acquired:
                 if not acquired:
                     raise TooManyDownloadsError(

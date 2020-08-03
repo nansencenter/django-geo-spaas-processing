@@ -7,12 +7,15 @@ import celery
 
 import geospaas_processing.downloaders as downloaders
 import geospaas_processing.tasks as tasks
+import geospaas_processing.utils as utils
 
 class RedisLockTestCase(unittest.TestCase):
     """Tests for the redis_lock context manager"""
 
     def setUp(self):
-        patcher = mock.patch.object(tasks, 'Redis')
+        patcher = mock.patch.object(utils, 'Redis')
+        mock.patch.object(utils, 'REDIS_HOST', 'test').start()
+        mock.patch.object(utils, 'REDIS_PORT', 6379).start()
         self.redis_mock = patcher.start()
         self.addCleanup(patcher.stop)
 
@@ -22,14 +25,14 @@ class RedisLockTestCase(unittest.TestCase):
         and that it's freed afterwards
         """
         self.redis_mock.return_value.setnx.return_value = 1
-        with tasks.redis_lock('id', 'oid') as acquired:
+        with utils.redis_lock('id', 'oid') as acquired:
             self.assertTrue(acquired)
         self.redis_mock.return_value.delete.assert_called_with('id')
 
     def test_redis_lock_existing_lock(self):
         """Test that the lock is not acquired if it already exists, and is not deleted"""
         self.redis_mock.return_value.setnx.return_value = 0
-        with tasks.redis_lock('id', 'oid') as acquired:
+        with utils.redis_lock('id', 'oid') as acquired:
             self.assertFalse(acquired)
         self.redis_mock.return_value.delete.assert_not_called()
 
@@ -38,10 +41,12 @@ class DownloadTestCase(unittest.TestCase):
     """Tests for the download() task"""
 
     def setUp(self):
-        redis_patcher = mock.patch.object(tasks, 'Redis')
+        redis_patcher = mock.patch.object(utils, 'Redis')
         download_manager_patcher = mock.patch('geospaas_processing.tasks.DownloadManager')
         self.redis_mock = redis_patcher.start()
         self.dm_mock = download_manager_patcher.start()
+        mock.patch.object(utils, 'REDIS_HOST', 'test').start()
+        mock.patch.object(utils, 'REDIS_PORT', 6379).start()
         self.addCleanup(mock.patch.stopall)
 
     def test_download_if_acquired(self):
@@ -84,10 +89,12 @@ class ConvertTOIDFTestCase(unittest.TestCase):
     """Tests for the convert_to_idf() task"""
 
     def setUp(self):
-        redis_patcher = mock.patch.object(tasks, 'Redis')
+        redis_patcher = mock.patch.object(utils, 'Redis')
         idf_converter_patcher = mock.patch('geospaas_processing.tasks.IDFConverter')
         self.redis_mock = redis_patcher.start()
         self.idf_converter_mock = idf_converter_patcher.start()
+        mock.patch.object(utils, 'REDIS_HOST', 'test').start()
+        mock.patch.object(utils, 'REDIS_PORT', 6379).start()
         self.addCleanup(mock.patch.stopall)
 
     def test_convert_if_acquired(self):

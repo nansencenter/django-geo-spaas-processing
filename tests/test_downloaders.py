@@ -81,8 +81,13 @@ class HTTPDownloaderTestCase(unittest.TestCase):
         self.response_text = 'hello'
         self.response = requests.Response()
         self.response.headers['Content-Disposition'] = f'inline;filename="{self.file_name}"'
+        self.response.headers['Content-Length'] = 1
         self.response.status_code = 200
-        self.response._content = bytes(self.response_text, 'utf-8') #pylint:disable=protected-access
+        self.response._content = bytes(self.response_text, 'utf-8')  #pylint:disable=protected-access
+
+        mock.patch('geospaas_processing.utils.REDIS_HOST', None).start()
+        mock.patch('geospaas_processing.utils.REDIS_PORT', None).start()
+        self.addCleanup(mock.patch.stopall)
 
     def tearDown(self):
         self.temp_directory.cleanup()
@@ -107,7 +112,7 @@ class HTTPDownloaderTestCase(unittest.TestCase):
     def test_download_url_only_prefix(self):
         """The downloaded file name must be the prefix if nothing can be found in the headers"""
         prefix = 'dataset_1'
-        self.response.headers = {}
+        del self.response.headers['Content-Disposition']
         with mock.patch('requests.get', return_value=self.response):
             result = downloaders.HTTPDownloader.download_url('', self.download_dir, prefix)
         self.assertEqual(result, prefix)
@@ -116,7 +121,7 @@ class HTTPDownloaderTestCase(unittest.TestCase):
         """
         An exception must be raised if no prefix is provided and nothing can be found in the headers
         """
-        self.response.headers = {}
+        del self.response.headers['Content-Disposition']
         with mock.patch('requests.get', return_value=self.response):
             with self.assertRaises(ValueError):
                 downloaders.HTTPDownloader.download_url('', self.download_dir)
@@ -124,14 +129,14 @@ class HTTPDownloaderTestCase(unittest.TestCase):
     def test_download_url_error_if_invalid_download_dir(self):
         """An exception must be raised if the download directory does not exist"""
         with mock.patch('requests.get', return_value=self.response):
-            with self.assertRaises(downloaders.DownloadError):
+            with self.assertRaises(FileNotFoundError):
                 downloaders.HTTPDownloader.download_url('', '/drgdfsr')
 
     def test_download_url_error_if_target_is_a_directory(self):
         """An exception must be raised if the destination file already exists and is a directory"""
         os.mkdir(self.file_path)
         with mock.patch('requests.get', return_value=self.response):
-            with self.assertRaises(downloaders.DownloadError):
+            with self.assertRaises(IsADirectoryError):
                 downloaders.HTTPDownloader.download_url('', self.download_dir)
 
     def test_download_url_error_if_empty_file(self):
@@ -224,6 +229,11 @@ class DownloadManagerTestCase(django.test.TestCase):
 
     fixtures = [os.path.join(os.path.dirname(__file__), 'data/test_data.json')]
 
+    def setUp(self):
+        mock.patch('geospaas_processing.utils.REDIS_HOST', None).start()
+        mock.patch('geospaas_processing.utils.REDIS_PORT', None).start()
+        self.addCleanup(mock.patch.stopall)
+
     def test_retrieve_datasets(self):
         """
         Test that datasets are correctly retrieved according to the criteria given in the
@@ -308,7 +318,8 @@ class DownloadManagerTestCase(django.test.TestCase):
                 'dataset_1_some_string',
                 'dataset_3_some_other_string'
             ]
-            self.assertEqual(download_manager.find_dataset_file(1), 'dataset_1_some_string')
+            self.assertEqual(
+                download_manager.find_dataset_file('dataset_1'), 'dataset_1_some_string')
 
     def test_download_dataset(self):
         """Test that a dataset is downloaded with the correct arguments"""

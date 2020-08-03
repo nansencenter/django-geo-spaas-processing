@@ -1,11 +1,13 @@
 """Tools for automatic downloading of files referenced in a GeoSPaaS database"""
+import errno
 import logging
 import os
 import os.path
-import yaml
+import re
 
 import requests
 import requests.utils
+import yaml
 try:
     from redis import Redis
 except ImportError:
@@ -14,7 +16,10 @@ except ImportError:
 import geospaas.catalog.managers
 from geospaas.catalog.models import Dataset
 
-LOGGER = logging.getLogger('geospaas_downloader')
+import geospaas_processing.utils as utils
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 class DownloadError(Exception):
@@ -29,7 +34,11 @@ class Downloader():
     """Base class for downloaders"""
     @classmethod
     def download_url(cls, url, download_dir, file_prefix=None, **kwargs):
-        """Download the file from the requested URL. To be implemented in child classes."""
+        """
+        Downloads the file from the requested URL. To be implemented in child classes.
+        Must call utils.free_space() before downloading, and manage the case where there
+        is no space left to write the downloaded file.
+        """
         raise NotImplementedError()
 
 
@@ -80,6 +89,10 @@ class HTTPDownloader(Downloader):
         if len(response.content) == 0:
             raise DownloadError(f"Getting an empty file from '{url}'")
 
+        # Try to free some space
+        file_size = int(response.headers['Content-Length'])
+        utils.free_space(download_dir, file_size)
+
         response_file_name = cls.extract_file_name(response)
         # Make a file name from the one found in the response and the optional prefix
         # If both of them are empty, an exception is raised
@@ -94,8 +107,17 @@ class HTTPDownloader(Downloader):
             with open(file_path, 'wb') as target_file:
                 for chunk in response.iter_content(chunk_size=cls.CHUNK_SIZE):
                     target_file.write(chunk)
-        except (FileNotFoundError, IsADirectoryError) as error:
-            raise DownloadError(f"Could not write the dowloaded file to {file_path}") from error
+        # except (FileNotFoundError, IsADirectoryError) as error:
+        #     raise DownloadError(f"Could not write the dowloaded file to {file_path}") from error
+        except OSError as error:
+            if error.errno == errno.ENOSPC:
+                # In case of "No space left on device" error,
+                # try to remove the partially downloaded file
+                try:
+                    os.remove(file_path)
+                except FileNotFoundError:
+                    pass
+            raise
         finally:
             response.close()
 
@@ -180,15 +202,11 @@ class DownloadManager():
         geospaas.catalog.managers.HTTP_SERVICE: HTTPDownloader
     }
 
-    def __init__(self, download_directory='.', provider_settings_path=None,
-                 redis_host=None, redis_port=None,
-                 **criteria):
+    def __init__(self, download_directory='.', provider_settings_path=None, **criteria):
         """
         `criteria` accepts the same keyword arguments as Django's `filter()` method.
         When filtering on time coverage, it is preferable to use timezone aware datetimes.
         """
-        self.redis_host = redis_host
-        self.redis_port = redis_port
         self.datasets = Dataset.objects.filter(**criteria)
         if not self.datasets:
             raise DownloadError("No dataset matches the search criteria")
@@ -209,10 +227,10 @@ class DownloadManager():
                 return self.provider_settings[prefix]
         return {}
 
-    def find_dataset_file(self, dataset_pk):
+    def find_dataset_file(self, file_prefix):
         """Find a downloaded file for the dataset"""
         for filename in os.listdir(self.download_directory):
-            if filename.startswith(f"dataset_{dataset_pk}"):
+            if re.match(f"^{file_prefix}(|_.*)$", filename):
                 return filename
         return None
 
@@ -232,15 +250,18 @@ class DownloadManager():
                 LOGGER.debug("Loaded extra settings for provider %s: %s",
                              dataset_uri_prefix, extra_settings)
 
+            file_prefix = f"dataset_{dataset.pk}"
+
             # Check if the dataset already exists
-            filename = self.find_dataset_file(dataset.pk)
+            filename = self.find_dataset_file(file_prefix)
             if filename:
                 LOGGER.debug("Dataset %d is already present at %s", dataset.pk, filename)
                 return filename
 
             # Launch download if the maximum number of parallel downloads has not been reached
-            with DownloadLock(dataset_uri_prefix, extra_settings.get('max_parallel_downloads'),
-                              self.redis_host, self.redis_port) as acquired:
+            with DownloadLock(dataset_uri_prefix,
+                              extra_settings.get('max_parallel_downloads'),
+                              utils.REDIS_HOST, utils.REDIS_PORT) as acquired:
                 if not acquired:
                     raise TooManyDownloadsError(
                         f"Too many downloads in progress for {dataset_uri_prefix}")
@@ -257,7 +278,7 @@ class DownloadManager():
                 try:
                     file_name = downloader.download_url(
                         dataset_uri.uri, self.download_directory,
-                        file_prefix=f"dataset_{dataset.pk}", **extra_settings
+                        file_prefix=file_prefix, **extra_settings
                     )
                     if file_name:
                         LOGGER.info("Successfully downloaded dataset %d to %s",
@@ -269,6 +290,9 @@ class DownloadManager():
                          "Another URL will be tried if possible"),
                         dataset.pk, dataset_uri.uri, exc_info=True
                     )
+                except (FileNotFoundError, IsADirectoryError) as error:
+                    raise DownloadError(
+                        f"Could not write the dowloaded file to {error.filename}") from error
         raise DownloadError(f"Did not manage to download dataset {dataset.pk}")
 
     def download(self):

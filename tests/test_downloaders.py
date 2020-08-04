@@ -1,4 +1,5 @@
 """Unit tests for downloaders"""
+import errno
 import logging
 import os
 import os.path
@@ -85,6 +86,7 @@ class HTTPDownloaderTestCase(unittest.TestCase):
         self.response.status_code = 200
         self.response._content = bytes(self.response_text, 'utf-8')  #pylint:disable=protected-access
 
+        self.mock_free_space = mock.patch('geospaas_processing.utils.free_space').start()
         mock.patch('geospaas_processing.utils.REDIS_HOST', None).start()
         mock.patch('geospaas_processing.utils.REDIS_PORT', None).start()
         self.addCleanup(mock.patch.stopall)
@@ -101,6 +103,12 @@ class HTTPDownloaderTestCase(unittest.TestCase):
         with open(os.path.join(self.download_dir, self.file_name), 'r') as file_handler:
             file_contents = file_handler.readlines()
         self.assertEqual(file_contents[0], self.response_text)
+
+    def test_download_url_frees_space(self):
+        """download_url() must call utils.free_space()"""
+        with mock.patch('requests.get', return_value=self.response):
+            downloaders.HTTPDownloader.download_url('', self.download_dir)
+        self.mock_free_space.assert_called_once()
 
     def test_download_url_with_prefix(self):
         """Test that the prefix is prepended to the downloaded file's name"""
@@ -154,6 +162,26 @@ class HTTPDownloaderTestCase(unittest.TestCase):
         with mock.patch('requests.get', side_effect=requests.HTTPError):
             with self.assertRaises(downloaders.DownloadError):
                 downloaders.HTTPDownloader.download_url('', self.download_dir)
+
+    def test_download_url_remove_file_if_no_space_left(self):
+        """
+        If a 'No space left' error occurs, an attempt must be made
+        to remove the potential partially downloaded file
+        """
+        self.response.iter_content = mock.Mock()
+        self.response.iter_content.side_effect = OSError(errno.ENOSPC, '')
+        with mock.patch('requests.get', return_value=self.response):
+            # there is a file to delete
+            with mock.patch('os.remove') as mock_rm:
+                with self.assertRaises(OSError):
+                    downloaders.HTTPDownloader.download_url('', self.download_dir)
+                mock_rm.assert_called_once()
+
+            # there is no file to delete
+            with mock.patch('os.remove', side_effect=FileNotFoundError) as mock_rm:
+                with self.assertRaises(OSError):
+                    downloaders.HTTPDownloader.download_url('', self.download_dir)
+                mock_rm.assert_called_once()
 
 
 class DownloadLockTestCase(unittest.TestCase):
@@ -414,3 +442,16 @@ class DownloadManagerTestCase(django.test.TestCase):
             # Append the primary key to the results list instead of actually downloading
             mock_dl_dataset.side_effect = lambda d: d.pk
             self.assertListEqual(download_manager.download(), [2, 3])
+
+    def test_download_dataset_file_not_found_error(self):
+        """
+        download_dataset() must raise a DownloadError if a FileNotFoundError
+        or IsADirectoryError occurs when writing the downloaded file
+        """
+        download_manager = downloaders.DownloadManager()
+        with mock.patch.object(downloaders.HTTPDownloader, 'download_url') as mock_dl_url:
+            for error in [FileNotFoundError, IsADirectoryError]:
+                mock_dl_url.side_effect = error
+                with self.assertRaises(downloaders.DownloadError):
+                    with self.assertLogs(downloaders.LOGGER):
+                        download_manager.download_dataset(Dataset.objects.get(pk=1))

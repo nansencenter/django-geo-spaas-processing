@@ -1,4 +1,5 @@
 """Tests for the celery tasks"""
+import errno
 import logging
 import unittest
 import unittest.mock as mock
@@ -8,33 +9,6 @@ import celery
 import geospaas_processing.downloaders as downloaders
 import geospaas_processing.tasks as tasks
 import geospaas_processing.utils as utils
-
-class RedisLockTestCase(unittest.TestCase):
-    """Tests for the redis_lock context manager"""
-
-    def setUp(self):
-        patcher = mock.patch.object(utils, 'Redis')
-        mock.patch.object(utils, 'REDIS_HOST', 'test').start()
-        mock.patch.object(utils, 'REDIS_PORT', 6379).start()
-        self.redis_mock = patcher.start()
-        self.addCleanup(patcher.stop)
-
-    def test_redis_lock_standard_usage(self):
-        """
-        Test that the lock is acquired if the key is successfully set,
-        and that it's freed afterwards
-        """
-        self.redis_mock.return_value.setnx.return_value = 1
-        with utils.redis_lock('id', 'oid') as acquired:
-            self.assertTrue(acquired)
-        self.redis_mock.return_value.delete.assert_called_with('id')
-
-    def test_redis_lock_existing_lock(self):
-        """Test that the lock is not acquired if it already exists, and is not deleted"""
-        self.redis_mock.return_value.setnx.return_value = 0
-        with utils.redis_lock('id', 'oid') as acquired:
-            self.assertFalse(acquired)
-        self.redis_mock.return_value.delete.assert_not_called()
 
 
 class DownloadTestCase(unittest.TestCase):
@@ -81,6 +55,14 @@ class DownloadTestCase(unittest.TestCase):
         """
         self.redis_mock.return_value.setnx.return_value = 1
         self.dm_mock.return_value.download.side_effect = downloaders.TooManyDownloadsError
+        with self.assertRaises(celery.exceptions.Retry):
+            tasks.download(1)  # pylint: disable=no-value-for-parameter
+
+    def test_retry_if_no_space_left(self):
+        """Test that the download will be retried if a 'No space left on device' error occurs"""
+        self.redis_mock.return_value.setnx.return_value = 1
+        self.dm_mock.return_value.download.side_effect = OSError(errno.ENOSPC,
+                                                                 'No space left on device')
         with self.assertRaises(celery.exceptions.Retry):
             tasks.download(1)  # pylint: disable=no-value-for-parameter
 

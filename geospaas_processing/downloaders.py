@@ -166,7 +166,7 @@ class DownloadLock():
 
     def __exit__(self, *args):
         """Decrements the number of downloads if necessary"""
-        if self.redis and self.acquired:
+        if self.redis and self.max_downloads and self.acquired:
             LOGGER.debug("Decrementing downloads count for %s", self.base_url)
             self.redis.eval(self.DECREMENT_SCRIPT, 1, self.CURRENT_DOWNLOADS_KEY, self.base_url)
 

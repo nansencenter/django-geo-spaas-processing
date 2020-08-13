@@ -74,6 +74,22 @@ class HTTPDownloader(Downloader):
             return (kwargs['username'], os.getenv(kwargs['password_env_var']))
         return None
 
+    @staticmethod
+    def get_remote_file_size(response, auth):
+        """
+        Try to get the file size from the response Content-Length header.
+        If that does not work, try to get it from a HEAD request
+        """
+        file_size = None
+        try:
+            file_size = int(response.headers['Content-Length'])
+        except KeyError:
+            try:
+                file_size = int(requests.head(response.url, auth=auth).headers['Content-Length'])
+            except KeyError:
+                pass
+        return file_size
+
     @classmethod
     def download_url(cls, url, download_dir, file_prefix='', **kwargs):
         """Download file from HTTP URL"""
@@ -89,9 +105,11 @@ class HTTPDownloader(Downloader):
         if len(response.content) == 0:
             raise DownloadError(f"Getting an empty file from '{url}'")
 
-        # Try to free some space
-        file_size = int(response.headers['Content-Length'])
-        utils.free_space(download_dir, file_size)
+        # Try to free some space if we can get the size of the file about to be downloaded
+        file_size = cls.get_remote_file_size(response, auth)
+        if file_size:
+            LOGGER.debug("Checking there is enough free space to download %s bytes", file_size)
+            utils.free_space(download_dir, file_size)
 
         response_file_name = cls.extract_file_name(response)
         # Make a file name from the one found in the response and the optional prefix

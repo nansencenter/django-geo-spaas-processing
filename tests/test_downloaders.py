@@ -94,6 +94,24 @@ class HTTPDownloaderTestCase(unittest.TestCase):
     def tearDown(self):
         self.temp_directory.cleanup()
 
+    def test_get_size_from_response(self):
+        """Test getting the file size from the GET response headers"""
+        self.assertEqual(downloaders.HTTPDownloader.get_remote_file_size(self.response, {}), 1)
+
+    def test_get_size_from_head_request(self):
+        """Test getting the file size from a HEAD response headers"""
+        del self.response.headers['Content-Length']
+        head_response = requests.Response()
+        head_response.headers['Content-Length'] = 2
+        with mock.patch('requests.head', return_value=head_response):
+            self.assertEqual(downloaders.HTTPDownloader.get_remote_file_size(self.response, {}), 2)
+
+    def test_get_size_none_if_not_found(self):
+        """get_remote_file_size() must return None if no size was found"""
+        del self.response.headers['Content-Length']
+        with mock.patch('requests.head', return_value=requests.Response()):
+            self.assertIsNone(downloaders.HTTPDownloader.get_remote_file_size(self.response, {}))
+
     def test_download_url(self):
         """Test a simple file download"""
         with mock.patch('requests.get', return_value=self.response):

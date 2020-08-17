@@ -53,6 +53,7 @@ jobs:
         - docker stop "$GEOSPAAS_DB_HOST"
 
     - stage: 'Build and release'
+      name: 'Build worker the Docker image'
       if: type = pull_request OR tag IS present
       env:
         - DOCKER_TMP_TAG='tmp'
@@ -73,6 +74,7 @@ jobs:
         script: /bin/bash scripts/docker_push.sh "${TRAVIS_TAG}" latest
 
     - if: tag IS present
+      name: 'Build and release the Python package'
       script:
         - docker run --rm -v "$(pwd):/src" "${BASE_IMAGE_NAME}" python setup.py sdist bdist_wheel
       deploy:

@@ -2,23 +2,33 @@
 import errno
 import os
 
-from celery import Celery
-from celery.utils.log import get_task_logger
+import celery
+from django.db import connection
 
 import geospaas_processing.utils as utils
 from .converters import IDFConverter
 from .downloaders import DownloadManager, TooManyDownloadsError
 
 
-LOGGER = get_task_logger(__name__)
+LOGGER = celery.utils.log.get_task_logger(__name__)
 WORKING_DIRECTORY = os.getenv('GEOSPAAS_PROCESSING_WORK_DIR', '/tmp/test_data')
 RESULTS_LOCATION = os.getenv('GEOSPAAS_PROCESSING_RESULTS_LOCATION', '')
 
-app = Celery('geospaas_processing')
+app = celery.Celery('geospaas_processing')
 app.config_from_object('django.conf:settings', namespace='CELERY')
 
 
-@app.task(bind=True, track_started=True)
+class FaultTolerantTask(celery.Task):  #pylint: disable=abstract-method
+    """
+    Workaround for https://github.com/celery/django-celery/issues/121.
+    Implements after return hook to close the invalid connections.
+    This way, django is forced to serve a new connection for the next task.
+    """
+    def after_return(self, *args, **kwargs):
+        connection.close()
+
+
+@app.task(base=FaultTolerantTask, bind=True, track_started=True)
 def download(self, dataset_id):
     """Downloads the dataset whose ID is `dataset_id`"""
     retries_wait = 15
@@ -48,7 +58,7 @@ def download(self, dataset_id):
             self.retry((dataset_id, ), countdown=retries_wait, max_retries=retries_count)
 
 
-@app.task(bind=True, track_started=True)
+@app.task(base=FaultTolerantTask, bind=True, track_started=True)
 def convert_to_idf(self, dataset_properties):
     """
     Takes a list of tuples.

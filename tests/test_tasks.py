@@ -11,6 +11,16 @@ import geospaas_processing.tasks as tasks
 import geospaas_processing.utils as utils
 
 
+class FaultTolerantTaskTestCase(unittest.TestCase):
+    """Tests for the FaultTolerantTask base class"""
+
+    def test_django_connection_closed_after_task(self):
+        """The after_return handler must be defined and close the connection to the database"""
+        with mock.patch('django.db.connection.close') as mock_close:
+            tasks.FaultTolerantTask().after_return()
+            mock_close.assert_called_once()
+
+
 class DownloadTestCase(unittest.TestCase):
     """Tests for the download() task"""
 

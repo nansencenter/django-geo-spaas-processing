@@ -1,8 +1,11 @@
 """Utility functions for geospaas_processing"""
 import logging
 import os
+import os.path
 import shutil
+import tarfile
 import time
+import zipfile
 from contextlib import contextmanager
 
 try:
@@ -151,3 +154,34 @@ def free_space(download_dir, new_file_size):
                 time.sleep(countdown)
                 retries += 1
     raise CleanUpError("Could not acquire cleanup lock")
+
+
+def unzip(archive_path, out_dir=None):
+    """Extracts the archive contents to `out_dir`"""
+    if not out_dir:
+        out_dir = os.path.dirname(archive_path)
+    with zipfile.ZipFile(archive_path, 'r') as zip_ref:
+        zip_ref.extractall(out_dir)
+
+
+def unarchive(in_file):
+    """Extract contents if `in_file` is an archive"""
+    extract_dir = None
+    if zipfile.is_zipfile(in_file):
+        extract_dir = in_file.replace('.zip', '')
+        LOGGER.debug("Unzipping %s to %s", in_file, extract_dir)
+        unzip(in_file, extract_dir)
+    return extract_dir
+
+
+def tar_gzip(file_path):
+    """Makes the file a tar archive compressed with gzip if the file is not one already"""
+    if os.path.isfile(file_path) and (tarfile.is_tarfile(file_path) or
+                                      zipfile.is_zipfile(file_path)):
+        return file_path
+
+    archive_path = f"{file_path}.tar.gz"
+    if not os.path.isfile(archive_path):
+        with tarfile.open(archive_path, 'w:gz') as archive:
+            archive.add(file_path)
+    return archive_path

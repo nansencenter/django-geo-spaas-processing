@@ -1,14 +1,15 @@
 """Tools for file format conversion"""
 import glob
 import logging
-import mimetypes
 import os.path
 import shutil
 import subprocess
-import zipfile
 from enum import Enum
 
 from geospaas.catalog.models import Dataset
+
+import geospaas_processing.utils as utils
+
 
 LOGGER = logging.getLogger(__name__)
 
@@ -51,14 +52,6 @@ class IDFConverter():
         self.working_directory = working_directory
 
     @staticmethod
-    def unzip(archive_path, out_dir=None):
-        """Extracts the archive contents to `out_dir`"""
-        if not out_dir:
-            out_dir = os.path.dirname(archive_path)
-        with zipfile.ZipFile(archive_path, 'r') as zip_ref:
-            zip_ref.extractall(out_dir)
-
-    @staticmethod
     def run_converter(in_file, out_dir, parameter_file):
         """Runs the IDF converter"""
         input_cli_args = ['-i', 'path', '=', in_file]
@@ -88,17 +81,6 @@ class IDFConverter():
         return parameter_value
 
     @classmethod
-    def unarchive(cls, in_file):
-        """Extract contents if `in_file` is an archive"""
-        extract_dir = None
-        file_type = mimetypes.guess_type(in_file)
-        if file_type[0] == mimetypes.types_map['.zip']:
-            extract_dir = in_file.replace('.zip', '')
-            LOGGER.debug("Unzipping %s to %s", in_file, extract_dir)
-            cls.unzip(in_file, extract_dir)
-        return extract_dir
-
-    @classmethod
     def choose_parameter_file(cls, dataset_id):
         """Choose a parameter file based on the dataset"""
         dataset = Dataset.objects.get(pk=dataset_id)
@@ -120,7 +102,7 @@ class IDFConverter():
                      else self.get_dataset_files(dataset_id)[0])
 
         # Unzip the file if necessary
-        extract_dir = self.unarchive(file_path)
+        extract_dir = utils.unarchive(file_path)
         if extract_dir:
             # Set the extracted file as the path to convert
             file_path = os.path.join(extract_dir, os.listdir(extract_dir)[0])

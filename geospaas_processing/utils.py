@@ -1,13 +1,17 @@
 """Utility functions for geospaas_processing"""
 import logging
+import math
 import os
 import os.path
 import shutil
+import stat
 import tarfile
 import time
 import zipfile
 from contextlib import contextmanager
 
+import paramiko
+import scp
 try:
     from redis import Redis
 except ImportError:
@@ -15,6 +19,7 @@ except ImportError:
 
 
 LOGGER = logging.getLogger(__name__)
+logging.getLogger('paramiko').setLevel(logging.WARNING)
 LOCK_EXPIRE = 3600  # Lock expires in 1 hour
 REDIS_HOST = os.getenv('GEOSPAAS_PROCESSING_REDIS_HOST', None)
 REDIS_PORT = os.getenv('GEOSPAAS_PROCESSING_REDIS_PORT', None)
@@ -22,6 +27,245 @@ REDIS_PORT = os.getenv('GEOSPAAS_PROCESSING_REDIS_PORT', None)
 
 class CleanUpError(Exception):
     """Error while freeing space"""
+
+
+class Storage():
+    """Represents a storage location"""
+
+    def __init__(self, **kwargs):
+        """"""
+        self.path = kwargs['path']
+        self.block_size = self.get_block_size()
+
+    def get_block_size(self):
+        """Get the block size of the file system"""
+        raise NotImplementedError()
+
+    def get_free_space(self):
+        """Get the available space in bytes"""
+        raise NotImplementedError()
+
+    def listdir(self, dir_path):
+        """
+        Get the contents of a directory, as returned by `os.listdir()`.
+        The path is relative to `self.path`.
+        """
+        raise NotImplementedError()
+
+    def stat(self, path):
+        """
+        Get information about a file, as returned by `os.stat()`.
+        The path is relative to `self.path`
+        """
+        raise NotImplementedError()
+
+    def isfile(self, path):
+        """Return True if the file is a regular file. The path is relative to `self.path`"""
+        raise NotImplementedError()
+
+    def isdir(self, path):
+        """Return True if the file is a directory. The path is relative to `self.path`."""
+        raise NotImplementedError()
+
+    def remove(self, path):
+        """Remove the target file. The path is relative to `self.path`."""
+        raise NotImplementedError()
+
+    def put(self, local_path, storage_path):
+        """
+        Put the file from the local filesystem located at `local_path` in the Storage.
+        `storage_path` is the relative path in the Storage.
+        """
+        raise NotImplementedError()
+
+    def _get_file_disk_usage(self, file_size):
+        """
+        Get the space occupied by a file on disk,
+        taking into account the block size of the filesystem.
+        """
+        blocks = math.ceil(float(file_size) / float(self.block_size))
+        return blocks * self.block_size
+
+    def _get_removable_files(self):
+        """
+        Get the characteristics of the files that can be deleted from the directory.
+        Returns a list of tuples containing:
+            - the file path
+            - the file size
+            - the time of the last modification
+        """
+        dirs_to_process = ['']
+        depth = 1
+        max_depth = 1000
+        removable_files = []
+        while dirs_to_process and depth < max_depth:
+            current_dir = dirs_to_process.pop()
+            for file_name in self.listdir(current_dir):
+                path = os.path.join(current_dir, file_name)
+                if self.isfile(path):
+                    file_stat = self.stat(path)
+                    removable_files.append(
+                        (path, self._get_file_disk_usage(file_stat.st_size), file_stat.st_mtime))
+                elif self.isdir(path):
+                    dirs_to_process.append(path)
+                    depth += 1
+        LOGGER.debug("Contents of %s directory: %s", self.path, removable_files)
+        return removable_files
+
+    @staticmethod
+    def _sort_by_mtime(files):
+        """
+        Sorts a list of files by their modification time.
+        The list should have the same structure as returned by `_get_removable_files()`
+        """
+        return sorted(files, key=lambda x: x[2])
+
+    @staticmethod
+    def _total_freeable_space(removable_files):
+        total = 0
+        for file_info in removable_files:
+            total += file_info[1]
+        return total
+
+    def _delete_files(self, space_to_free, removable_files):
+        """
+        Deletes files from the removable_files list until enough space has been freed.
+        removable_files must be sorted by decreasing priority (the first files in the list
+        will be deleted first). space_to_free is in bytes.
+        """
+        files_to_delete = []
+        freed_space = 0
+
+        for file_properties in removable_files:
+            files_to_delete.append(file_properties[0])
+            freed_space += file_properties[1]
+            if freed_space >= space_to_free:
+                break
+
+        for file_path in files_to_delete:
+            self.remove(file_path)
+
+        return freed_space, files_to_delete
+
+    def free_space(self, new_file_size):
+        """
+        Removes files from `self.path` until `new_file_size` bytes have been freed,
+        starting with the oldest files.
+        """
+        max_retries = 10
+        countdown = 5
+        retries = 0
+        while retries < max_retries:
+            with redis_lock('lock_cleanup', self.path) as acquired:
+                if acquired:
+                    current_free_space = self.get_free_space()
+                    removable_files = self._sort_by_mtime(self._get_removable_files())
+                    freeable_space = self._total_freeable_space(removable_files)
+
+                    if new_file_size > freeable_space + current_free_space:
+                        raise CleanUpError("Cannot free enough space")
+                    elif new_file_size > current_free_space:
+                        space_to_free = new_file_size - current_free_space
+                        freed_space, deleted_files = self._delete_files(
+                            space_to_free, removable_files)
+                        LOGGER.info("Freed %d bytes by removing the following files: %s",
+                                    freed_space, deleted_files)
+                        return freed_space, deleted_files
+                    else:
+                        return 0, []
+                else:
+                    LOGGER.info("Waiting for concurrent cleanup to finish")
+                    time.sleep(countdown)
+                    retries += 1
+        raise CleanUpError("Could not acquire cleanup lock")
+
+
+class LocalStorage(Storage):
+    """Represents a storage location on a local disk"""
+
+    def get_block_size(self):
+        return self.stat('').st_blksize
+
+    def get_free_space(self):
+        return shutil.disk_usage(self.path).free
+
+    def listdir(self, dir_path):
+        return os.listdir(os.path.join(self.path, dir_path))
+
+    def stat(self, path):
+        return os.stat(os.path.join(self.path, path))
+
+    def isfile(self, path):
+        return os.path.isfile(os.path.join(self.path, path))
+
+    def isdir(self, path):
+        return os.path.isdir(os.path.join(self.path, path))
+
+    def remove(self, path):
+        os.remove(os.path.join(self.path, path))
+
+    def put(self, local_path, storage_path):
+        shutil.copy(local_path, os.path.join(self.path, storage_path))
+
+
+class RemoteStorage(Storage):
+    """Represents a storage location on a remote Linux host accessible by SSH"""
+
+    def __init__(self, **kwargs):
+        self.host = kwargs['host']
+        host_config = self.get_ssh_config()
+
+        self.ssh_client = paramiko.SSHClient()
+        self.ssh_client.load_system_host_keys()
+        self.ssh_client.connect(self.host, host_config['port'], host_config['user'],
+                                key_filename=host_config['identityfile'][0])
+
+        self.sftp_client = self.ssh_client.open_sftp()
+
+        super().__init__(**kwargs)
+
+    def __del__(self):
+        self.ssh_client.close()
+
+    def get_ssh_config(self):
+        """Read SSH configuration from ~/.ssh/config"""
+        config = paramiko.SSHConfig.from_path(
+            os.path.join(os.path.expanduser('~'), '.ssh', 'config'))
+        return config.lookup(self.host)
+
+    def get_block_size(self):
+        _, stdout, _ = self.ssh_client.exec_command(f"stat -f --printf '%S' '{self.path}'")
+        return int(stdout.read())
+
+    def get_free_space(self):
+        _, stdout, _ = self.ssh_client.exec_command(f"df -B 1 -P '{self.path}'")
+        return int(stdout.readlines()[1].split()[3])
+
+    def listdir(self, dir_path):
+        return self.sftp_client.listdir(os.path.join(self.path, dir_path))
+
+    def stat(self, path):
+        full_path = os.path.join(self.path, path)
+        return self.sftp_client.stat(full_path)
+
+    def isfile(self, path):
+        mode = self.stat(path).st_mode
+        return stat.S_ISREG(mode)
+
+    def isdir(self, path):
+        mode = self.stat(path).st_mode
+        return stat.S_ISDIR(mode)
+
+    def remove(self, path):
+        self.sftp_client.remove(os.path.join(self.path, path))
+
+    def put(self, local_path, storage_path):
+        remote_path = os.path.join(self.path, storage_path)
+        # Create the directory where the files will be copied on the remote server
+        self.ssh_client.exec_command(f"mkdir -p {os.path.dirname(remote_path)}")
+        #Copy the files
+        with scp.SCPClient(self.ssh_client.get_transport()) as scp_client:
+            scp_client.put(local_path, recursive=True, remote_path=remote_path)
 
 
 @contextmanager
@@ -44,116 +288,6 @@ def redis_lock(lock_key, lock_value):
         # if the redis lib is not available or no connection information is provided,
         # always acquire the lock
         yield True
-
-
-def is_leaf_dir(directory_path):
-    """Returns True if a directory does not contain another directory"""
-    leaf_dir = True
-    for file_name in os.listdir(directory_path):
-        if os.path.isdir(os.path.join(directory_path, file_name)):
-            leaf_dir = False
-            break
-    return leaf_dir
-
-
-def leaf_directory_size(directory_path):
-    """Get the total size of a leaf directory contents"""
-    total_size = os.path.getsize(directory_path)
-    for file_name in os.listdir(directory_path):
-        total_size += os.path.getsize(os.path.join(directory_path, file_name))
-    return total_size
-
-
-def get_removable_files(directory_path):
-    """
-    Get the characteristics of the files that can be deleted from the directory.
-    Returns a list of tuples containing:
-        - the file path
-        - the file size
-        - the time of the last modification
-    The candidates for deletion are the files and the leaf directories
-    """
-    removable_files = []
-    for file_name in os.listdir(directory_path):
-        path = os.path.join(directory_path, file_name)
-        file_stat = os.stat(path)
-        if os.path.isfile(path):
-            removable_files.append((path, file_stat.st_size, file_stat.st_mtime))
-        elif os.path.isdir(path):
-            if is_leaf_dir(path):
-                removable_files.append(
-                    (path, leaf_directory_size(path), file_stat.st_mtime))
-            else:
-                removable_files.extend(get_removable_files(path))
-    LOGGER.debug("Contents of %s directory: %s", directory_path, removable_files)
-    return removable_files
-
-
-def sort_by_mtime(files):
-    """
-    Sorts a list of files by their modification time.
-    The list should have the same structure as returned by get_removable_files()
-    """
-    return sorted(files, key=lambda x: x[2])
-
-
-def delete_files(space_to_free, removable_files):
-    """
-    Deletes files from the removable_files list until enough space has been freed.
-    removable_files must be sorted by decreasing priority (the first files will be deleted first).
-    space_to_free is in bytes.
-    """
-    files_to_delete = []
-    freed_space = 0
-
-    for file_properties in removable_files:
-        files_to_delete.append(file_properties[0])
-        freed_space += file_properties[1]
-        if freed_space >= space_to_free:
-            break
-
-    if freed_space < space_to_free:
-        raise CleanUpError("Cannot free enough space")
-
-    LOGGER.info("Freeing %d bytes by removing the following files: %s",
-                freed_space, files_to_delete)
-    for file_path in files_to_delete:
-        if os.path.isfile(file_path):
-            os.remove(file_path)
-        elif os.path.isdir(file_path):
-            shutil.rmtree(file_path)
-
-    return freed_space, files_to_delete
-
-
-def free_space(download_dir, new_file_size):
-    """
-    Removes files from `download_dir` until `new_file_size` bytes have been freed,
-    starting with the oldest files.
-    """
-    max_retries = 10
-    countdown = 5
-    retries = 0
-    while retries < max_retries:
-        with redis_lock('lock_cleanup', download_dir) as acquired:
-            if acquired:
-                current_disk_usage = shutil.disk_usage(download_dir)
-                if new_file_size > current_disk_usage.total:
-                    raise CleanUpError("The file is too big to fit on the disk")
-                elif new_file_size >= current_disk_usage.free:
-                    space_to_free = new_file_size - current_disk_usage.free
-                    download_dir_contents = sort_by_mtime(get_removable_files(download_dir))
-                    if not download_dir_contents:
-                        raise CleanUpError("Could find files to delete to free space")
-
-                    return delete_files(space_to_free, download_dir_contents)
-                else:
-                    return 0, []
-            else:
-                LOGGER.info("Waiting for concurrent cleanup to finish")
-                time.sleep(countdown)
-                retries += 1
-    raise CleanUpError("Could not acquire cleanup lock")
 
 
 def unzip(archive_path, out_dir=None):

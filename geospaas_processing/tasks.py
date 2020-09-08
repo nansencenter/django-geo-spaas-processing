@@ -1,9 +1,19 @@
-"""Long running tasks to be executed by Celery workers"""
+"""
+Long running tasks to be executed by Celery workers.
+All tasks that act on a geospaas dataset (so all the tasks defined here) should:
+  - take as argument a tuple which first element is the dataset's ID.
+  - return a tuple whose first element is the dataset ID.
+If the task also acts on files related to a dataset, it should be decorated
+with `lock_dataset_files`.
+"""
 import errno
 import functools
 import os
+import os.path
+import shutil
 
 import celery
+import scp
 from django.db import connection
 
 import geospaas_processing.utils as utils
@@ -111,3 +121,42 @@ def archive(self, args):  # pylint: disable=unused-argument
             shutil.rmtree(local_path)
     return (dataset_id, os.path.join(os.path.dirname(dataset_file_path),
                                      os.path.basename(compressed_file)))
+
+
+@app.task(bind=True, track_started=True)
+@lock_dataset_files
+def publish(self, args):  # pylint: disable=unused-argument
+    """Copy the file (tree) located at `dataset_file[1]` to the FTP server (using SCP)"""
+    dataset_id = args[0]
+    dataset_file_path = args[1] or None
+
+    ftp_host = os.getenv('GEOSPAAS_PROCESSING_FTP_HOST', None)
+    ftp_root = os.getenv('GEOSPAAS_PROCESSING_FTP_ROOT', None)
+    ftp_path = os.getenv('GEOSPAAS_PROCESSING_FTP_PATH', None)
+
+    if not (ftp_host and ftp_root and ftp_path):
+        raise RuntimeError(
+            'The following environment variables should be set: ' +
+            'GEOSPAAS_PROCESSING_FTP_HOST, ' +
+            'GEOSPAAS_PROCESSING_FTP_ROOT, ' +
+            'GEOSPAAS_PROCESSING_FTP_PATH.'
+        )
+
+    dataset_local_path = os.path.join(WORKING_DIRECTORY, dataset_file_path)
+    remote_storage_path = os.path.join(ftp_root, ftp_path)
+
+    ftp_storage = utils.RemoteStorage(host=ftp_host, path=remote_storage_path)
+    ftp_storage.free_space(os.path.getsize(dataset_local_path))
+
+    LOGGER.info("Copying %s to %s:%s", dataset_local_path, ftp_host,
+                os.path.join(remote_storage_path, dataset_file_path))
+    try:
+        ftp_storage.put(dataset_local_path, dataset_file_path)
+    except scp.SCPException as error:
+        if 'No space left on device' in str(error):
+            ftp_storage.remove(dataset_file_path)
+            self.retry((args,), countdown=90, max_retries=5)
+        else:
+            raise
+
+    return (dataset_id, f"ftp://{ftp_host}/{ftp_path}/{dataset_file_path}")

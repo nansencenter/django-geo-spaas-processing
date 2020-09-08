@@ -109,7 +109,7 @@ class HTTPDownloader(Downloader):
         file_size = cls.get_remote_file_size(response, auth)
         if file_size:
             LOGGER.debug("Checking there is enough free space to download %s bytes", file_size)
-            utils.free_space(download_dir, file_size)
+            utils.LocalStorage(path=download_dir).free_space(file_size)
 
         response_file_name = cls.extract_file_name(response)
         # Make a file name from the one found in the response and the optional prefix

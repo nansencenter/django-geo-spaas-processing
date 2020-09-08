@@ -11,28 +11,6 @@ import django.test
 import geospaas_processing.converters as converters
 
 
-class IDFConverterUnzipTestCase(unittest.TestCase):
-    """Test for the unzip() method of IDFConverter"""
-    def setUp(self):
-        self.zipfile_patcher = mock.patch('zipfile.ZipFile')
-        zipfile_mock = self.zipfile_patcher.start()
-        self.extractall_mock = mock.Mock()
-        zipfile_mock.return_value.__enter__.return_value.extractall = self.extractall_mock
-
-    def tearDown(self):
-        self.zipfile_patcher.stop()
-
-    def test_unzip_with_out_dir(self):
-        """When out_dir is provided, `unzip()` should extract the archive contents there"""
-        converters.IDFConverter.unzip('/foo/bar.zip', '/output_dir')
-        self.extractall_mock.assert_called_with('/output_dir')
-
-    def test_unzip_without_out_dir(self):
-        """When out_dir is provided, `unzip()` should extract the archive contents there"""
-        converters.IDFConverter.unzip('/foo/bar.zip')
-        self.extractall_mock.assert_called_with('/foo')
-
-
 class IDFConverterTestCase(django.test.TestCase):
     """Tests for the IDF converter"""
 
@@ -72,14 +50,6 @@ class IDFConverterTestCase(django.test.TestCase):
                 'collection'
             )
         )
-
-    def test_unarchive_zip_file(self):
-        """
-        Test that a zip file is recognized and extracted to a directory named like the archive file
-        """
-        with mock.patch.object(converters.IDFConverter, 'unzip') as unzip_mock:
-            converters.IDFConverter.unarchive('/foo/bar.zip')
-            unzip_mock.assert_called_with('/foo/bar.zip', '/foo/bar')
 
     def test_choose_parameter_file(self):
         """The correct parameter file must be chosen for each dataset"""

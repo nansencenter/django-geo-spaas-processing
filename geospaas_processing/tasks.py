@@ -93,3 +93,21 @@ def convert_to_idf(self, args):  # pylint: disable=unused-argument
                 dataset_file_path, converted_file)
     return (dataset_id, converted_file)
 
+
+@app.task(bind=True, track_started=True)
+@lock_dataset_files
+def archive(self, args):  # pylint: disable=unused-argument
+    """Compress the dataset file(s) into a tar.gz archive"""
+    dataset_id = args[0]
+    dataset_file_path = args[1] or None
+    local_path = os.path.join(WORKING_DIRECTORY, dataset_file_path)
+    LOGGER.info("Compressing %s", local_path)
+    compressed_file = utils.tar_gzip(local_path)
+    if compressed_file != local_path:
+        LOGGER.info("Removing %s", local_path)
+        try:
+            os.remove(local_path)
+        except IsADirectoryError:
+            shutil.rmtree(local_path)
+    return (dataset_id, os.path.join(os.path.dirname(dataset_file_path),
+                                     os.path.basename(compressed_file)))

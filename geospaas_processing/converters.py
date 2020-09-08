@@ -131,9 +131,8 @@ class IDFConverter():
         # Find results directory
         result_file = ''
         for dir_element in os.listdir(os.path.join(self.working_directory, collection)):
-            if os.path.basename(file_path) in dir_element:
-                # This is destined to be used in a URL so we don't use os.path.join()
-                result_file = f"{collection}/{dir_element}"
+            if os.path.basename(file_path) == dir_element:
+                result_file = os.path.join(collection, dir_element)
                 break
 
         return result_file

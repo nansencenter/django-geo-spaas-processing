@@ -18,10 +18,10 @@ app = celery.Celery('geospaas_processing')
 app.config_from_object('django.conf:settings', namespace='CELERY')
 
 
-class FaultTolerantTask(celery.Task):  #pylint: disable=abstract-method
+class FaultTolerantTask(celery.Task):  # pylint: disable=abstract-method
     """
     Workaround for https://github.com/celery/django-celery/issues/121.
-    Implements after return hook to close the invalid connections.
+    Implements an after return hook to close the invalid connections.
     This way, django is forced to serve a new connection for the next task.
     """
     def after_return(self, *args, **kwargs):

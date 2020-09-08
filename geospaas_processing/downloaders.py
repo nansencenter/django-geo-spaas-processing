@@ -125,8 +125,6 @@ class HTTPDownloader(Downloader):
             with open(file_path, 'wb') as target_file:
                 for chunk in response.iter_content(chunk_size=cls.CHUNK_SIZE):
                     target_file.write(chunk)
-        # except (FileNotFoundError, IsADirectoryError) as error:
-        #     raise DownloadError(f"Could not write the dowloaded file to {file_path}") from error
         except OSError as error:
             if error.errno == errno.ENOSPC:
                 # In case of "No space left on device" error,

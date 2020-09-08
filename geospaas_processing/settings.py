@@ -1,6 +1,6 @@
 """
 Settings for the harvesting daemon. They are defined in a dictionary,
-so that django.settings.configure() can easily be used.
+so that django.settings.configure() can be easily used.
 Also contains Celery settings.
 """
 import os

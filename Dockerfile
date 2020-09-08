@@ -4,7 +4,9 @@ FROM ${BASE_IMAGE} as base
 RUN pip install --no-cache-dir \
     celery==4.4 \
     django-celery-results==1.2 \
-    redis==3.5
+    paramiko==2.7.1 \
+    redis==3.5 \
+    scp==0.13.2
 
 FROM base as full
 

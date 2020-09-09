@@ -49,15 +49,15 @@ def lock_dataset_files(function):
         retries_wait = 15
         retries_count = 60
         task = args[0]
-        dataset_id = args[1][0]
+        task_args = args[1]
+        dataset_id = task_args[0]
         lock_id = f"{DATASET_LOCK_PREFIX}{dataset_id}"
         with utils.redis_lock(lock_id, task.request.id or 'local') as acquired:
             if acquired:
-                result = function(*args, **kwargs)
+                return function(*args, **kwargs)
             else:
                 LOGGER.info("Another task is in progress on dataset %s, retrying", dataset_id)
-                task.retry((dataset_id,), countdown=retries_wait, max_retries=retries_count)
-        return result
+                task.retry((task_args,), countdown=retries_wait, max_retries=retries_count)
     return redis_lock_wrapper
 
 
@@ -82,6 +82,8 @@ def download(self, args):
         # It can be necessary in case of a race condition while cleaning up some space.
         if error.errno == errno.ENOSPC:
             self.retry((args,), countdown=90, max_retries=5)
+        else:
+            raise
     return (dataset_id, downloaded_file)
 
 

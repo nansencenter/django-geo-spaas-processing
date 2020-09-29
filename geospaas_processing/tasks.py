@@ -106,7 +106,7 @@ def convert_to_idf(self, args):  # pylint: disable=unused-argument
     return (dataset_id, converted_file)
 
 
-@app.task(bind=True, track_started=True)
+@app.task(base=FaultTolerantTask, bind=True, track_started=True)
 @lock_dataset_files
 def archive(self, args):  # pylint: disable=unused-argument
     """Compress the dataset file(s) into a tar.gz archive"""
@@ -125,7 +125,7 @@ def archive(self, args):  # pylint: disable=unused-argument
                                      os.path.basename(compressed_file)))
 
 
-@app.task(bind=True, track_started=True)
+@app.task(base=FaultTolerantTask, bind=True, track_started=True)
 @lock_dataset_files
 def publish(self, args):  # pylint: disable=unused-argument
     """Copy the file (tree) located at `dataset_file[1]` to the FTP server (using SCP)"""

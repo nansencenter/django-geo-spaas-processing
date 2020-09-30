@@ -1,4 +1,12 @@
-"""Tools for automatic downloading of files referenced in a GeoSPaaS database"""
+"""
+Tools for automatic downloading of files referenced in a GeoSPaaS database.
+
+In order to use the locking functionalities (for example limit the number of parallel downloads),
+a Redis instance must be available, and the **redis** pip package installed.
+The Redis instance hostname and port can be set via the following environment variables:
+  - GEOSPAAS_PROCESSING_REDIS_HOST
+  - GEOSPAAS_PROCESSING_REDIS_PORT
+"""
 import errno
 import logging
 import os

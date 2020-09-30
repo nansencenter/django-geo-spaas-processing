@@ -299,9 +299,8 @@ class DownloadManagerTestCase(django.test.TestCase):
 
     def test_error_on_too_wide_criteria(self):
         """Test that the download manager raises an error when too many datasets are found"""
-        with mock.patch.object(downloaders.DownloadManager, 'MAX_DOWNLOADS', 1):
-            with self.assertRaises(ValueError):
-                downloaders.DownloadManager(source__instrument__short_name='SLSTR')
+        with self.assertRaises(ValueError):
+            downloaders.DownloadManager(max_downloads=1, source__instrument__short_name='SLSTR')
 
     def test_load_provider_settings(self):
         """Test that provider settings are correctly loaded"""

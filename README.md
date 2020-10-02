@@ -123,16 +123,97 @@ provider's configuration section in the provider settings file.
 TODO
 
 
-## Celery
+## Tasks queue
 
-TODO
+Celery is a framework that enables to submit tasks into a queue.
+The tasks are then processed by one or more workers.
+For more information, please check out the
+[Celery documentation](https://docs.celeryproject.org/en/stable/).
 
+The `geospaas_processing` package offers the options to run the processing modules as Celery tasks.
 
 ### Architecture
 
-TODO
+Here is a description of thr architecture in which `geospaas_processing` is supposed to be used.
 
+The components are:
+  - a Celery worker
+  - a RabbitMQ instance
+  - a Redis instance
+  - a Database
+  - the client that triggers jobs (for example a REST API)
+
+![geospaas_architecture](./geospaas_processing_arch.png)
+
+The workflow represented on the diagram is the following:
+  - the client submits tasks to the queue
+  - the worker retrieves tasks from the queue and executes them
+  - the results of the tasks are stored in the database and can be accessed by the client
+  - the Redis instance is used to synchronize the multiple processes spawned by the worker.
 
 ### Tasks
 
+The `geospaas_processing.tasks` module provides various Celery tasks.
+
+All these tasks are designed to work with datasets which are present in the GeoSPaaS database.
+They all take one argument: a tuple containing a dataset ID as it's first element, and other 
+elements depending on the task. This makes it possible to prevent simultaneous operations on the
+same dataset's files, and makes it easy to chain these tasks.
+
+#### `download()`
+
+Downloads a dataset.
+
+Argument: a one-element tuple containing the ID of the dataset to download.
+
+Example:
+
+```python
+# Asynchronously downloads the dataset whose ID is 180
+geospaas_processing.tasks.download.delay((180,))
+```
+
+#### `convert_to_idf()`
+
 TODO
+
+#### `archive()`
+
+Compresses a dataset file into a tar.gz archive.
+
+Argument: a two-elements tuple containing the dataset's ID and the path to the file to archive.
+
+```python
+geospaas_processing.tasks.archive.delay((180, './dataset_180.nc'))
+```
+
+#### `publish()`
+
+Copies the given file or directory to a remote server using SCP.
+
+Argument: a two-elements tuple containing the ID of the dataset and the path to the file to upload.
+
+This task also requires the following environment variables to be set:
+  - `GEOSPAAS_PROCESSING_FTP_HOST`: the hostname of the server to which the files will be copied
+  - `GEOSPAAS_PROCESSING_FTP_ROOT`: the FTP root folder
+  - `GEOSPAAS_PROCESSING_FTP_PATH`: the path where the files must be copied relative to the FTP root
+                                    folder.
+
+The variables are named like that because the original purpose of this task is to publish files on
+an FTP server accessible via SCP.
+
+A little more detail about these variables:
+  - they are concatenated with a slash as separator to determine the absolute path to which files
+    must be copied on the remote server.
+  - `GEOSPAAS_PROCESSING_FTP_HOST` and `GEOSPAAS_PROCESSING_FTP_PATH` is used to determine the URL
+    of the copied files
+
+For example, given the following values:
+  - `GEOSPAAS_PROCESSING_FTP_HOST='ftp.domain.com'`
+  - `GEOSPAAS_PROCESSING_FTP_ROOT='/ftp_root'`:
+  - `GEOSPAAS_PROCESSING_FTP_PATH='project'`:
+
+If the task is called with the following argument: `(180, './foo/dataset_180.nc')`
+  - the file will be copied to `ftp.domain.com:/ftp_root/project/foo/dataset_180.nc`.
+  - the task will return the following tuple:
+    `(180, ftp://ftp.domain.com/project/foo/dataset_180.nc)`.

@@ -14,6 +14,9 @@ import posixpath
 import shutil
 
 import celery
+import celery.utils.log
+import celery.signals
+import graypy.handler
 import scp
 from django.db import connection
 
@@ -28,6 +31,16 @@ DATASET_LOCK_PREFIX = 'lock-'
 
 app = celery.Celery('geospaas_processing')
 app.config_from_object('django.conf:settings', namespace='CELERY')
+
+
+@celery.signals.after_setup_logger.connect
+def setup_logger(logger, *args, **kwargs):  # pylint: disable=unused-argument
+    """Set up a GELF handler for Celery tasks if the necessary environment variables are set"""
+    logging_host = os.getenv('GEOSPAAS_PROCESSING_LOGGING_HOST')
+    logging_port = os.getenv('GEOSPAAS_PROCESSING_LOGGING_PORT')
+    if logging_host and logging_port:
+        gelf_handler = graypy.handler.GELFTCPHandler(logging_host, logging_port, facility=__name__)
+        logger.addHandler(gelf_handler)
 
 
 class FaultTolerantTask(celery.Task):  # pylint: disable=abstract-method

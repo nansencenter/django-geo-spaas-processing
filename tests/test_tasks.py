@@ -7,6 +7,7 @@ import unittest
 import unittest.mock as mock
 
 import celery
+import graypy.handler
 import scp
 
 import geospaas_processing.downloaders as downloaders
@@ -52,6 +53,24 @@ class LockDecoratorTestCase(unittest.TestCase):
         args = (1,)
         self.decorated_function(mock_task, args)
         mock_task.retry.assert_called()
+
+
+class SignalsTestCase(unittest.TestCase):
+    """Unit tests for Celery signal functions"""
+
+    def test_setup_logger(self):
+        """
+        The setup_logger() functions must add a GELF handler if the
+        right environment variables are defined
+        """
+        with mock.patch('os.getenv', return_value='test'):
+            logger = logging.Logger('test_logger')
+            tasks.setup_logger(logger)
+            handler = logger.handlers[0]
+        self.assertIsInstance(handler, graypy.handler.GELFTCPHandler)
+        self.assertEqual(handler.host, 'test')
+        self.assertEqual(handler.port, 'test')
+        self.assertEqual(handler.facility, tasks.__name__)
 
 
 class DownloadTestCase(unittest.TestCase):

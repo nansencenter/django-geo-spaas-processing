@@ -11,6 +11,9 @@ RUN pip install --no-cache-dir \
 
 FROM base as full
 
+COPY idf_converter.tar.gz /tmp/idf_converter.tar.gz
+RUN pip install /tmp/idf_converter.tar.gz
+
 WORKDIR /tmp/setup
 COPY setup.py README.md ./
 COPY geospaas_processing ./geospaas_processing

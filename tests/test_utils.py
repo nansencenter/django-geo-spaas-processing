@@ -84,7 +84,7 @@ class UtilsTestCase(unittest.TestCase):
             self.assertEqual(archive_path, f"{file_path}.tar.gz")
             self.assertTrue(tarfile.is_tarfile(archive_path))
             with tarfile.open(archive_path) as tar_file:
-                self.assertListEqual(tar_file.getnames(), [file_path.lstrip('/')])
+                self.assertListEqual(tar_file.getnames(), [os.path.basename(file_path)])
 
     def test_tar_gzip_file_noop(self):
         """`utils.tar_gzip()` must do nothing if the given file is already an archive"""

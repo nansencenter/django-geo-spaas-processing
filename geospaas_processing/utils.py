@@ -317,5 +317,5 @@ def tar_gzip(file_path):
     archive_path = f"{file_path}.tar.gz"
     if not os.path.isfile(archive_path):
         with tarfile.open(archive_path, 'w:gz') as archive:
-            archive.add(file_path)
+            archive.add(file_path, arcname=os.path.basename(file_path))
     return archive_path

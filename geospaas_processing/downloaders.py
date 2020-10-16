@@ -47,7 +47,7 @@ class HTTPDownloader(Downloader):
     CHUNK_SIZE = 1024 * 1024
 
     @staticmethod
-    def extract_file_name(response,url):
+    def extract_file_name(response, url):
         """Extracts the file name from the Content-Disposition header of an HTTP response"""
         filename_key = 'filename='
 
@@ -62,6 +62,9 @@ class HTTPDownloader(Downloader):
             raise ValueError("Multiple file names found in response Content-Disposition header")
         elif filename_attributes_length == 1:
             return filename_attributes[0].replace(filename_key, '').strip('"')
+        if Dataset.objects.get(dataseturi__uri=url).entry_id == None or len(
+                Dataset.objects.get(dataseturi__uri=url).entry_id) == 0:
+            raise ValueError("The dataset has incorrect value of 'entry_id' ")
         return Dataset.objects.get(dataseturi__uri=url).entry_id
 
     @staticmethod
@@ -111,7 +114,7 @@ class HTTPDownloader(Downloader):
             LOGGER.debug("Checking there is enough free space to download %s bytes", file_size)
             utils.free_space(download_dir, file_size)
 
-        response_file_name = cls.extract_file_name(response,url)
+        response_file_name = cls.extract_file_name(response, url)
         # Make a file name from the one found in the response and the optional prefix
         # If both of them are empty, an exception is raised
         file_name = '_'.join([name for name in [file_prefix, response_file_name] if name])
@@ -174,7 +177,6 @@ class DownloadLock():
             self.redis = Redis(redis_host, redis_port)
         else:
             self.redis = None
-
 
     def __enter__(self):
         """

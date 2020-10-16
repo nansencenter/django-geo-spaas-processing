@@ -33,31 +33,15 @@ class HTTPDownloaderUtilsTestCase(unittest.TestCase):
         file_name = "test_file.txt"
         response = requests.Response()
         response.headers['Content-Disposition'] = f'inline;filename="{file_name}"'
-        self.assertEqual(downloaders.HTTPDownloader.extract_file_name(response), file_name)
+        self.assertEqual(downloaders.HTTPDownloader.extract_file_name(response,''), file_name)
 
-    def test_extract_filename_no_header(self):
-        """
-        `extract_file_name` must return an empty string if
-        the Content-Disposition header is not present
-        """
-        response = requests.Response()
-        self.assertEqual(downloaders.HTTPDownloader.extract_file_name(response), '')
-
-    def test_extract_filename_no_filename_in_header(self):
-        """
-        `extract_file_name` must return an empty string if the filename
-        is not contained in the Content-Disposition header
-        """
-        response = requests.Response()
-        response.headers['Content-Disposition'] = ''
-        self.assertEqual(downloaders.HTTPDownloader.extract_file_name(response), '')
 
     def test_extract_filename_multiple_possibilities(self):
         """An error must be raised if several file names are found in the header"""
         response = requests.Response()
         response.headers['Content-Disposition'] = 'inline;filename="f1";filename="f2"'
         with self.assertRaises(ValueError):
-            downloaders.HTTPDownloader.extract_file_name(response)
+            downloaders.HTTPDownloader.extract_file_name(response,'')
 
     def test_build_basic_auth(self):
         """Test building the authentication argument for a GET request"""
@@ -129,25 +113,35 @@ class HTTPDownloaderTestCase(unittest.TestCase):
         self.mock_free_space.assert_called_once()
 
     def test_download_url_with_prefix(self):
-        """Test that the prefix is prepended to the downloaded file's name"""
-        prefix = 'dataset_1'
+        """Test that the prefix is prepended to the downloaded file's name assigned in the header"""
+        prefix = 'test_prefix_value'
         with mock.patch('requests.get', return_value=self.response):
             result = downloaders.HTTPDownloader.download_url('', self.download_dir, prefix)
         self.assertEqual(result, f"{prefix}_{self.file_name}")
 
-    def test_download_url_only_prefix(self):
-        """The downloaded file name must be the prefix if nothing can be found in the headers"""
-        prefix = 'dataset_1'
+    @mock.patch("geospaas.catalog.models.Dataset.objects.get")
+    def test_download_url_only_entry_id_with_explanation_in_header_of_response(self,mock_get):
+        """The downloaded file name must be the prefix plus entry_id value if nothing can be found
+           in the header"""
+        mock_get.return_value.entry_id='value_of_entry_id'
+        prefix='test_prefix_value'
         del self.response.headers['Content-Disposition']
         with mock.patch('requests.get', return_value=self.response):
             result = downloaders.HTTPDownloader.download_url('', self.download_dir, prefix)
-        self.assertEqual(result, prefix)
+        self.assertEqual(result, f"{prefix}_value_of_entry_id")
 
-    def test_download_url_error_if_no_file_name(self):
+    @mock.patch("geospaas.catalog.models.Dataset.objects.get")
+    def test_download_url_error_if_no_file_name(self,mock_get):
         """
-        An exception must be raised if no prefix is provided and nothing can be found in the headers
+        An exception must be raised if no prefix is provided and nothing can be found in entry_id
         """
         del self.response.headers['Content-Disposition']
+        mock_get.return_value.entry_id=None
+        with mock.patch('requests.get', return_value=self.response):
+            with self.assertRaises(ValueError):
+                downloaders.HTTPDownloader.download_url('', self.download_dir)
+
+        mock_get.return_value.entry_id=''
         with mock.patch('requests.get', return_value=self.response):
             with self.assertRaises(ValueError):
                 downloaders.HTTPDownloader.download_url('', self.download_dir)

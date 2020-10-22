@@ -12,6 +12,7 @@ import logging
 import os
 import os.path
 import re
+import urlparse
 
 import requests
 import requests.utils
@@ -41,7 +42,7 @@ class TooManyDownloadsError(DownloadError):
 class Downloader():
     """Base class for downloaders"""
     @classmethod
-    def download_url(cls, url, download_dir, file_prefix=None, **kwargs):
+    def check_and_download_url(cls, url, download_dir, file_prefix=None, **kwargs):
         """
         Downloads the file from the requested URL. To be implemented in child classes.
         Must call utils.free_space() before downloading, and manage the case where there
@@ -99,8 +100,22 @@ class HTTPDownloader(Downloader):
         return file_size
 
     @classmethod
-    def download_url(cls, url, download_dir, file_prefix='', **kwargs):
-        """Download file from HTTP URL"""
+    def get_file_name(cls, response, url, file_prefix=''):
+        """ Get the name of downloaded file either from header of <response>, or from <url>.
+        Prepend the file name with <file_prefix> if given """
+        file_name = cls.extract_file_name(response)
+        if not file_name:
+            file_name = os.path.basename(urlparse.urlparse(url).path)
+        if file_prefix:
+            file_name = '_'.join([name for name in [file_prefix, file_name] if name])
+        if not file_name:
+            raise ValueError(
+                "No file name could be extracted from the request and no file prefix was provided")
+        return file_name
+
+    @classmethod
+    def check_and_download_url(cls, url, download_dir, file_prefix='', **kwargs):
+        """ Download file from HTTP URL if it doesn't already exist """
         auth = cls.build_basic_auth(kwargs)
         try:
             response = requests.get(url, stream=True, auth=auth)
@@ -119,15 +134,12 @@ class HTTPDownloader(Downloader):
             LOGGER.debug("Checking there is enough free space to download %s bytes", file_size)
             utils.LocalStorage(path=download_dir).free_space(file_size)
 
-        response_file_name = cls.extract_file_name(response)
-        # Make a file name from the one found in the response and the optional prefix
-        # If both of them are empty, an exception is raised
-        file_name = '_'.join([name for name in [file_prefix, response_file_name] if name])
-        if not file_name:
-            raise ValueError(
-                "No file name could be extracted from the request and no file prefix was provided")
-
+        file_name = cls.get_file_name(response, url, file_prefix)
         file_path = os.path.join(download_dir, file_name)
+
+        # early quit if file already exists
+        if os.path.exists(file_path):
+            return file_name, False
 
         try:
             with open(file_path, 'wb') as target_file:
@@ -145,7 +157,7 @@ class HTTPDownloader(Downloader):
         finally:
             response.close()
 
-        return file_name
+        return file_name, True
 
 
 class DownloadLock():
@@ -225,7 +237,7 @@ class DownloadManager():
     }
 
     def __init__(self, download_directory='.', provider_settings_path=None, max_downloads=100,
-                 **criteria):
+                 use_file_prefix=True, **criteria):
         """
         `criteria` accepts the same keyword arguments as Django's `filter()` method.
         When filtering on time coverage, it is preferable to use timezone aware datetimes.
@@ -235,6 +247,7 @@ class DownloadManager():
         if not self.datasets:
             raise DownloadError("No dataset matches the search criteria")
         self.download_directory = download_directory
+        self.use_file_prefix = use_file_prefix
         LOGGER.debug("Found %d datasets", self.datasets.count())
         if self.datasets.count() > self.max_downloads:
             raise ValueError("Too many datasets to download")
@@ -251,14 +264,7 @@ class DownloadManager():
                 return self.provider_settings[prefix]
         return {}
 
-    def find_dataset_file(self, file_prefix):
-        """Find a downloaded file for the dataset"""
-        for filename in os.listdir(self.download_directory):
-            if re.match(f"^{file_prefix}(|_.*)$", filename):
-                return filename
-        return None
-
-    def download_dataset(self, dataset):
+    def download_dataset(self, dataset, download_directory):
         """
         Attempts to download a dataset by trying its URIs one by one. For each `DatasetURI`, it
         selects the appropriate Dowloader based on the `service` property.
@@ -274,13 +280,10 @@ class DownloadManager():
                 LOGGER.debug("Loaded extra settings for provider %s: %s",
                              dataset_uri_prefix, extra_settings)
 
-            file_prefix = f"dataset_{dataset.pk}"
-
-            # Check if the dataset already exists
-            filename = self.find_dataset_file(file_prefix)
-            if filename:
-                LOGGER.debug("Dataset %d is already present at %s", dataset.pk, filename)
-                return filename
+            if self.use_file_prefix:
+                file_prefix = f"dataset_{dataset.pk}"
+            else:
+                file_prefix = ''
 
             # Launch download if the maximum number of parallel downloads has not been reached
             with DownloadLock(dataset_uri_prefix,
@@ -300,14 +303,10 @@ class DownloadManager():
 
                 LOGGER.debug("Attempting to download from '%s'", dataset_uri.uri)
                 try:
-                    file_name = downloader.download_url(
-                        dataset_uri.uri, self.download_directory,
+                    file_name, downloaded = downloader.check_and_download_url(
+                        dataset_uri.uri, download_directory,
                         file_prefix=file_prefix, **extra_settings
                     )
-                    if file_name:
-                        LOGGER.info("Successfully downloaded dataset %d to %s",
-                                    dataset.pk, file_name)
-                        return file_name
                 except DownloadError:
                     LOGGER.warning(
                         ("Failed to download dataset %s from %s. "
@@ -317,11 +316,20 @@ class DownloadManager():
                 except (FileNotFoundError, IsADirectoryError) as error:
                     raise DownloadError(
                         f"Could not write the dowloaded file to {error.filename}") from error
+                else:
+                    if downloaded:
+                        LOGGER.info("Successfully downloaded dataset %d to %s",
+                                    dataset.pk, file_name)
+                    else:
+                        LOGGER.debug("Dataset %d is already present at %s", dataset.pk, filename)
+                    return file_name
         raise DownloadError(f"Did not manage to download dataset {dataset.pk}")
 
     def download(self):
         """Attempt to download all datasets matching the criteria"""
         files = []
         for dataset in self.datasets:
-            files.append(self.download_dataset(dataset))
+            download_directory = self.dataset.time_coverage_start.strftime(self.download_directory)
+            os.makedirs(download_directory, exist_ok=True)
+            files.append(self.download_dataset(dataset, download_directory))
         return files

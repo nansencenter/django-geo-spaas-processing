@@ -12,7 +12,7 @@ import logging
 import os
 import os.path
 import re
-import urlparse
+from urllib.parse import urlparse
 
 import requests
 import requests.utils

@@ -12,8 +12,9 @@ services:
 
 env:
   global:
-    - BASE_IMAGE_NAME="${DOCKER_ORG}/geospaas:v1.0.1"
+    - BASE_IMAGE_NAME="${DOCKER_ORG}/geospaas:2.0.0-slim"
     - IMAGE_NAME="${DOCKER_ORG}/geospaas_processing_worker"
+    - IDF_CONVERTER_VERSION=0.0.124
 jobs:
   include:
     - stage: 'Unit tests'
@@ -46,9 +47,7 @@ jobs:
           -e "GEOSPAAS_DB_USER=$GEOSPAAS_DB_USER" -e "GEOSPAAS_DB_PASSWORD=$GEOSPAAS_DB_PASSWORD"
           --entrypoint bash
           "${IMAGE_NAME}"
-          -c "source /opt/conda/bin/activate
-          && coverage run --source=./geospaas_processing /src/runtests.py
-          && coveralls"
+          -c "coverage run --source=./geospaas_processing /src/runtests.py && coveralls"
       after_script:
         - docker stop "$GEOSPAAS_DB_HOST"
 
@@ -58,6 +57,11 @@ jobs:
       env:
         - DOCKER_TMP_TAG='tmp'
       install:
+        - >
+          curl -L -o ./idf_converter.tar.gz
+          -H "Authorization: token ${GITHUB_API_TOKEN}"
+          -H 'Accept: application/vnd.github.v3.raw'
+          "https://api.github.com/repos/nansencenter/idf-converter/contents/idf_converter-${IDF_CONVERTER_VERSION}.tar.gz"
         - docker pull "${IMAGE_NAME}" || true
       script:
         - >

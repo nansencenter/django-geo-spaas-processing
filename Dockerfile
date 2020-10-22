@@ -5,11 +5,14 @@ RUN pip install --no-cache-dir \
     celery==4.4 \
     django-celery-results==1.2 \
     graypy==2.1.0 \
-    paramiko==2.7.1 \
+    paramiko==2.7.2 \
     redis==3.5 \
     scp==0.13.2
 
 FROM base as full
+
+COPY idf_converter.tar.gz /tmp/idf_converter.tar.gz
+RUN pip install /tmp/idf_converter.tar.gz
 
 WORKDIR /tmp/setup
 COPY setup.py README.md ./

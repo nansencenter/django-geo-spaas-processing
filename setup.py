@@ -6,7 +6,7 @@ with open(os.path.join(os.path.dirname(__file__), "README.md"), "r") as fh:
 
 setuptools.setup(
     name="geospaas_processing",
-    version="0.0.2",
+    version="0.0.3",
     author="Adrien Perrin",
     author_email="adrien.perrin@nersc.no",
     description="Processing tools for GeoSPaaS",
@@ -20,6 +20,6 @@ setuptools.setup(
         "Operating System :: POSIX :: Linux",
     ],
     python_requires='>=3.7',
-    install_requires=['django-geo-spaas'],
+    install_requires=['django-geo-spaas', 'paramiko', 'scp'],
     package_data={'': ['*.yml']},
 )

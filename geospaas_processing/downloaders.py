@@ -1,4 +1,12 @@
-"""Tools for automatic downloading of files referenced in a GeoSPaaS database"""
+"""
+Tools for automatic downloading of files referenced in a GeoSPaaS database.
+
+In order to use the locking functionalities (for example limit the number of parallel downloads),
+a Redis instance must be available, and the **redis** pip package installed.
+The Redis instance hostname and port can be set via the following environment variables:
+  - GEOSPAAS_PROCESSING_REDIS_HOST
+  - GEOSPAAS_PROCESSING_REDIS_PORT
+"""
 import errno
 import logging
 import os
@@ -109,7 +117,7 @@ class HTTPDownloader(Downloader):
         file_size = cls.get_remote_file_size(response, auth)
         if file_size:
             LOGGER.debug("Checking there is enough free space to download %s bytes", file_size)
-            utils.free_space(download_dir, file_size)
+            utils.LocalStorage(path=download_dir).free_space(file_size)
 
         response_file_name = cls.extract_file_name(response)
         # Make a file name from the one found in the response and the optional prefix
@@ -125,8 +133,6 @@ class HTTPDownloader(Downloader):
             with open(file_path, 'wb') as target_file:
                 for chunk in response.iter_content(chunk_size=cls.CHUNK_SIZE):
                     target_file.write(chunk)
-        # except (FileNotFoundError, IsADirectoryError) as error:
-        #     raise DownloadError(f"Could not write the dowloaded file to {file_path}") from error
         except OSError as error:
             if error.errno == errno.ENOSPC:
                 # In case of "No space left on device" error,
@@ -175,7 +181,6 @@ class DownloadLock():
         else:
             self.redis = None
 
-
     def __enter__(self):
         """
         If no Redis instance is defined, returns True.
@@ -214,23 +219,24 @@ class DownloadLock():
 class DownloadManager():
     """Downloads datasets based on some criteria, using the right downloaders"""
 
-    MAX_DOWNLOADS = 10  # Maximum number of datasets matching the criteria
     DOWNLOADERS = {
         geospaas.catalog.managers.OPENDAP_SERVICE: HTTPDownloader,
         geospaas.catalog.managers.HTTP_SERVICE: HTTPDownloader
     }
 
-    def __init__(self, download_directory='.', provider_settings_path=None, **criteria):
+    def __init__(self, download_directory='.', provider_settings_path=None, max_downloads=100,
+                 **criteria):
         """
         `criteria` accepts the same keyword arguments as Django's `filter()` method.
         When filtering on time coverage, it is preferable to use timezone aware datetimes.
         """
+        self.max_downloads = max_downloads
         self.datasets = Dataset.objects.filter(**criteria)
         if not self.datasets:
             raise DownloadError("No dataset matches the search criteria")
         self.download_directory = download_directory
         LOGGER.debug("Found %d datasets", self.datasets.count())
-        if self.datasets.count() > self.MAX_DOWNLOADS:
+        if self.datasets.count() > self.max_downloads:
             raise ValueError("Too many datasets to download")
 
         provider_settings_path = provider_settings_path or os.path.join(

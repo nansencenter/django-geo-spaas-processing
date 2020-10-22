@@ -13,6 +13,7 @@ from geospaas.catalog.models import Dataset
 from redis import Redis
 
 import geospaas_processing.downloaders as downloaders
+import geospaas_processing.utils as utils
 
 
 class DownloaderTestCase(unittest.TestCase):
@@ -86,7 +87,7 @@ class HTTPDownloaderTestCase(unittest.TestCase):
         self.response.status_code = 200
         self.response._content = bytes(self.response_text, 'utf-8')  #pylint:disable=protected-access
 
-        self.mock_free_space = mock.patch('geospaas_processing.utils.free_space').start()
+        self.mock_free_space = mock.patch.object(utils.LocalStorage, 'free_space').start()
         mock.patch('geospaas_processing.utils.REDIS_HOST', None).start()
         mock.patch('geospaas_processing.utils.REDIS_PORT', None).start()
         self.addCleanup(mock.patch.stopall)
@@ -298,9 +299,8 @@ class DownloadManagerTestCase(django.test.TestCase):
 
     def test_error_on_too_wide_criteria(self):
         """Test that the download manager raises an error when too many datasets are found"""
-        with mock.patch.object(downloaders.DownloadManager, 'MAX_DOWNLOADS', 1):
-            with self.assertRaises(ValueError):
-                downloaders.DownloadManager(source__instrument__short_name='SLSTR')
+        with self.assertRaises(ValueError):
+            downloaders.DownloadManager(max_downloads=1, source__instrument__short_name='SLSTR')
 
     def test_load_provider_settings(self):
         """Test that provider settings are correctly loaded"""

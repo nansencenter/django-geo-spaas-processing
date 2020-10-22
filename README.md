@@ -134,7 +134,7 @@ The `geospaas_processing` package offers the options to run the processing modul
 
 ### Architecture
 
-Here is a description of thr architecture in which `geospaas_processing` is supposed to be used.
+Here is a description of the architecture in which `geospaas_processing` is supposed to be used.
 
 The components are:
   - a Celery worker
@@ -175,7 +175,15 @@ geospaas_processing.tasks.download.delay((180,))
 
 #### `convert_to_idf()`
 
-TODO
+Converts a dataset to the IDF format for usage in Oceandatalab's
+[SEAScope](https://seascope.oceandatalab.com/index.html).
+
+Argument: a two-elements tuple containing the ID of the dataset and the path to the file to convert.
+
+```python
+# Asynchronously convert the dataset whose ID is 180
+geospaas_processing.tasks.convert_to_idf.delay((180, './dataset_180.nc'))
+```
 
 #### `archive()`
 

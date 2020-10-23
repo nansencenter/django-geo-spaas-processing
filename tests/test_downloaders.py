@@ -6,24 +6,23 @@ import os.path
 import tempfile
 import unittest
 import unittest.mock as mock
+from pathlib import Path
 
 import django.test
+import geospaas_processing.downloaders as downloaders
+import geospaas_processing.utils as utils
 import requests
 from geospaas.catalog.models import Dataset
 from redis import Redis
-
-import geospaas_processing.downloaders as downloaders
-import geospaas_processing.utils as utils
-
 
 class DownloaderTestCase(unittest.TestCase):
     """Tests for the base Downloader class"""
 
     def test_abstract_download_url(self):
-        """The `download_url` method must be abstract"""
+        """The `check_and_download_url` method must be abstract"""
         downloader = downloaders.Downloader()
         with self.assertRaises(NotImplementedError):
-            downloader.download_url('', '')
+            downloader.check_and_download_url('', '')
 
 
 class HTTPDownloaderUtilsTestCase(unittest.TestCase):
@@ -85,7 +84,7 @@ class HTTPDownloaderTestCase(unittest.TestCase):
         self.response.headers['Content-Disposition'] = f'inline;filename="{self.file_name}"'
         self.response.headers['Content-Length'] = 1
         self.response.status_code = 200
-        self.response._content = bytes(self.response_text, 'utf-8')  #pylint:disable=protected-access
+        self.response._content = bytes(self.response_text, 'utf-8')
 
         self.mock_free_space = mock.patch.object(utils.LocalStorage, 'free_space').start()
         mock.patch('geospaas_processing.utils.REDIS_HOST', None).start()
@@ -113,76 +112,97 @@ class HTTPDownloaderTestCase(unittest.TestCase):
         with mock.patch('requests.head', return_value=requests.Response()):
             self.assertIsNone(downloaders.HTTPDownloader.get_remote_file_size(self.response, {}))
 
-    def test_download_url(self):
+    def test_check_and_download_url(self):
         """Test a simple file download"""
         with mock.patch('requests.get', return_value=self.response):
-            result = downloaders.HTTPDownloader.download_url('', self.download_dir)
-        self.assertEqual(result, self.file_name)
+            result = downloaders.HTTPDownloader.check_and_download_url('', self.download_dir)
+        self.assertEqual(result, (self.file_name, True))
 
         with open(os.path.join(self.download_dir, self.file_name), 'r') as file_handler:
             file_contents = file_handler.readlines()
         self.assertEqual(file_contents[0], self.response_text)
 
-    def test_download_url_frees_space(self):
-        """download_url() must call utils.free_space()"""
+    def test_check_and_download_url_frees_space(self):
+        """check_and_download_url() must call utils.free_space()"""
         with mock.patch('requests.get', return_value=self.response):
-            downloaders.HTTPDownloader.download_url('', self.download_dir)
+            downloaders.HTTPDownloader.check_and_download_url('', self.download_dir)
         self.mock_free_space.assert_called_once()
 
-    def test_download_url_with_prefix(self):
+    def test_check_and_download_url_with_prefix(self):
         """Test that the prefix is prepended to the downloaded file's name"""
         prefix = 'dataset_1'
         with mock.patch('requests.get', return_value=self.response):
-            result = downloaders.HTTPDownloader.download_url('', self.download_dir, prefix)
-        self.assertEqual(result, f"{prefix}_{self.file_name}")
+            result = downloaders.HTTPDownloader.check_and_download_url('', self.download_dir, prefix)
+        self.assertEqual(result, (f"{prefix}_{self.file_name}", True))
 
-    def test_download_url_only_prefix(self):
+    def test_check_and_download_url_with_prefix_None(self):
+        """Test that the prefix (=None) is not prepended to the downloaded file's name"""
+        prefix = None
+        with mock.patch('requests.get', return_value=self.response):
+            result = downloaders.HTTPDownloader.check_and_download_url('', self.download_dir, prefix)
+        self.assertEqual(result, (f"{self.file_name}", True))
+
+    def test_check_and_download_url_with_prefix_empty_string(self):
+        """Test that the prefix (='') is not prepended to the downloaded file's name"""
+        prefix = ''
+        with mock.patch('requests.get', return_value=self.response):
+            result = downloaders.HTTPDownloader.check_and_download_url('', self.download_dir, prefix)
+        self.assertEqual(result, (f"{self.file_name}", True))
+
+    def test_check_and_download_url_only_prefix(self):
         """The downloaded file name must be the prefix if nothing can be found in the headers"""
         prefix = 'dataset_1'
         del self.response.headers['Content-Disposition']
         with mock.patch('requests.get', return_value=self.response):
-            result = downloaders.HTTPDownloader.download_url('', self.download_dir, prefix)
-        self.assertEqual(result, prefix)
+            result = downloaders.HTTPDownloader.check_and_download_url('', self.download_dir, prefix)
+        self.assertEqual(result, (prefix, True))
 
-    def test_download_url_error_if_no_file_name(self):
+    def test_check_and_download_url_error_if_no_file_name(self):
         """
         An exception must be raised if no prefix is provided and nothing can be found in the headers
         """
         del self.response.headers['Content-Disposition']
         with mock.patch('requests.get', return_value=self.response):
             with self.assertRaises(ValueError):
-                downloaders.HTTPDownloader.download_url('', self.download_dir)
+                downloaders.HTTPDownloader.check_and_download_url('', self.download_dir)
 
-    def test_download_url_error_if_invalid_download_dir(self):
+    def test_check_and_download_url_error_if_invalid_download_dir(self):
         """An exception must be raised if the download directory does not exist"""
         with mock.patch('requests.get', return_value=self.response):
             with self.assertRaises(FileNotFoundError):
-                downloaders.HTTPDownloader.download_url('', '/drgdfsr')
+                downloaders.HTTPDownloader.check_and_download_url('', '/drgdfsr')
 
-    def test_download_url_error_if_target_is_a_directory(self):
+    def test_check_and_download_url_error_if_target_is_a_directory(self):
         """An exception must be raised if the destination file already exists and is a directory"""
         os.mkdir(self.file_path)
         with mock.patch('requests.get', return_value=self.response):
             with self.assertRaises(IsADirectoryError):
-                downloaders.HTTPDownloader.download_url('', self.download_dir)
+                downloaders.HTTPDownloader.check_and_download_url('', self.download_dir)
 
-    def test_download_url_error_if_empty_file(self):
+    def test_check_and_download_url_return_false_in_second_value_if_target_is_a_file(self):
+        """check_and_download_url should return false if the destination file already exists """
+        Path(self.file_path).touch()
+        with mock.patch('requests.get', return_value=self.response):
+            self.assertFalse(
+                downloaders.HTTPDownloader.check_and_download_url('', self.download_dir)[1])
+
+    def test_check_and_download_url_error_if_empty_file(self):
         """An exception must be raised if the response is empty"""
         self.response._content = b''  # pylint: disable=protected-access
         with mock.patch('requests.get', return_value=self.response):
             with self.assertRaises(downloaders.DownloadError):
-                downloaders.HTTPDownloader.download_url('', self.download_dir)
+                downloaders.HTTPDownloader.check_and_download_url('', self.download_dir)
 
-    def test_download_url_error_if_request_exception(self):
+    def test_check_and_download_url_error_if_request_exception(self):
         """
         An exception must be raised if an error happens during the request
         (it can be a wrong HTTP response code)
         """
         with mock.patch('requests.get', side_effect=requests.HTTPError):
             with self.assertRaises(downloaders.DownloadError):
-                downloaders.HTTPDownloader.download_url('', self.download_dir)
+                downloaders.HTTPDownloader.check_and_download_url('', self.download_dir)
 
-    def test_download_url_remove_file_if_no_space_left(self):
+    def test_check_and_download_url_remove_file_if_no_space_left(self):
         """
         If a 'No space left' error occurs, an attempt must be made
         to remove the potential partially downloaded file
@@ -193,13 +213,14 @@ class HTTPDownloaderTestCase(unittest.TestCase):
             # there is a file to delete
             with mock.patch('os.remove') as mock_rm:
                 with self.assertRaises(OSError):
-                    downloaders.HTTPDownloader.download_url('', self.download_dir)
+                    downloaders.HTTPDownloader.check_and_download_url('', self.download_dir)
                 mock_rm.assert_called_once()
-
+            #since 'os.remove' is mocked in the previous part, it is needed to actually delete file!
+            os.remove(self.file_path)
             # there is no file to delete
             with mock.patch('os.remove', side_effect=FileNotFoundError) as mock_rm:
                 with self.assertRaises(OSError):
-                    downloaders.HTTPDownloader.download_url('', self.download_dir)
+                    downloaders.HTTPDownloader.check_and_download_url('', self.download_dir)
                 mock_rm.assert_called_once()
 
 
@@ -350,22 +371,19 @@ class DownloadManagerTestCase(django.test.TestCase):
         download_manager = downloaders.DownloadManager()
         with mock.patch.object(downloaders.DownloadManager, 'get_provider_settings') as mock_p_s:
             mock_p_s.return_value = {}
-            with mock.patch.object(downloaders.HTTPDownloader, 'download_url') as mock_dl_url:
-                download_manager.download_dataset(Dataset.objects.get(pk=1))
+            with mock.patch.object(downloaders.HTTPDownloader, 'check_and_download_url') as mock_dl_url:
+                mock_dl_url.return_value=('','')
+                download_manager.download_dataset(Dataset.objects.get(pk=1), '')
                 mock_dl_url.assert_called()
 
-    def test_find_dataset_file(self):
-        """Test that a downloaded dataset file is correctly found"""
-        download_manager = downloaders.DownloadManager()
-        with mock.patch('os.listdir') as mock_listdir:
-            mock_listdir.return_value = [
-                'dataset_2',
-                'something_dataset_1',
-                'dataset_1_some_string',
-                'dataset_3_some_other_string'
-            ]
-            self.assertEqual(
-                download_manager.find_dataset_file('dataset_1'), 'dataset_1_some_string')
+    def test_the_correct_call_of_check_and_download_url_without_file_prefix(self):
+        """Test that correct call of check_and_download_url is accomplished with file_prefix=None"""
+        download_manager = downloaders.DownloadManager(use_file_prefix=False)
+        dataset = Dataset.objects.get(pk=1)
+        with mock.patch.object(downloaders.HTTPDownloader, 'check_and_download_url') as mock_dl_url:
+            mock_dl_url.return_value = ('testing_value', 'testing_value')
+            download_manager.download_dataset(dataset, 'testing_value')
+            self.assertIsNone(mock_dl_url.call_args[1]['file_prefix'])
 
     def test_download_dataset(self):
         """Test that a dataset is downloaded with the correct arguments"""
@@ -374,12 +392,12 @@ class DownloadManagerTestCase(django.test.TestCase):
                                                 'data/provider_settings.yml'))
         dataset = Dataset.objects.get(pk=1)
         dataset_url = dataset.dataseturi_set.first().uri
-        with mock.patch.object(downloaders.HTTPDownloader, 'download_url') as mock_dl_url:
-            mock_dl_url.return_value = 'dataset_1_file'
-            result = download_manager.download_dataset(dataset)
+        with mock.patch.object(downloaders.HTTPDownloader, 'check_and_download_url') as mock_dl_url:
+            mock_dl_url.return_value = ('dataset_1_file', True)
+            result = download_manager.download_dataset(dataset, '')
             mock_dl_url.assert_called_with(
-                dataset_url,
-                '.',
+                url=dataset_url,
+                download_dir='',
                 file_prefix='dataset_1',
                 username='topvoys',
                 password_env_var='COPERNICUS_OPEN_HUB_PASSWORD',
@@ -390,15 +408,17 @@ class DownloadManagerTestCase(django.test.TestCase):
     def test_download_dataset_file_exists(self):
         """
         Test that if the dataset file already exists, not attempt is made to download it
-        and the existing file's path is returned
+        and the existing file's path is returned with "is already present at" with logger in debug.
         """
         download_manager = downloaders.DownloadManager()
         dataset = Dataset.objects.get(pk=1)
-        with mock.patch.object(downloaders.DownloadManager, 'find_dataset_file') as mock_find_file:
-            with mock.patch.object(downloaders.HTTPDownloader, 'download_url') as mock_dl_url:
-                mock_find_file.return_value = 'dataset_1_file'
-                result = download_manager.download_dataset(dataset)
-                mock_dl_url.assert_not_called()
+        with mock.patch.object(downloaders.HTTPDownloader, 'get_file_name') as mock_get_file_name:
+            mock_get_file_name.return_value = 'dataset_1_file'
+            with mock.patch.object(downloaders.HTTPDownloader, 'check_and_download_url') as mock_dl_url:
+                mock_dl_url.return_value=(mock_get_file_name.return_value, False)
+                with self.assertLogs(logger=downloaders.LOGGER, level='DEBUG') as logs_cm:
+                    result = download_manager.download_dataset(dataset, 'test_folder')
+                    self.assertTrue("is already present at" in logs_cm.records[2].message)
                 self.assertEqual(result, 'dataset_1_file')
 
     def test_download_dataset_locked(self):
@@ -406,10 +426,10 @@ class DownloadManagerTestCase(django.test.TestCase):
         download_manager = downloaders.DownloadManager()
         dataset = Dataset.objects.get(pk=1)
         with mock.patch.object(downloaders.DownloadLock, '__enter__') as mock_lock:
-            with mock.patch.object(downloaders.HTTPDownloader, 'download_url') as mock_dl_url:
+            with mock.patch.object(downloaders.HTTPDownloader, 'check_and_download_url') as mock_dl_url:
                 mock_lock.return_value = False
                 with self.assertRaises(downloaders.TooManyDownloadsError):
-                    download_manager.download_dataset(dataset)
+                    download_manager.download_dataset(dataset, '')
                 mock_dl_url.assert_not_called()
 
     def test_download_dataset_from_second_url(self):
@@ -419,27 +439,27 @@ class DownloadManagerTestCase(django.test.TestCase):
         dataset_file_name = 'dataset_1_file'
 
         # Function used to mock a download failure on the first URL
-        def download_url_side_effect(url, *args, **kwargs): # pylint: disable=unused-argument
+        def check_and_download_url_side_effect(url, download_dir, file_prefix='', **kwargs):  # pylint: disable=unused-argument
             if url == 'https://scihub.copernicus.eu/fakeurl':
-                return dataset_file_name
+                return dataset_file_name, True
             else:
                 raise downloaders.DownloadError()
 
-        with mock.patch.object(downloaders.HTTPDownloader, 'download_url') as mock_dl_url:
-            mock_dl_url.side_effect = download_url_side_effect
+        with mock.patch.object(downloaders.HTTPDownloader, 'check_and_download_url') as mock_dl_url:
+            mock_dl_url.side_effect = check_and_download_url_side_effect
             with self.assertLogs(logger=downloaders.LOGGER, level=logging.WARNING) as logs_cm:
-                self.assertEqual(download_manager.download_dataset(dataset), dataset_file_name)
+                self.assertEqual(download_manager.download_dataset(dataset, ''), dataset_file_name)
                 self.assertTrue(logs_cm.records[0].message.startswith('Failed to download dataset'))
 
     def test_download_dataset_failure(self):
         """Test that `download_dataset` raises a DownloadError exception if the download failed"""
         download_manager = downloaders.DownloadManager()
         dataset = Dataset.objects.get(pk=1)
-        with mock.patch.object(downloaders.HTTPDownloader, 'download_url') as mock_dl_url:
+        with mock.patch.object(downloaders.HTTPDownloader, 'check_and_download_url') as mock_dl_url:
             mock_dl_url.side_effect = downloaders.DownloadError
             with self.assertRaises(downloaders.DownloadError):
                 with self.assertLogs(downloaders.LOGGER, logging.WARNING):
-                    download_manager.download_dataset(dataset)
+                    download_manager.download_dataset(dataset, '')
 
     def test_download_no_downloader_found(self):
         """Test that `download_dataset` raises an exception when no downloader is found"""
@@ -447,10 +467,10 @@ class DownloadManagerTestCase(django.test.TestCase):
         download_manager.DOWNLOADERS = {}
         dataset = Dataset.objects.get(pk=1)
 
-        with mock.patch.object(downloaders.HTTPDownloader, 'download_url') as mock_dl_url:
+        with mock.patch.object(downloaders.HTTPDownloader, 'check_and_download_url') as mock_dl_url:
             with self.assertLogs(downloaders.LOGGER):
                 with self.assertRaises(KeyError):
-                    download_manager.download_dataset(dataset)
+                    download_manager.download_dataset(dataset, '')
             mock_dl_url.assert_not_called()
 
     def test_download_all_matched_datasets(self):
@@ -458,7 +478,7 @@ class DownloadManagerTestCase(django.test.TestCase):
         download_manager = downloaders.DownloadManager(source__instrument__short_name='SLSTR')
         with mock.patch.object(downloaders.DownloadManager, 'download_dataset') as mock_dl_dataset:
             # Append the primary key to the results list instead of actually downloading
-            mock_dl_dataset.side_effect = lambda d: d.pk
+            mock_dl_dataset.side_effect = lambda d, _: d.pk
             self.assertListEqual(download_manager.download(), [2, 3])
 
     def test_download_dataset_file_not_found_error(self):
@@ -467,9 +487,9 @@ class DownloadManagerTestCase(django.test.TestCase):
         or IsADirectoryError occurs when writing the downloaded file
         """
         download_manager = downloaders.DownloadManager()
-        with mock.patch.object(downloaders.HTTPDownloader, 'download_url') as mock_dl_url:
+        with mock.patch.object(downloaders.HTTPDownloader, 'check_and_download_url') as mock_dl_url:
             for error in [FileNotFoundError, IsADirectoryError]:
                 mock_dl_url.side_effect = error
                 with self.assertRaises(downloaders.DownloadError):
                     with self.assertLogs(downloaders.LOGGER):
-                        download_manager.download_dataset(Dataset.objects.get(pk=1))
+                        download_manager.download_dataset(Dataset.objects.get(pk=1), '')

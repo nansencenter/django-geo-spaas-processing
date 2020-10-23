@@ -13,7 +13,6 @@ import os
 import os.path
 import re
 from urllib.parse import urlparse
-
 import requests
 import requests.utils
 import yaml
@@ -100,12 +99,12 @@ class HTTPDownloader(Downloader):
         return file_size
 
     @classmethod
-    def get_file_name(cls, response, url, file_prefix=''):
+    def get_file_name(cls, response, url, file_prefix=None):
         """ Get the name of downloaded file either from header of <response>, or from <url>.
         Prepend the file name with <file_prefix> if given """
         file_name = cls.extract_file_name(response)
         if not file_name:
-            file_name = os.path.basename(urlparse.urlparse(url).path)
+            file_name = os.path.basename(urlparse(url).path).rstrip('.dods')
         if file_prefix:
             file_name = '_'.join([name for name in [file_prefix, file_name] if name])
         if not file_name:
@@ -133,12 +132,11 @@ class HTTPDownloader(Downloader):
         if file_size:
             LOGGER.debug("Checking there is enough free space to download %s bytes", file_size)
             utils.LocalStorage(path=download_dir).free_space(file_size)
-
         file_name = cls.get_file_name(response, url, file_prefix)
         file_path = os.path.join(download_dir, file_name)
 
         # early quit if file already exists
-        if os.path.exists(file_path):
+        if os.path.exists(file_path) and os.path.isfile(file_path):
             return file_name, False
 
         try:
@@ -273,18 +271,15 @@ class DownloadManager():
         for dataset_uri in dataset.dataseturi_set.all():
             # Get the extra settings for the provider
             dataset_uri_prefix = "://".join(requests.utils.urlparse(dataset_uri.uri)[0:2])
-
             # Find provider settings
             extra_settings = self.get_provider_settings(dataset_uri_prefix)
             if extra_settings:
                 LOGGER.debug("Loaded extra settings for provider %s: %s",
                              dataset_uri_prefix, extra_settings)
-
             if self.use_file_prefix:
                 file_prefix = f"dataset_{dataset.pk}"
             else:
-                file_prefix = ''
-
+                file_prefix = None
             # Launch download if the maximum number of parallel downloads has not been reached
             with DownloadLock(dataset_uri_prefix,
                               extra_settings.get('max_parallel_downloads'),
@@ -292,7 +287,6 @@ class DownloadManager():
                 if not acquired:
                     raise TooManyDownloadsError(
                         f"Too many downloads in progress for {dataset_uri_prefix}")
-
                 # Try to find a downloader
                 try:
                     downloader = self.DOWNLOADERS[dataset_uri.service]
@@ -304,7 +298,7 @@ class DownloadManager():
                 LOGGER.debug("Attempting to download from '%s'", dataset_uri.uri)
                 try:
                     file_name, downloaded = downloader.check_and_download_url(
-                        dataset_uri.uri, download_directory,
+                        url=dataset_uri.uri, download_dir=download_directory,
                         file_prefix=file_prefix, **extra_settings
                     )
                 except DownloadError:
@@ -321,7 +315,7 @@ class DownloadManager():
                         LOGGER.info("Successfully downloaded dataset %d to %s",
                                     dataset.pk, file_name)
                     else:
-                        LOGGER.debug("Dataset %d is already present at %s", dataset.pk, filename)
+                        LOGGER.debug("Dataset %d is already present at %s", dataset.pk, file_name)
                     return file_name
         raise DownloadError(f"Did not manage to download dataset {dataset.pk}")
 
@@ -329,7 +323,7 @@ class DownloadManager():
         """Attempt to download all datasets matching the criteria"""
         files = []
         for dataset in self.datasets:
-            download_directory = self.dataset.time_coverage_start.strftime(self.download_directory)
+            download_directory = dataset.time_coverage_start.strftime(self.download_directory)
             os.makedirs(download_directory, exist_ok=True)
             files.append(self.download_dataset(dataset, download_directory))
         return files

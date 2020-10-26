@@ -1,0 +1,14 @@
+ARG BASE_IMAGE=nansencenter/geospaas
+FROM ${BASE_IMAGE}
+RUN pip install --no-cache-dir django-celery-results==1.2
+WORKDIR /tmp/setup
+COPY setup.py README.md ./
+COPY geospaas_processing ./geospaas_processing
+RUN python setup.py bdist_wheel && \
+    pip install -v dist/geospaas_processing-*.whl && \
+    cd /tmp && rm -rf /tmp/setup/
+COPY multi_folder_download.py /multi_folder_download.py
+COPY multi_folder_config /multi_folder_config
+WORKDIR /
+
+ENTRYPOINT ["/venv/bin/python"]

@@ -33,31 +33,31 @@ class HTTPDownloaderUtilsTestCase(unittest.TestCase):
         file_name = "test_file.txt"
         response = requests.Response()
         response.headers['Content-Disposition'] = f'inline;filename="{file_name}"'
-        self.assertEqual(downloaders.HTTPDownloader.extract_file_name(response), file_name)
+        self.assertEqual(downloaders.HTTPDownloader.extract_file_name_from_response(response), file_name)
 
     def test_extract_filename_no_header(self):
         """
-        `extract_file_name` must return an empty string if
+        `extract_file_name_from_response` must return an empty string if
         the Content-Disposition header is not present
         """
         response = requests.Response()
-        self.assertEqual(downloaders.HTTPDownloader.extract_file_name(response), '')
+        self.assertEqual(downloaders.HTTPDownloader.extract_file_name_from_response(response), '')
 
     def test_extract_filename_no_filename_in_header(self):
         """
-        `extract_file_name` must return an empty string if the filename
+        `extract_file_name_from_response` must return an empty string if the filename
         is not contained in the Content-Disposition header
         """
         response = requests.Response()
         response.headers['Content-Disposition'] = ''
-        self.assertEqual(downloaders.HTTPDownloader.extract_file_name(response), '')
+        self.assertEqual(downloaders.HTTPDownloader.extract_file_name_from_response(response), '')
 
     def test_extract_filename_multiple_possibilities(self):
         """An error must be raised if several file names are found in the header"""
         response = requests.Response()
         response.headers['Content-Disposition'] = 'inline;filename="f1";filename="f2"'
         with self.assertRaises(ValueError):
-            downloaders.HTTPDownloader.extract_file_name(response)
+            downloaders.HTTPDownloader.extract_file_name_from_response(response)
 
     def test_build_basic_auth(self):
         """Test building the authentication argument for a GET request"""

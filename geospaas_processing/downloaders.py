@@ -55,7 +55,7 @@ class HTTPDownloader(Downloader):
     CHUNK_SIZE = 1024 * 1024
 
     @staticmethod
-    def extract_file_name(response):
+    def extract_file_name_from_response(response):
         """Extracts the file name from the Content-Disposition header of an HTTP response"""
         filename_key = 'filename='
 
@@ -102,9 +102,9 @@ class HTTPDownloader(Downloader):
     def get_file_name(cls, response, url, file_prefix=None):
         """ Get the name of downloaded file either from header of <response>, or from <url>.
         Prepend the file name with <file_prefix> if given """
-        file_name = cls.extract_file_name(response)
+        file_name = cls.extract_file_name_from_response(response)
         if not file_name:
-            file_name = os.path.basename(urlparse(url).path).rstrip('.dods')
+            file_name = url.split('/')[-1]
         if file_prefix:
             file_name = '_'.join([name for name in [file_prefix, file_name] if name])
         if not file_name:

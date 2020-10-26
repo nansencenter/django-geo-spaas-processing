@@ -1,0 +1,10 @@
+---
+# Provider settings for unit tests
+# Dictionary associating URLs to settings to pass to the downloaders
+'https://scihub.copernicus.eu':
+  username: "azamifard"
+  password_env_var: 'COPERNICUS_OPEN_HUB_PASSWORD'
+  max_parallel_downloads: 4
+'https://thredds.met.no/thredds':
+  max_parallel_downloads: 2
+...

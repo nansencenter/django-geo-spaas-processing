@@ -11,8 +11,6 @@ import errno
 import logging
 import os
 import os.path
-import re
-from urllib.parse import urlparse
 import requests
 import requests.utils
 import yaml
@@ -114,7 +112,10 @@ class HTTPDownloader(Downloader):
 
     @classmethod
     def check_and_download_url(cls, url, download_dir, file_prefix='', **kwargs):
-        """ Download file from HTTP URL if it doesn't already exist """
+        """ Download file from HTTP URL if it doesn't already exist. The first part of the return
+        value is the file name. The second part is the flag which into "true" if the file is a
+        newly-downloaded one, otherwise it is "false" in the case of previously
+        available (downloaded) file. """
         auth = cls.build_basic_auth(kwargs)
         try:
             response = requests.get(url, stream=True, auth=auth)
@@ -127,17 +128,17 @@ class HTTPDownloader(Downloader):
         if len(response.content) == 0:
             raise DownloadError(f"Getting an empty file from '{url}'")
 
+        # early quit if file already exists
+        file_name = cls.get_file_name(response, url, file_prefix)
+        file_path = os.path.join(download_dir, file_name)
+        if os.path.exists(file_path) and os.path.isfile(file_path):
+            return file_name, False
+
         # Try to free some space if we can get the size of the file about to be downloaded
         file_size = cls.get_remote_file_size(response, auth)
         if file_size:
             LOGGER.debug("Checking there is enough free space to download %s bytes", file_size)
             utils.LocalStorage(path=download_dir).free_space(file_size)
-        file_name = cls.get_file_name(response, url, file_prefix)
-        file_path = os.path.join(download_dir, file_name)
-
-        # early quit if file already exists
-        if os.path.exists(file_path) and os.path.isfile(file_path):
-            return file_name, False
 
         try:
             with open(file_path, 'wb') as target_file:
@@ -244,7 +245,7 @@ class DownloadManager():
         self.datasets = Dataset.objects.filter(**criteria)
         if not self.datasets:
             raise DownloadError("No dataset matches the search criteria")
-        self.download_directory = download_directory
+        self.d_directory = download_directory
         self.use_file_prefix = use_file_prefix
         LOGGER.debug("Found %d datasets", self.datasets.count())
         if self.datasets.count() > self.max_downloads:
@@ -320,10 +321,11 @@ class DownloadManager():
         raise DownloadError(f"Did not manage to download dataset {dataset.pk}")
 
     def download(self):
-        """Attempt to download all datasets matching the criteria"""
+        """Attempt to download all datasets matching the criteria."self.d_directory" attribute
+        should contain a pattern for the destination directory which is readable by 'strftime'. """
         files = []
         for dataset in self.datasets:
-            download_directory = dataset.time_coverage_start.strftime(self.download_directory)
-            os.makedirs(download_directory, exist_ok=True)
-            files.append(self.download_dataset(dataset, download_directory))
+            appropriate_download_directory = dataset.time_coverage_start.strftime(self.d_directory)
+            os.makedirs(appropriate_download_directory, exist_ok=True)
+            files.append(self.download_dataset(dataset, appropriate_download_directory))
         return files

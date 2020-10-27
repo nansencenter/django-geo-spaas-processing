@@ -84,7 +84,7 @@ class HTTPDownloaderTestCase(unittest.TestCase):
         self.response.headers['Content-Disposition'] = f'inline;filename="{self.file_name}"'
         self.response.headers['Content-Length'] = 1
         self.response.status_code = 200
-        self.response._content = bytes(self.response_text, 'utf-8')
+        self.response._content = bytes(self.response_text, 'utf-8') #pylint:disable=protected-access
 
         self.mock_free_space = mock.patch.object(utils.LocalStorage, 'free_space').start()
         mock.patch('geospaas_processing.utils.REDIS_HOST', None).start()
@@ -179,7 +179,7 @@ class HTTPDownloaderTestCase(unittest.TestCase):
             with self.assertRaises(IsADirectoryError):
                 downloaders.HTTPDownloader.check_and_download_url('', self.download_dir)
 
-    def test_check_and_download_url_return_false_in_second_value_if_target_is_a_file(self):
+    def test_check_and_download_url_if_file_already_exists(self):
         """check_and_download_url should return false if the destination file already exists """
         Path(self.file_path).touch()
         with mock.patch('requests.get', return_value=self.response):
@@ -211,17 +211,15 @@ class HTTPDownloaderTestCase(unittest.TestCase):
         self.response.iter_content.side_effect = OSError(errno.ENOSPC, '')
         with mock.patch('requests.get', return_value=self.response):
             # there is a file to delete
-            with mock.patch('os.remove') as mock_rm:
-                with self.assertRaises(OSError):
-                    downloaders.HTTPDownloader.check_and_download_url('', self.download_dir)
-                mock_rm.assert_called_once()
-            #since 'os.remove' is mocked in the previous part, it is needed to actually delete file!
-            os.remove(self.file_path)
+            with self.assertRaises(OSError):
+                downloaders.HTTPDownloader.check_and_download_url('', self.download_dir)
+            self.assertFalse(os.path.exists(self.file_path))
+
             # there is no file to delete
             with mock.patch('os.remove', side_effect=FileNotFoundError) as mock_rm:
                 with self.assertRaises(OSError):
                     downloaders.HTTPDownloader.check_and_download_url('', self.download_dir)
-                mock_rm.assert_called_once()
+            mock_rm.assert_called_once()
 
 
 class DownloadLockTestCase(unittest.TestCase):
@@ -371,8 +369,9 @@ class DownloadManagerTestCase(django.test.TestCase):
         download_manager = downloaders.DownloadManager()
         with mock.patch.object(downloaders.DownloadManager, 'get_provider_settings') as mock_p_s:
             mock_p_s.return_value = {}
-            with mock.patch.object(downloaders.HTTPDownloader, 'check_and_download_url') as mock_dl_url:
-                mock_dl_url.return_value=('','')
+            with mock.patch.object(
+                    downloaders.HTTPDownloader, 'check_and_download_url') as mock_dl_url:
+                mock_dl_url.return_value=('Dataset_1_test.nc', False)
                 download_manager.download_dataset(Dataset.objects.get(pk=1), '')
                 mock_dl_url.assert_called()
 
@@ -381,7 +380,7 @@ class DownloadManagerTestCase(django.test.TestCase):
         download_manager = downloaders.DownloadManager(use_file_prefix=False)
         dataset = Dataset.objects.get(pk=1)
         with mock.patch.object(downloaders.HTTPDownloader, 'check_and_download_url') as mock_dl_url:
-            mock_dl_url.return_value = ('testing_value', 'testing_value')
+            mock_dl_url.return_value = ('test.nc', True)
             download_manager.download_dataset(dataset, 'testing_value')
             self.assertIsNone(mock_dl_url.call_args[1]['file_prefix'])
 
@@ -393,7 +392,7 @@ class DownloadManagerTestCase(django.test.TestCase):
         dataset = Dataset.objects.get(pk=1)
         dataset_url = dataset.dataseturi_set.first().uri
         with mock.patch.object(downloaders.HTTPDownloader, 'check_and_download_url') as mock_dl_url:
-            mock_dl_url.return_value = ('dataset_1_file', True)
+            mock_dl_url.return_value = ('dataset_1_file.h5', True)
             result = download_manager.download_dataset(dataset, '')
             mock_dl_url.assert_called_with(
                 url=dataset_url,
@@ -403,23 +402,22 @@ class DownloadManagerTestCase(django.test.TestCase):
                 password_env_var='COPERNICUS_OPEN_HUB_PASSWORD',
                 max_parallel_downloads=2
             )
-            self.assertEqual(result, 'dataset_1_file')
+            self.assertEqual(result, 'dataset_1_file.h5')
 
     def test_download_dataset_file_exists(self):
         """
-        Test that if the dataset file already exists, not attempt is made to download it
-        and the existing file's path is returned with "is already present at" with logger in debug.
+        Test that if the dataset file already exists, the existing
+        file's path is returned and a debug message is logged.
         """
         download_manager = downloaders.DownloadManager()
         dataset = Dataset.objects.get(pk=1)
-        with mock.patch.object(downloaders.HTTPDownloader, 'get_file_name') as mock_get_file_name:
-            mock_get_file_name.return_value = 'dataset_1_file'
-            with mock.patch.object(downloaders.HTTPDownloader, 'check_and_download_url') as mock_dl_url:
-                mock_dl_url.return_value=(mock_get_file_name.return_value, False)
-                with self.assertLogs(logger=downloaders.LOGGER, level='DEBUG') as logs_cm:
-                    result = download_manager.download_dataset(dataset, 'test_folder')
-                    self.assertTrue("is already present at" in logs_cm.records[2].message)
-                self.assertEqual(result, 'dataset_1_file')
+
+        with mock.patch.object(downloaders.HTTPDownloader, 'check_and_download_url') as mock_dl_url:
+            mock_dl_url.return_value = ('dataset_1_file.h5', False)
+            with self.assertLogs(logger=downloaders.LOGGER, level=logging.DEBUG) as logs_cm:
+                result = download_manager.download_dataset(dataset, 'test_folder')
+                self.assertTrue("is already present at" in logs_cm.records[2].message)
+            self.assertEqual(result, 'dataset_1_file.h5')
 
     def test_download_dataset_locked(self):
         """Test that an exception is raised if the max number of downloads has been reached"""

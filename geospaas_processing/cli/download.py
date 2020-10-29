@@ -68,7 +68,7 @@ if __name__ == "__main__":
     help="The flag that distinguishes between the two cases of time calcation (1.time-lag from now "
     "2.Two different points in time) based on its ABSENCE or PRESENCE in the arguments.")
     parser.add_argument('-s', '--dir_struct', required=False, type=str,
-    help="xxxxxxxxxxx")
+    help="directory_structure is must be acceptable by python 'strftime'")
     parser.add_argument('-p', '--use_filename_prefix', action='store_true',
     help="The flag that distinguishes between the two cases of having files WITH or WITHOUT file "
     "prefix when downloaded")

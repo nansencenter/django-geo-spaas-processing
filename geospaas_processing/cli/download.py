@@ -24,46 +24,43 @@ from geospaas.catalog.models import Dataset
 import geospaas_processing.downloaders as downloaders
 
 
-def main(ar):
+def main(arg):
     cumulative_query = {}
-    if ar.query:
-        query_list = json.loads(ar.query)
+    if arg.query:
+        query_list = json.loads(arg.query)
         for query in query_list:
             cumulative_query.update(query)
-    if ar.rel_time_flag:
+    if arg.rel_time_flag:
         designated_begin = datetime.now().replace(tzinfo=tzutc()) + relativedelta(
-            hours=-abs(int(ar.begin)))
+            hours=-abs(int(arg.begin)))
         designated_end = datetime.now().replace(tzinfo=tzutc())
     else:
-        designated_begin = datetime.strptime(ar.begin, "%Y-%m-%d").replace(tzinfo=tzutc())
-        designated_end = datetime.strptime(ar.end, "%Y-%m-%d").replace(tzinfo=tzutc())
+        designated_begin = datetime.strptime(arg.begin, "%Y-%m-%d").replace(tzinfo=tzutc())
+        designated_end = datetime.strptime(arg.end, "%Y-%m-%d").replace(tzinfo=tzutc())
     download_manager = downloaders.DownloadManager(
-        download_directory=ar.down_dir.rstrip(os.path.sep),
-        provider_settings_path=ar.config_file,
-        max_downloads=int(ar.number_per_day)*(((designated_end-designated_begin).days)+1),
-        use_file_prefix=ar.use_filename_prefix,
+        download_directory=arg.down_dir.rstrip(os.path.sep),
+        provider_settings_path=arg.config_file,
+        max_downloads=int(arg.number_per_day)*(((designated_end-designated_begin).days)+1),
+        use_file_prefix=arg.use_filename_prefix,
         time_coverage_start__gte=designated_begin,
         time_coverage_end__lte=designated_end,
-        geographic_location__geometry__intersects=GEOSGeometry(ar.geometry),
+        geographic_location__geometry__intersects=GEOSGeometry(arg.geometry),
         **cumulative_query
     )
     download_manager.download()
 
-
-if __name__ == "__main__":
+def argparse_define():
     parser = argparse.ArgumentParser(
         description='Process the arguments of entry_point (all must be in str)')
     parser.add_argument('-d', '--down_dir', required=True, type=str,
     help="Absolute path for downloading files. If path depends on file date, usage of %Y, %m and "
     "other placeholders interpretable by strftime is accepted")
     parser.add_argument('-b', '--begin', required=True, type=str,
-    help="This must be an a time (starting point of the time) in the format of '%Y-%m-%d' which "
-    "is acceptable by python strptime or the extend of time lag from now in the case of relative "
-    "time flag (-r) in the terms of hours")
+    help="Absolute starting date for download in the format YYYY-MM-DD or (if used together "
+    "with '-r') lag in days relative to today")
     parser.add_argument('-e', '--end', required=True, type=str,
-    help="This must be an a time (ending point of the time) in the format of '%Y-%m-%d' which "
-    "is acceptable by python strptime. It is an effective option only in the case of ABSENCE of "
-    "relative time flag (-r).")
+    help="Absolute ending date for download in the format YYYY-MM-DD or (if used together "
+    "with '-r') has no influence.")
     parser.add_argument('-r', '--rel_time_flag', required=False, action='store_true',
     help="The flag that distinguishes between the two cases of time calcation (1.time-lag from now "
     "2.Two different points in time) based on its ABSENCE or PRESENCE in the arguments.")
@@ -83,5 +80,8 @@ if __name__ == "__main__":
     "multi-criteria limitation."
     "After deserialization, it must be a list of query that are readable by django filter."
     "for example a list of elements like {'dataseturi__uri__contains': 'osisaf'}""")
-    ar = parser.parse_args()
-    main(ar)
+    return parser.parse_args()
+
+if __name__ == "__main__":
+    arg = argparse_define()
+    main(arg)

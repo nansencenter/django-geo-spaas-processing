@@ -11,6 +11,7 @@ import errno
 import logging
 import os
 import os.path
+
 import requests
 import requests.utils
 import yaml
@@ -103,8 +104,7 @@ class HTTPDownloader(Downloader):
         file_name = cls.extract_file_name_from_response(response)
         if not file_name:
             file_name = url.split('/')[-1]
-        if file_prefix:
-            file_name = '_'.join([name for name in [file_prefix, file_name] if name])
+        file_name = '_'.join([name for name in [file_prefix, file_name] if name])
         if not file_name:
             raise ValueError(
                 "No file name could be extracted from the request and no file prefix was provided")
@@ -112,10 +112,12 @@ class HTTPDownloader(Downloader):
 
     @classmethod
     def check_and_download_url(cls, url, download_dir, file_prefix='', **kwargs):
-        """ Download file from HTTP URL if it doesn't already exist. The first part of the return
-        value is the file name. The second part is the flag which into "true" if the file is a
-        newly-downloaded one, otherwise it is "false" in the case of previously
-        available (downloaded) file. """
+        """
+        Download a file from a HTTP URL if it doesn't already exist.
+        The return value is a two-elements tuple containing:
+        - the name of the file
+        - a boolean which is True if the file was downloaded, and False if it was already present
+        """
         auth = cls.build_basic_auth(kwargs)
         try:
             response = requests.get(url, stream=True, auth=auth)
@@ -240,12 +242,14 @@ class DownloadManager():
         """
         `criteria` accepts the same keyword arguments as Django's `filter()` method.
         When filtering on time coverage, it is preferable to use timezone aware datetimes.
+        `download_directory` should contain a pattern for the destination directory which is
+        readable by 'strftime' of python.
         """
         self.max_downloads = max_downloads
         self.datasets = Dataset.objects.filter(**criteria)
         if not self.datasets:
             raise DownloadError("No dataset matches the search criteria")
-        self.d_directory = download_directory
+        self.download_folder = download_directory
         self.use_file_prefix = use_file_prefix
         LOGGER.debug("Found %d datasets", self.datasets.count())
         if self.datasets.count() > self.max_downloads:
@@ -321,11 +325,11 @@ class DownloadManager():
         raise DownloadError(f"Did not manage to download dataset {dataset.pk}")
 
     def download(self):
-        """Attempt to download all datasets matching the criteria."self.d_directory" attribute
-        should contain a pattern for the destination directory which is readable by 'strftime'. """
+        """Attempt to download all datasets (matching the criteria if any criteria defined). """
         files = []
         for dataset in self.datasets:
-            appropriate_download_directory = dataset.time_coverage_start.strftime(self.d_directory)
+            appropriate_download_directory = dataset.time_coverage_start.strftime(
+                self.download_folder)
             os.makedirs(appropriate_download_directory, exist_ok=True)
             files.append(self.download_dataset(dataset, appropriate_download_directory))
         return files

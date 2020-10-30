@@ -66,6 +66,7 @@ jobs:
       script:
         - >
           docker build .
+          -f Dockerfile_multi_folder
           --cache-from "${IMAGE_NAME}"
           --build-arg "BASE_IMAGE=$BASE_IMAGE_NAME"
           -t "${IMAGE_NAME}:${DOCKER_TMP_TAG}"

@@ -4,16 +4,11 @@ help of python "argparse" and download the dataset files based on the input argu
 """
 import argparse
 import os
-import subprocess
-import sys
 import time
 from datetime import datetime
-from distutils.util import strtobool
 import json
 import django
-import ast
 
-from dateutil.parser import parse
 from dateutil.relativedelta import relativedelta
 from dateutil.tz import tzutc
 from django.contrib.gis.geos import GEOSGeometry
@@ -51,7 +46,7 @@ def main(arg):
 
 def argparse_define():
     parser = argparse.ArgumentParser(
-        description='Process the arguments of entry_point (all must be in str)')
+        description='Process the arguments of entry_point')
     parser.add_argument('-d', '--down_dir', required=True, type=str,
     help="Absolute path for downloading files. If path depends on file date, usage of %Y, %m and "
     "other placeholders interpretable by strftime is accepted")

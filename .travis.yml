@@ -32,6 +32,7 @@ jobs:
           'postgis/postgis:12-3.0'
         - >
           docker build .
+          -f Dockerfile_cli
           -t "${IMAGE_NAME}"
           --build-arg "BASE_IMAGE=${BASE_IMAGE_NAME}"
           --target base

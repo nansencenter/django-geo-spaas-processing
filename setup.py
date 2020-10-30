@@ -7,8 +7,8 @@ with open(os.path.join(os.path.dirname(__file__), "README.md"), "r") as fh:
 setuptools.setup(
     name="geospaas_processing",
     version="1.0.0",
-    author="Adrien Perrin", "Arash Azamifard"
-    author_email="adrien.perrin@nersc.no", "arash.azamifard@nersc.no"
+    author=["Adrien Perrin", "Arash Azamifard"],
+    author_email=["adrien.perrin@nersc.no", "arash.azamifard@nersc.no"],
     description="Processing tools for GeoSPaaS",
     long_description=long_description,
     long_description_content_type="text/markdown",

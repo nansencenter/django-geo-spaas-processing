@@ -40,8 +40,7 @@ def main(arg):
     download_manager.download()
 
 def parse_args():
-    parser = argparse.ArgumentParser(
-        description='Process the arguments of entry_point')
+    parser = argparse.ArgumentParser(description='Process the arguments of entry_point')
     parser.add_argument('-d', '--down_dir', required=True, type=str,
     help="Absolute path for downloading files. If path depends on file date, usage of %Y, %m and "
     "other placeholders interpretable by strftime is accepted")
@@ -70,7 +69,7 @@ def parse_args():
     "multi-criteria limitation."
     "After deserialization, it must be a list of query that are readable by django filter."
     "for example a dictionary of elements like "
-    "'{"dataseturi__uri__contains": "osisaf", "source__instrument__short_name__icontains": "AMSR2"}'
+    {\"dataseturi__uri__contains\": \"osisaf\", \"source__instrument__short_name__icontains\": \"AMSR2\"}
     """)
     return parser.parse_args()
 

@@ -1,6 +1,5 @@
 """
-Script for cli of downloading repo. This script accepts the argunemt from sys.args by the
-help of python "argparse" and download the dataset files based on the input arguments.
+Download files that are selected from the database using input criteria.
 """
 import argparse
 import os
@@ -20,11 +19,7 @@ import geospaas_processing.downloaders as downloaders
 
 
 def main(arg):
-    cumulative_query = {}
-    if arg.query:
-        query_list = json.loads(arg.query)
-        for query in query_list:
-            cumulative_query.update(query)
+    cumulative_query=json.loads(arg.query) if arg.query else {}
     if arg.rel_time_flag:
         designated_begin = datetime.now().replace(tzinfo=tzutc()) + relativedelta(
             hours=-abs(int(arg.begin)))
@@ -44,7 +39,7 @@ def main(arg):
     )
     download_manager.download()
 
-def argparse_define():
+def parse_args():
     parser = argparse.ArgumentParser(
         description='Process the arguments of entry_point')
     parser.add_argument('-d', '--down_dir', required=True, type=str,
@@ -74,9 +69,11 @@ def argparse_define():
     "It is a string which must be acceptable by json.loads() to for deserialization of one- or "
     "multi-criteria limitation."
     "After deserialization, it must be a list of query that are readable by django filter."
-    "for example a list of elements like {'dataseturi__uri__contains': 'osisaf'}""")
+    "for example a dictionary of elements like "
+    "'{"dataseturi__uri__contains": "osisaf", "source__instrument__short_name__icontains": "AMSR2"}'
+    """)
     return parser.parse_args()
 
 if __name__ == "__main__":
-    arg = argparse_define()
+    arg = parse_args()
     main(arg)

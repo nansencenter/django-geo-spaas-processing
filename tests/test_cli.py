@@ -7,11 +7,9 @@ from datetime import datetime
 
 import geospaas_processing.cli.download as cli_download
 import geospaas_processing.downloaders as downloaders
-from dateutil.relativedelta import relativedelta
 from dateutil.tz import tzutc
 from django.contrib.gis.geos import GEOSGeometry
 from freezegun import freeze_time
-from geospaas.catalog.models import Dataset
 
 
 class DownlaodingCLITestCase(unittest.TestCase):

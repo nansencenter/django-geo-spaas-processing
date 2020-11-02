@@ -21,8 +21,9 @@ class DownlaodingCLITestCase(unittest.TestCase):
             '-d', "/test_folder/%Y_nh_polstere",
             '-b', "200",
             '-e', "2020-08-22",
-            '-r', '-n',
-            "100", '-p',
+            '-r',
+            '-n',"100",
+            '-p',
             '-g', "POLYGON ((-22 84, -22 74, 32 74, 32 84, -22 84))",
             '-c', "/config_folder/config_file.yml",
             '-q',
@@ -30,7 +31,7 @@ class DownlaodingCLITestCase(unittest.TestCase):
             ]
 
     def test_extract_arg(self):
-        """shall return the correct argment values based on the 'sys.argv' """
+        """shall return the correct argument values based on the 'sys.argv' """
         arg = cli_download.parse_args()
         self.assertEqual(arg.begin, '200')
         self.assertEqual(arg.config_file, '/config_folder/config_file.yml')

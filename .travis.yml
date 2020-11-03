@@ -48,7 +48,7 @@ jobs:
           -e "GEOSPAAS_DB_USER=$GEOSPAAS_DB_USER" -e "GEOSPAAS_DB_PASSWORD=$GEOSPAAS_DB_PASSWORD"
           --entrypoint bash
           "${IMAGE_NAME}"
-          -c "coverage run --source=./geospaas_processing /src/runtests.py && coveralls"
+          -c "coverage run --source=geospaas_processing /src/runtests.py && coveralls"
       after_script:
         - docker stop "$GEOSPAAS_DB_HOST"
 

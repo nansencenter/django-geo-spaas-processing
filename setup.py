@@ -13,7 +13,7 @@ setuptools.setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/nansencenter/django-geo-spaas-processing",
-    packages=["geospaas_processing","geospaas_processing.cli"],
+    packages=["geospaas_processing", "geospaas_processing.cli"],
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",

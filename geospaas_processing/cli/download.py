@@ -1,7 +1,6 @@
 """
 Download files that are selected from the database using input criteria.
 """
-import geospaas_processing.downloaders as downloaders
 import argparse
 import json
 import os
@@ -14,6 +13,7 @@ from django.contrib.gis.geos import GEOSGeometry
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'geospaas_processing.settings')
 django.setup()
+import geospaas_processing.downloaders as downloaders
 
 
 def main():
@@ -21,7 +21,7 @@ def main():
     Instantiation and calling the download() method of DownloadManager based on created argparser.
     """
     arg = cli_parse_args()
-    cumulative_query = json.loads(arg.query) if (arg.query or arg.query == "") else {}
+    cumulative_query = json.loads(arg.query) if arg.query else {}
     if arg.geometry:
         cumulative_query['geographic_location__geometry__intersects'] = GEOSGeometry(arg.geometry)
     designated_begin, designated_end = find_designated_time(arg.rel_time_flag, arg.begin, arg.end)

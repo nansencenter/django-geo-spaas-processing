@@ -1,0 +1,12 @@
+ARG BASE_IMAGE=nansencenter/geospaas:2.0.0-slim
+FROM ${BASE_IMAGE} AS base
+RUN pip install --no-cache-dir django-celery-results==1.2 redis graypy freezegun
+
+WORKDIR /tmp/setup
+COPY setup.py README.md ./
+COPY geospaas_processing ./geospaas_processing
+RUN python setup.py install && cd /tmp && rm -rf /tmp/setup/
+
+WORKDIR /
+
+ENTRYPOINT ["/venv/bin/python"]

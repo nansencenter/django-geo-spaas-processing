@@ -6,14 +6,14 @@ with open(os.path.join(os.path.dirname(__file__), "README.md"), "r") as fh:
 
 setuptools.setup(
     name="geospaas_processing",
-    version="0.0.4",
-    author="Adrien Perrin",
-    author_email="adrien.perrin@nersc.no",
+    version="0.1.0",
+    author=["Adrien Perrin", "Arash Azamifard"],
+    author_email=["adrien.perrin@nersc.no", "arash.azamifard@nersc.no"],
     description="Processing tools for GeoSPaaS",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/nansencenter/django-geo-spaas-processing",
-    packages=["geospaas_processing"],
+    packages=["geospaas_processing", "geospaas_processing.cli"],
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",

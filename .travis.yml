@@ -32,6 +32,7 @@ jobs:
           'postgis/postgis:12-3.0'
         - >
           docker build .
+          -f Dockerfile_cli
           -t "${IMAGE_NAME}"
           --build-arg "BASE_IMAGE=${BASE_IMAGE_NAME}"
           --target base
@@ -47,7 +48,7 @@ jobs:
           -e "GEOSPAAS_DB_USER=$GEOSPAAS_DB_USER" -e "GEOSPAAS_DB_PASSWORD=$GEOSPAAS_DB_PASSWORD"
           --entrypoint bash
           "${IMAGE_NAME}"
-          -c "coverage run --source=./geospaas_processing /src/runtests.py && coveralls"
+          -c "coverage run --source=geospaas_processing /src/runtests.py && coveralls"
       after_script:
         - docker stop "$GEOSPAAS_DB_HOST"
 
@@ -66,6 +67,7 @@ jobs:
       script:
         - >
           docker build .
+          -f Dockerfile_cli
           --cache-from "${IMAGE_NAME}"
           --build-arg "BASE_IMAGE=$BASE_IMAGE_NAME"
           -t "${IMAGE_NAME}:${DOCKER_TMP_TAG}"

@@ -16,18 +16,19 @@ django.setup()
 import geospaas_processing.downloaders as downloaders
 
 
-def main(arg):
-    "Instantiation and calling the download() method of DownloadManager based on created argparser."
+def main():
+    """
+    Instantiation and calling the download() method of DownloadManager based on created argparser.
+    """
+    arg = parse_args()
     cumulative_query = json.loads(arg.query) if arg.query else {}
     if arg.geometry:
-        cumulative_query.update(
-        {"geographic_location__geometry__intersects": GEOSGeometry(arg.geometry)}
-        )
+        cumulative_query['geographic_location__geometry__intersects'] = GEOSGeometry(arg.geometry)
     designated_begin, designated_end = find_designated_time(arg.rel_time_flag,arg.begin,arg.end)
     download_manager = downloaders.DownloadManager(
         download_directory=arg.down_dir.rstrip(os.path.sep),
         provider_settings_path=arg.config_file,
-        max_downloads=int(arg.number),
+        max_downloads=int(arg.safety_limit),
         use_file_prefix=arg.use_filename_prefix,
         time_coverage_start__gte=designated_begin,
         time_coverage_end__lte=designated_end,
@@ -35,7 +36,7 @@ def main(arg):
     )
     download_manager.download()
 
-def find_designated_time(rel_time_flag,begin,end):
+def find_designated_time(rel_time_flag, begin, end):
     """find the starting time and the ending time of downloading based on two cases of 1)relative or
     2)absolute times definition by user."""
     if rel_time_flag:
@@ -48,7 +49,7 @@ def find_designated_time(rel_time_flag,begin,end):
     return designated_begin, designated_end
 
 def parse_args():
-    "creates proper arguments parser with 'argparse' of python."
+    """creates proper arguments parser with 'argparse' of python."""
     parser = argparse.ArgumentParser(description='Process the arguments of entry_point')
     parser.add_argument(
         '-d', '--down_dir', required=True, type=str,
@@ -67,7 +68,7 @@ def parse_args():
         help="The flag that distinguishes between the two cases of time calculation (1.time-lag from "
         +"now 2.Two different points in time) based on its ABSENCE or PRESENCE in the arguments.")
     parser.add_argument(
-        '-n', '--number', required=False, type=str, default="400",
+        '-s', '--safety_limit', required=False, type=str, default="400",
         help="The upper limit (safety limit) of number of datasets that are going to be downloaded. "
         +"If there total number of requested dataset for downloading exceeds this number, the "
         +"downloading process does not commence.")
@@ -95,5 +96,4 @@ def parse_args():
     return parser.parse_args()
 
 if __name__ == "__main__":
-    arg = parse_args()
-    main(arg)
+    main()

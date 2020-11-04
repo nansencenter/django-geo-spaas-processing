@@ -20,7 +20,7 @@ def main():
     """
     Instantiation and calling the download() method of DownloadManager based on created argparser.
     """
-    arg = parse_args()
+    arg = cli_parse_args()
     cumulative_query = json.loads(arg.query) if arg.query else {}
     if arg.geometry:
         cumulative_query['geographic_location__geometry__intersects'] = GEOSGeometry(arg.geometry)
@@ -48,7 +48,7 @@ def find_designated_time(rel_time_flag, begin, end):
         designated_end = datetime.strptime(end, "%Y-%m-%d").replace(tzinfo=tzutc())
     return designated_begin, designated_end
 
-def parse_args():
+def cli_parse_args():
     """creates proper arguments parser with 'argparse' of python."""
     parser = argparse.ArgumentParser(description='Process the arguments of entry_point')
     parser.add_argument(

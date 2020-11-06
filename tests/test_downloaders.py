@@ -384,6 +384,19 @@ class DownloadManagerTestCase(django.test.TestCase):
             download_manager.download_dataset(dataset, 'testing_value')
             self.assertIsNone(mock_dl_url.call_args[1]['file_prefix'])
 
+    def test_the_storing_ability_of_file_local_address(self):
+        """
+        Test that address of downloaded file is added to the dataseturi model
+        with attribute of "service='DOWNLOAD_DIR'".
+        """
+        download_manager = downloaders.DownloadManager(store_address=True)
+        dataset = Dataset.objects.get(pk=1)
+        with mock.patch.object(downloaders.HTTPDownloader, 'check_and_download_url') as mock_dl_url:
+            mock_dl_url.return_value = ('test.nc', True)
+            download_manager.download_dataset(dataset, 'testing_value')
+            self.assertEqual(dataset.dataseturi_set.get(service='DOWNLOAD_DIR').uri,
+                            'testing_value/test.nc')
+
     def test_download_dataset(self):
         """Test that a dataset is downloaded with the correct arguments"""
         download_manager = downloaders.DownloadManager(

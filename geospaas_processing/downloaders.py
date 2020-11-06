@@ -238,7 +238,7 @@ class DownloadManager():
     }
 
     def __init__(self, download_directory='.', provider_settings_path=None, max_downloads=100,
-                 use_file_prefix=True, **criteria):
+                 use_file_prefix=True, store_address=False, **criteria):
         """
         `criteria` accepts the same keyword arguments as Django's `filter()` method.
         When filtering on time coverage, it is preferable to use timezone aware datetimes.
@@ -251,6 +251,7 @@ class DownloadManager():
             raise DownloadError("No dataset matches the search criteria")
         self.download_folder = download_directory
         self.use_file_prefix = use_file_prefix
+        self.store_address = store_address
         LOGGER.debug("Found %d datasets", self.datasets.count())
         if self.datasets.count() > self.max_downloads:
             raise ValueError("Too many datasets to download")
@@ -317,6 +318,11 @@ class DownloadManager():
                         f"Could not write the dowloaded file to {error.filename}") from error
                 else:
                     if downloaded:
+                        if self.store_address:
+                            dataset.dataseturi_set.update_or_create(
+                                service='DOWNLOAD_DIR', dataset=dataset,
+                                defaults={"uri": os.path.join(download_directory, file_name)}
+                                )
                         LOGGER.info("Successfully downloaded dataset %d to %s",
                                     dataset.pk, file_name)
                     else:

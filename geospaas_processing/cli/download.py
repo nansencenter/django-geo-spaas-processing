@@ -30,6 +30,7 @@ def main():
         provider_settings_path=arg.config_file,
         max_downloads=int(arg.safety_limit),
         use_file_prefix=arg.use_filename_prefix,
+        store_address=arg.address_storage,
         time_coverage_start__gte=designated_begin,
         time_coverage_end__lte=designated_end,
         **cumulative_query
@@ -79,6 +80,10 @@ def cli_parse_args():
         '-p', '--use_filename_prefix', action='store_true',
         help="The flag that distinguishes between the two cases of having files WITH or WITHOUT "
         + "file prefix when downloaded")
+    parser.add_argument(
+        '-a', '--address_storage', action='store_true',
+        help="The flag that distinguishes between the two cases of whether storing the local "
+        + "address of file in the dataset or not by its its ABSENCE or PRESENCE in the arguments.")
     parser.add_argument(
         '-g', '--geometry', required=False, type=str,
         help="The 'wkt' string of geometry which is acceptable by 'GEOSGeometry' of django")

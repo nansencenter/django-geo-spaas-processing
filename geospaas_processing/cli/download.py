@@ -83,7 +83,7 @@ def cli_parse_args():
     parser.add_argument(
         '-a', '--address_storage', action='store_true',
         help="The flag that distinguishes between the two cases of whether storing the local "
-        + "address of file in the dataset or not by its its ABSENCE or PRESENCE in the arguments.")
+        + "address of file in the dataset or not by its ABSENCE or PRESENCE in the arguments.")
     parser.add_argument(
         '-g', '--geometry', required=False, type=str,
         help="The 'wkt' string of geometry which is acceptable by 'GEOSGeometry' of django")

@@ -13,6 +13,7 @@ import geospaas_processing.downloaders as downloaders
 import geospaas_processing.utils as utils
 import requests
 from geospaas.catalog.models import Dataset
+from geospaas.catalog.managers import LOCAL_FILE_SERVICE
 from redis import Redis
 
 class DownloaderTestCase(unittest.TestCase):
@@ -386,15 +387,15 @@ class DownloadManagerTestCase(django.test.TestCase):
 
     def test_the_storing_ability_of_file_local_address(self):
         """
-        Test that address of downloaded file is added to the dataseturi model
-        with attribute of "service='DOWNLOAD_DIR'".
+        Test that address of downloaded file is added to the dataseturi model.
         """
-        download_manager = downloaders.DownloadManager(store_address=True)
+        download_manager = downloaders.DownloadManager(save_path=True)
         dataset = Dataset.objects.get(pk=1)
         with mock.patch.object(downloaders.HTTPDownloader, 'check_and_download_url') as mock_dl_url:
             mock_dl_url.return_value = ('test.nc', True)
             download_manager.download_dataset(dataset, 'testing_value')
-            self.assertEqual(dataset.dataseturi_set.get(service='DOWNLOAD_DIR').uri,
+            self.assertEqual(dataset.dataseturi_set.filter(
+                                dataset=dataset,service=LOCAL_FILE_SERVICE)[0].uri,
                             'testing_value/test.nc')
 
     def test_download_dataset(self):

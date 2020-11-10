@@ -9,6 +9,7 @@ from django.contrib.gis.geos import GEOSGeometry
 from freezegun import freeze_time
 
 import geospaas_processing.cli.download as cli_download
+import geospaas_processing.cli.copy as cli_copy
 
 
 class DownlaodingCLITestCase(unittest.TestCase):
@@ -183,3 +184,53 @@ class DownlaodingCLITestCase(unittest.TestCase):
             answer_3, answer_4 = cli_download.find_designated_time(True, '500', '')
             self.assertEqual(answer_3, datetime(2011, 12, 24, 4, 0, tzinfo=tzutc()))
             self.assertEqual(answer_4, datetime(2012, 1, 14, 0, 0, tzinfo=tzutc()))
+
+
+class CopyingCLITestCase(unittest.TestCase):
+    """Tests for the cli of copying """
+    def setUp(self):
+        sys.argv = [
+            "",
+            '-d', "/test_folder/",
+            '-b', "200",
+            '-e', "2020-08-22",
+            '-r',
+            '-f',
+            '-l',
+            '-g', "POLYGON ((-22 84, -22 74, 32 74, 32 84, -22 84))",
+            '-t','test_type',
+            '-q',
+            '{"dataseturi__uri__contains": "osisaf", "source__instrument__short_name__icontains": '
+            + '"AMSR2"}',
+        ]
+
+    def test_extract_arg(self):
+        """shall return the correct argument values based on the 'sys.argv' """
+        arg = cli_copy.cli_parse_args()
+        self.assertEqual(arg.begin, '200')
+        self.assertEqual(arg.destination_path, '/test_folder/')
+        self.assertEqual(arg.end, '2020-08-22')
+        self.assertEqual(arg.geometry, 'POLYGON ((-22 84, -22 74, 32 74, 32 84, -22 84))')
+        self.assertEqual(arg.type, 'test_type')
+        self.assertEqual(arg.query,
+                         '{"dataseturi__uri__contains": "osisaf", '
+                         +'"source__instrument__short_name__icontains": "AMSR2"}')
+        # testing the flag enumeration
+        self.assertTrue(arg.rel_time_flag)
+        self.assertTrue(arg.flag_file)
+        self.assertTrue(arg.link)
+        sys.argv.remove('-r')
+        sys.argv.remove('-l')
+        sys.argv.remove('-f')
+        arg = cli_copy.cli_parse_args()
+        self.assertFalse(arg.rel_time_flag)
+        self.assertFalse(arg.flag_file)
+        self.assertFalse(arg.link)
+
+    def test_lack_of_calling_json_deserializer_when_no_query_appears(self):
+        """'json.loads' should not called when nothing comes after '-q' """
+        sys.argv.pop()
+        sys.argv.pop()
+        with mock.patch('json.loads') as mock_json:
+            cli_copy.main()
+        self.assertIsNone(mock_json.call_args)

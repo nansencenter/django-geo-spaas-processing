@@ -45,14 +45,14 @@ class DownlaodingCLITestCase(unittest.TestCase):
                          +'"source__instrument__short_name__icontains": "AMSR2"}')
         # testing the flag enumeration
         self.assertTrue(arg.rel_time_flag)
+        self.assertTrue(arg.save_path)
         self.assertTrue(arg.use_filename_prefix)
-        self.assertTrue(arg.address_storage)
         sys.argv.remove('-r')
         sys.argv.remove('-a')
         sys.argv.remove('-p')
         arg = cli_download.cli_parse_args()
         self.assertFalse(arg.rel_time_flag)
-        self.assertFalse(arg.address_storage)
+        self.assertFalse(arg.save_path)
         self.assertFalse(arg.use_filename_prefix)
 
     @mock.patch('geospaas_processing.downloaders.DownloadManager.__init__', return_value=None)
@@ -69,8 +69,7 @@ class DownlaodingCLITestCase(unittest.TestCase):
 
     @mock.patch('geospaas_processing.downloaders.DownloadManager.__init__', return_value=None)
     @mock.patch('geospaas_processing.downloaders.DownloadManager.download')
-    def test_lack_of_calling_json_deserializer_when_no_query_appears(
-            self, mock_download_method, mock_download_manager_init):
+    def test_lack_of_calling_json_deserializer_when_no_query_appears(self, mock_download_method, mock_download_manager_init):
         """'json.loads' should not called when nothing comes after '-q' """
         sys.argv.pop()
         sys.argv.pop()
@@ -99,7 +98,7 @@ class DownlaodingCLITestCase(unittest.TestCase):
             'dataseturi__uri__contains': 'osisaf',
             'source__instrument__short_name__icontains': 'AMSR2',
             'use_file_prefix': False,
-            'store_address': True
+            'save_path': True
         }, mock_download_manager_init.call_args)
 
     @mock.patch('geospaas_processing.downloaders.DownloadManager.__init__', return_value=None)
@@ -124,7 +123,7 @@ class DownlaodingCLITestCase(unittest.TestCase):
             'dataseturi__uri__contains': 'osisaf',
             'source__instrument__short_name__icontains': 'AMSR2',
             'use_file_prefix': True,
-            'store_address': True
+            'save_path': True
         }, mock_download_manager_init.call_args)
 
     @mock.patch('geospaas_processing.downloaders.DownloadManager.__init__', return_value=None)
@@ -147,7 +146,7 @@ class DownlaodingCLITestCase(unittest.TestCase):
             'dataseturi__uri__contains': 'osisaf',
             'source__instrument__short_name__icontains': 'AMSR2',
             'use_file_prefix': True,
-            'store_address': True
+            'save_path': True
         }, mock_download_manager_init.call_args)
 
     @mock.patch('geospaas_processing.downloaders.DownloadManager.__init__', return_value=None)
@@ -170,7 +169,7 @@ class DownlaodingCLITestCase(unittest.TestCase):
             'dataseturi__uri__contains': 'osisaf',
             'source__instrument__short_name__icontains': 'AMSR2',
             'use_file_prefix': True,
-            'store_address': True
+            'save_path': True
         }, mock_download_manager_init.call_args)
 
     def test_find_designated_time_function(self):

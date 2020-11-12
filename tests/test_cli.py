@@ -7,7 +7,7 @@ from datetime import datetime
 from dateutil.tz import tzutc
 from django.contrib.gis.geos import GEOSGeometry
 from freezegun import freeze_time
-
+import os
 import geospaas_processing.cli.download as cli_download
 import geospaas_processing.cli.copy as cli_copy
 
@@ -188,6 +188,9 @@ class DownlaodingCLITestCase(unittest.TestCase):
 
 class CopyingCLITestCase(unittest.TestCase):
     """Tests for the cli of copying """
+
+    fixtures = [os.path.join(os.path.dirname(__file__), 'data/test_data.json')]
+
     def setUp(self):
         sys.argv = [
             "",
@@ -220,14 +223,14 @@ class CopyingCLITestCase(unittest.TestCase):
         self.assertTrue(arg.flag_file)
         self.assertTrue(arg.link)
         sys.argv.remove('-r')
-        sys.argv.remove('-l')
         sys.argv.remove('-f')
+        sys.argv.remove('-l')
         arg = cli_copy.cli_parse_args()
         self.assertFalse(arg.rel_time_flag)
         self.assertFalse(arg.flag_file)
         self.assertFalse(arg.link)
 
-    def test_lack_of_calling_json_deserializer_when_no_query_appears(self):
+    def test_lack_of_calling_json_deserializer_when_no_query_appears_for_copying(self):
         """'json.loads' should not called when nothing comes after '-q' """
         sys.argv.pop()
         sys.argv.pop()

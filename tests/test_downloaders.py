@@ -463,7 +463,7 @@ class DownloadManagerTestCase(django.test.TestCase):
                 self.assertEqual(download_manager.download_dataset(dataset, ''), dataset_file_name)
                 self.assertTrue(logs_cm.records[0].message.startswith('Failed to download dataset'))
 
-    def test_download_dataset_failure_when_no_local_link_is_stored(self):
+    def test_download_dataset_having_local_link_fails_because_of_corrupted_uri(self):
         """Test that `download_dataset` raises a DownloadError exception if the download failed"""
         download_manager = downloaders.DownloadManager()
         dataset = Dataset.objects.get(pk=2)
@@ -473,7 +473,7 @@ class DownloadManagerTestCase(django.test.TestCase):
                 with self.assertLogs(downloaders.LOGGER, logging.WARNING):
                     download_manager.download_dataset(dataset, '')
 
-    def test_download_dataset_failureno_when_local_link_is_stored_as_dataseturi(self):
+    def test_download_dataset_without_local_link_fails_because_of_corrupted_uri(self):
         """Test that `download_dataset` raises a DownloadError exception if the download failed"""
         download_manager = downloaders.DownloadManager()
         dataset = Dataset.objects.get(pk=1)

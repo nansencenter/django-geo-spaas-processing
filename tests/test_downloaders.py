@@ -390,7 +390,7 @@ class DownloadManagerTestCase(django.test.TestCase):
         Test that address of downloaded file is added to the dataseturi model.
         """
         download_manager = downloaders.DownloadManager(save_path=True)
-        dataset = Dataset.objects.get(pk=1)
+        dataset = Dataset.objects.get(pk=3)
         with mock.patch.object(downloaders.HTTPDownloader, 'check_and_download_url') as mock_dl_url:
             mock_dl_url.return_value = ('test.nc', True)
             download_manager.download_dataset(dataset, 'testing_value')
@@ -463,7 +463,17 @@ class DownloadManagerTestCase(django.test.TestCase):
                 self.assertEqual(download_manager.download_dataset(dataset, ''), dataset_file_name)
                 self.assertTrue(logs_cm.records[0].message.startswith('Failed to download dataset'))
 
-    def test_download_dataset_failure(self):
+    def test_download_dataset_failure_when_no_local_link_is_stored(self):
+        """Test that `download_dataset` raises a DownloadError exception if the download failed"""
+        download_manager = downloaders.DownloadManager()
+        dataset = Dataset.objects.get(pk=2)
+        with mock.patch.object(downloaders.HTTPDownloader, 'check_and_download_url') as mock_dl_url:
+            mock_dl_url.side_effect = downloaders.DownloadError
+            with self.assertRaises(downloaders.DownloadError):
+                with self.assertLogs(downloaders.LOGGER, logging.WARNING):
+                    download_manager.download_dataset(dataset, '')
+
+    def test_download_dataset_failureno_when_local_link_is_stored_as_dataseturi(self):
         """Test that `download_dataset` raises a DownloadError exception if the download failed"""
         download_manager = downloaders.DownloadManager()
         dataset = Dataset.objects.get(pk=1)

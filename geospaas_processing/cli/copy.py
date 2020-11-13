@@ -5,6 +5,7 @@ import argparse
 import json
 import ntpath
 import os
+from os import path
 import shutil
 
 import django
@@ -38,16 +39,16 @@ def main():
         except IndexError:
             continue
         for source_path in source_paths:
-            if os.path.isfile(source_path.uri):
+            if path.isfile(source_path.uri):
                 if arg.link:
                     try:
-                        os.symlink(src=arg.destination_path.rstrip(os.path.sep)
+                        os.symlink(dst=arg.destination_path.rstrip(os.path.sep)
                                    + os.path.sep+ntpath.basename(source_path.uri),
-                                   dst=source_path.uri)
+                                   src=source_path.uri)
                     except FileExistsError:
                         pass
                 else:
-                    shutil.copy(source_path.uri, arg.destination_path)
+                    shutil.copy(src=source_path.uri, dst=arg.destination_path)
                 if arg.flag_file:
                     with open(arg.destination_path.rstrip(os.path.sep)
                               + os.path.sep + ntpath.basename(source_path.uri)

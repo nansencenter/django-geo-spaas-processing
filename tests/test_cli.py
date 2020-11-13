@@ -1,18 +1,25 @@
 """Unit tests for cli"""
+import os
+import shutil
 import sys
+import tempfile
 import unittest
 import unittest.mock as mock
 from datetime import datetime
+from pathlib import Path
+from unittest.mock import call
 
+import django.test
+import geospaas_processing.cli.copy as cli_copy
+import geospaas_processing.cli.download as cli_download
 from dateutil.tz import tzutc
 from django.contrib.gis.geos import GEOSGeometry
 from freezegun import freeze_time
-import os
-import geospaas_processing.cli.download as cli_download
-import geospaas_processing.cli.copy as cli_copy
+from geospaas.catalog.models import Dataset
+from geospaas.catalog.managers import LOCAL_FILE_SERVICE
 
 
-class DownlaodingCLITestCase(unittest.TestCase):
+class DownlaodingCLITestCase(django.test.TestCase):
     """Tests for the cli of downloading """
 
     def setUp(self):
@@ -43,7 +50,7 @@ class DownlaodingCLITestCase(unittest.TestCase):
         self.assertEqual(arg.safety_limit, '100')
         self.assertEqual(arg.query,
                          '{"dataseturi__uri__contains": "osisaf", '
-                         +'"source__instrument__short_name__icontains": "AMSR2"}')
+                         + '"source__instrument__short_name__icontains": "AMSR2"}')
         # testing the flag enumeration
         self.assertTrue(arg.rel_time_flag)
         self.assertTrue(arg.save_path)
@@ -71,7 +78,7 @@ class DownlaodingCLITestCase(unittest.TestCase):
     @mock.patch('geospaas_processing.downloaders.DownloadManager.__init__', return_value=None)
     @mock.patch('geospaas_processing.downloaders.DownloadManager.download')
     def test_lack_of_calling_json_deserializer_when_no_query_appears(
-        self, mock_download_method, mock_download_manager_init):
+            self, mock_download_method, mock_download_manager_init):
         """'json.loads' should not called when nothing comes after '-q' """
         sys.argv.pop()
         sys.argv.pop()
@@ -186,38 +193,36 @@ class DownlaodingCLITestCase(unittest.TestCase):
             self.assertEqual(answer_4, datetime(2012, 1, 14, 0, 0, tzinfo=tzutc()))
 
 
-class CopyingCLITestCase(unittest.TestCase):
+class CopyingCLITestCase(django.test.TestCase):
     """Tests for the cli of copying """
 
     fixtures = [os.path.join(os.path.dirname(__file__), 'data/test_data.json')]
 
-    def setUp(self):
+    def test_extract_arg(self):
+        """shall return the correct argument values based on the 'sys.argv' """
         sys.argv = [
             "",
             '-d', "/test_folder/",
             '-b', "200",
-            '-e', "2020-08-22",
+            '-e', "2018-11-18",
             '-r',
             '-f',
             '-l',
             '-g', "POLYGON ((-22 84, -22 74, 32 74, 32 84, -22 84))",
-            '-t','test_type',
+            '-t', 'test_type',
             '-q',
             '{"dataseturi__uri__contains": "osisaf", "source__instrument__short_name__icontains": '
-            + '"AMSR2"}',
+            + '"AMSR2"}'
         ]
-
-    def test_extract_arg(self):
-        """shall return the correct argument values based on the 'sys.argv' """
         arg = cli_copy.cli_parse_args()
         self.assertEqual(arg.begin, '200')
         self.assertEqual(arg.destination_path, '/test_folder/')
-        self.assertEqual(arg.end, '2020-08-22')
+        self.assertEqual(arg.end, '2018-11-18')
         self.assertEqual(arg.geometry, 'POLYGON ((-22 84, -22 74, 32 74, 32 84, -22 84))')
         self.assertEqual(arg.type, 'test_type')
         self.assertEqual(arg.query,
                          '{"dataseturi__uri__contains": "osisaf", '
-                         +'"source__instrument__short_name__icontains": "AMSR2"}')
+                         + '"source__instrument__short_name__icontains": "AMSR2"}')
         # testing the flag enumeration
         self.assertTrue(arg.rel_time_flag)
         self.assertTrue(arg.flag_file)
@@ -232,8 +237,123 @@ class CopyingCLITestCase(unittest.TestCase):
 
     def test_lack_of_calling_json_deserializer_when_no_query_appears_for_copying(self):
         """'json.loads' should not called when nothing comes after '-q' """
-        sys.argv.pop()
-        sys.argv.pop()
+        sys.argv = [
+            "",
+            '-d', "/test_folder/",
+            '-b', "200",
+            '-e', "2018-11-18",
+            '-r',
+            '-f',
+            '-l',
+            '-g', "POLYGON ((-22 84, -22 74, 32 74, 32 84, -22 84))",
+            '-t', 'test_type'
+        ]
         with mock.patch('json.loads') as mock_json:
             cli_copy.main()
         self.assertIsNone(mock_json.call_args)
+
+    @mock.patch('geospaas_processing.cli.copy.path')
+    def test_correct_destination_folder_for_all_files_that_are_copied(self, mock_isfile):
+        """ the copied file(s) shall be copied at the destination folder """
+        mock_isfile.isfile.return_value = True
+        sys.argv = [
+            "",
+            '-b', "2018-04-01",
+            '-e', "2018-04-09",
+            '-d', "/dst_folder/"
+        ]
+        for dataset in Dataset.objects.all():
+            dataset.dataseturi_set.get_or_create(
+                uri='/new_loc_add', dataset=dataset, service=LOCAL_FILE_SERVICE)
+        with mock.patch('shutil.copy') as mock_copy:
+            cli_copy.main()
+        self.assertEqual(
+            [call(dst='/dst_folder/', src='/testing_folder/testing_file.test'),
+             call(dst='/dst_folder/', src='/new_loc_add')],
+            mock_copy.call_args_list)
+        for dataset in Dataset.objects.all():
+            dataset.dataseturi_set.filter(
+                uri='/new_loc_add', dataset=dataset, service=LOCAL_FILE_SERVICE).delete()
+
+    @mock.patch('geospaas_processing.cli.copy.path')
+    def test_correct_place_of_symlink_after_creation_of_it(self, mock_isfile):
+        """ symlink must be placed at the address that is specified from the input arguments """
+        mock_isfile.isfile.return_value = True
+        sys.argv = [
+            "",
+            '-b', "2018-04-01",
+            '-e', "2018-04-09",
+            '-l',
+            '-d', "/dst_folder/"
+        ]
+        for dataset in Dataset.objects.all():
+            dataset.dataseturi_set.get_or_create(
+                uri='/new_loc_add', dataset=dataset, service=LOCAL_FILE_SERVICE)
+        with mock.patch('os.symlink') as mock_symlink:
+            cli_copy.main()
+        self.assertEqual(
+            [call(dst='/dst_folder/testing_file.test', src='/testing_folder/testing_file.test'),
+             call(dst='/dst_folder/new_loc_add', src='/new_loc_add')],
+            mock_symlink.call_args_list)
+        for dataset in Dataset.objects.all():
+            dataset.dataseturi_set.filter(
+                uri='/new_loc_add', dataset=dataset, service=LOCAL_FILE_SERVICE).delete()
+
+    @mock.patch('os.symlink')
+    @mock.patch('geospaas_processing.cli.copy.path')
+    def test_correct_content_of_flag_file(self, mock_isfile, mock_link):
+        """ flag file should contain this 'type: test_type' information """
+        mock_isfile.isfile.return_value = True
+        sys.argv = [
+            "",
+            '-b', "2018-04-01",
+            '-e', "2018-04-09",
+            '-f', '-l',
+            '-t', 'test_type'
+        ]
+        temp_directory = tempfile.TemporaryDirectory()
+        sys.argv.append('-d')
+        sys.argv.append(temp_directory.name)
+        cli_copy.main()
+        fd = os.open(temp_directory.name + '/testing_file.test.flag', os.O_RDONLY)
+        self.assertEqual(os.read(fd, 200),
+                         b"type: test_type\nurl: https://scihub.copernicus.eu/apihub/odata/v1/Produ"
+                         + b"cts('6127111d-c9bd-4689-bab5-412dd39e1e81')/$value\nurl: https://scihu"
+                         + b"b.copernicus.eu/the_second_fakeurl\n")
+
+    def test_copying_accomplishment_and_consistency(self):
+        """ A symlink of actual sample file should be copied to the destination folder """
+        sys.argv = [
+            "",
+            '-b', "2018-04-01",
+            '-e', "2018-04-09",
+            '-f', '-l'
+        ]
+        temp_directory_dst = tempfile.TemporaryDirectory()
+        sys.argv.append('-d')
+        sys.argv.append(temp_directory_dst.name)
+        os.mkdir("/testing_folder")
+        Path("/testing_folder/testing_file.test").touch()
+        cli_copy.main()
+        self.assertTrue(os.path.islink(temp_directory_dst.name+'/testing_file.test'))
+        cli_copy.main()  # assertion of completion of copy for the second time without error
+        self.assertTrue(os.path.islink(temp_directory_dst.name+'/testing_file.test'))
+        shutil.rmtree("/testing_folder")
+
+    def test_copying_accomplishment_and_consistency(self):
+        """ The actual sample file should be copied to the destination folder  """
+        sys.argv = [
+            "",
+            '-b', "2018-04-01",
+            '-e', "2018-04-09"
+        ]
+        temp_directory_dst = tempfile.TemporaryDirectory()
+        sys.argv.append('-d')
+        sys.argv.append(temp_directory_dst.name)
+        os.mkdir("/testing_folder")
+        Path("/testing_folder/testing_file.test").touch()
+        cli_copy.main()
+        self.assertTrue(os.path.isfile(temp_directory_dst.name+'/testing_file.test'))
+        cli_copy.main()  # assertion of completion of copy for the second time without error
+        self.assertTrue(os.path.isfile(temp_directory_dst.name+'/testing_file.test'))
+        shutil.rmtree("/testing_folder")

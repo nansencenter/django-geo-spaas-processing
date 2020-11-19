@@ -69,7 +69,8 @@ class DownlaodingCLITestCase(unittest.TestCase):
 
     @mock.patch('geospaas_processing.downloaders.DownloadManager.__init__', return_value=None)
     @mock.patch('geospaas_processing.downloaders.DownloadManager.download')
-    def test_lack_of_calling_json_deserializer_when_no_query_appears(self, mock_download_method, mock_download_manager_init):
+    def test_lack_of_calling_json_deserializer_when_no_query_appears(
+        self, mock_download_method, mock_download_manager_init):
         """'json.loads' should not called when nothing comes after '-q' """
         sys.argv.pop()
         sys.argv.pop()

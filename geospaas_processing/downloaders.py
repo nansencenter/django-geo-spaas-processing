@@ -275,7 +275,7 @@ class DownloadManager():
         Returns the downloaded file path if the download succeeds, an empty string otherwise.
         """
         for dataset_uri in dataset.dataseturi_set.all():
-            if dataset_uri.service==geospaas.catalog.managers.LOCAL_FILE_SERVICE:
+            if dataset_uri.service == geospaas.catalog.managers.LOCAL_FILE_SERVICE:
                 continue
             # Get the extra settings for the provider
             dataset_uri_prefix = "://".join(requests.utils.urlparse(dataset_uri.uri)[0:2])
@@ -323,7 +323,7 @@ class DownloadManager():
                         if self.save_path:
                             dataset.dataseturi_set.get_or_create(
                                 dataset=dataset,
-                                uri = os.path.join(download_directory, file_name),
+                                uri = os.path.join(os.path.realpath(download_directory), file_name),
                                 )
                         LOGGER.info("Successfully downloaded dataset %d to %s",
                                     dataset.pk, file_name)

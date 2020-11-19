@@ -1,5 +1,5 @@
 """
-Download files that are selected from the database using input criteria.
+Copy files that are selected from the database using input criteria from copy config file.
 """
 import argparse
 import json

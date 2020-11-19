@@ -393,10 +393,10 @@ class DownloadManagerTestCase(django.test.TestCase):
         dataset = Dataset.objects.get(pk=3)
         with mock.patch.object(downloaders.HTTPDownloader, 'check_and_download_url') as mock_dl_url:
             mock_dl_url.return_value = ('test.nc', True)
-            download_manager.download_dataset(dataset, 'testing_value')
+            download_manager.download_dataset(dataset, '/testing_value')
             self.assertEqual(dataset.dataseturi_set.filter(
                                 dataset=dataset,service=LOCAL_FILE_SERVICE)[0].uri,
-                            'testing_value/test.nc')
+                            '/testing_value/test.nc')
 
     def test_download_dataset(self):
         """Test that a dataset is downloaded with the correct arguments"""
@@ -463,7 +463,7 @@ class DownloadManagerTestCase(django.test.TestCase):
                 self.assertEqual(download_manager.download_dataset(dataset, ''), dataset_file_name)
                 self.assertTrue(logs_cm.records[0].message.startswith('Failed to download dataset'))
 
-    def test_download_dataset_having_local_link_fails_because_of_corrupted_uri(self):
+    def test_download_dataset_having_local_link_fails(self):
         """Test that `download_dataset` raises a DownloadError exception if the download failed"""
         download_manager = downloaders.DownloadManager()
         dataset = Dataset.objects.get(pk=2)
@@ -473,7 +473,7 @@ class DownloadManagerTestCase(django.test.TestCase):
                 with self.assertLogs(downloaders.LOGGER, logging.WARNING):
                     download_manager.download_dataset(dataset, '')
 
-    def test_download_dataset_without_local_link_fails_because_of_corrupted_uri(self):
+    def test_download_dataset_without_local_link_fails(self):
         """Test that `download_dataset` raises a DownloadError exception if the download failed"""
         download_manager = downloaders.DownloadManager()
         dataset = Dataset.objects.get(pk=1)
@@ -482,6 +482,18 @@ class DownloadManagerTestCase(django.test.TestCase):
             with self.assertRaises(downloaders.DownloadError):
                 with self.assertLogs(downloaders.LOGGER, logging.WARNING):
                     download_manager.download_dataset(dataset, '')
+
+    def test_no_attempt_for_download_for_local_file_address(self):
+        """
+        no attempt for download should happen when there is no other uri than the local address
+        """
+        download_manager = downloaders.DownloadManager()
+        dataset = Dataset.objects.get(pk=2)
+        dataset.dataseturi_set.exclude(dataset=dataset, service=LOCAL_FILE_SERVICE).delete()
+        with mock.patch.object(downloaders.HTTPDownloader, 'check_and_download_url') as mock_dl_url:
+            with self.assertRaises(downloaders.DownloadError):
+                download_manager.download_dataset(dataset, '')
+        mock_dl_url.assert_not_called()
 
     def test_download_no_downloader_found(self):
         """Test that `download_dataset` raises an exception when no downloader is found"""

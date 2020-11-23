@@ -3,18 +3,19 @@ import os
 import shutil
 import sys
 import tempfile
-import unittest
 import unittest.mock as mock
-from datetime import datetime
-from pathlib import Path
 from unittest.mock import call
 
+from datetime import datetime
+from pathlib import Path
+from dateutil.tz import tzutc
+from freezegun import freeze_time
 import django.test
+from django.contrib.gis.geos import GEOSGeometry
+
 import geospaas_processing.cli.copy as cli_copy
 import geospaas_processing.cli.download as cli_download
-from dateutil.tz import tzutc
-from django.contrib.gis.geos import GEOSGeometry
-from freezegun import freeze_time
+import geospaas_processing.cli.util as util
 from geospaas.catalog.models import Dataset
 from geospaas.catalog.managers import LOCAL_FILE_SERVICE
 
@@ -51,7 +52,7 @@ class DownlaodingCLITestCase(django.test.TestCase):
         self.assertEqual(arg.query,
                          '{"dataseturi__uri__contains": "osisaf", '
                          + '"source__instrument__short_name__icontains": "AMSR2"}')
-        # testing the flag enumeration
+        # testing the flag presence
         self.assertTrue(arg.rel_time_flag)
         self.assertTrue(arg.save_path)
         self.assertTrue(arg.use_filename_prefix)
@@ -84,7 +85,7 @@ class DownlaodingCLITestCase(django.test.TestCase):
         sys.argv.pop()
         with mock.patch('json.loads') as mock_json:
             cli_download.main()
-        self.assertIsNone(mock_json.call_args)
+        mock_json.assert_not_called()
 
     @mock.patch('geospaas_processing.downloaders.DownloadManager.__init__', return_value=None)
     @mock.patch('geospaas_processing.downloaders.DownloadManager.download')
@@ -184,11 +185,11 @@ class DownlaodingCLITestCase(django.test.TestCase):
     def test_find_designated_time_function(self):
         """test the 'find_designated_time' function logics. answer_1, answer_2 are used for absolute
         and answer_3, answer_4 are used for relative timing"""
-        answer_1, answer_2 = cli_download.find_designated_time(False, '2019-10-22', '2020-08-22')
+        answer_1, answer_2 = util.find_designated_time(False, '2019-10-22', '2020-08-22')
         self.assertEqual(answer_1, datetime(2019, 10, 22, 0, 0, tzinfo=tzutc()))
         self.assertEqual(answer_2, datetime(2020, 8, 22, 0, 0, tzinfo=tzutc()))
         with freeze_time("2012-01-14"):
-            answer_3, answer_4 = cli_download.find_designated_time(True, '500', '')
+            answer_3, answer_4 = util.find_designated_time(True, '500', '')
             self.assertEqual(answer_3, datetime(2011, 12, 24, 4, 0, tzinfo=tzutc()))
             self.assertEqual(answer_4, datetime(2012, 1, 14, 0, 0, tzinfo=tzutc()))
 
@@ -223,7 +224,7 @@ class CopyingCLITestCase(django.test.TestCase):
         self.assertEqual(arg.query,
                          '{"dataseturi__uri__contains": "osisaf", '
                          + '"source__instrument__short_name__icontains": "AMSR2"}')
-        # testing the flag enumeration
+        # testing the flag presence
         self.assertTrue(arg.rel_time_flag)
         self.assertTrue(arg.flag_file)
         self.assertTrue(arg.link)
@@ -250,12 +251,14 @@ class CopyingCLITestCase(django.test.TestCase):
         ]
         with mock.patch('json.loads') as mock_json:
             cli_copy.main()
-        self.assertIsNone(mock_json.call_args)
+        mock_json.assert_not_called()
 
-    @mock.patch('geospaas_processing.cli.copy.path')
+    @mock.patch('os.path.isfile', side_effect=[True, False, True, False])
+    # The even side effects (the 'True' ones) are associated to the destination and the odd ones are
+    # associated to the source path. It is because 'os.path.isfile' is used for evaluating both
+    # source paths and destination paths.
     def test_correct_destination_folder_for_all_files_that_are_copied(self, mock_isfile):
         """ the copied file(s) shall be copied at the destination folder """
-        mock_isfile.isfile.return_value = True
         sys.argv = [
             "",
             '-b', "2018-04-01",
@@ -268,17 +271,16 @@ class CopyingCLITestCase(django.test.TestCase):
         with mock.patch('shutil.copy') as mock_copy:
             cli_copy.main()
         self.assertEqual(
-            [call(dst='/dst_folder/', src='/testing_folder/testing_file.test'),
+            [call(dst='/dst_folder/', src='/tmp/testing_file.test'),
              call(dst='/dst_folder/', src='/new_loc_add')],
             mock_copy.call_args_list)
         for dataset in Dataset.objects.all():
             dataset.dataseturi_set.filter(
                 uri='/new_loc_add', dataset=dataset, service=LOCAL_FILE_SERVICE).delete()
 
-    @mock.patch('geospaas_processing.cli.copy.path')
+    @mock.patch('os.path.isfile', return_value=True)
     def test_correct_place_of_symlink_after_creation_of_it(self, mock_isfile):
         """ symlink must be placed at the address that is specified from the input arguments """
-        mock_isfile.isfile.return_value = True
         sys.argv = [
             "",
             '-b', "2018-04-01",
@@ -292,7 +294,7 @@ class CopyingCLITestCase(django.test.TestCase):
         with mock.patch('os.symlink') as mock_symlink:
             cli_copy.main()
         self.assertEqual(
-            [call(dst='/dst_folder/testing_file.test', src='/testing_folder/testing_file.test'),
+            [call(dst='/dst_folder/testing_file.test', src='/tmp/testing_file.test'),
              call(dst='/dst_folder/new_loc_add', src='/new_loc_add')],
             mock_symlink.call_args_list)
         for dataset in Dataset.objects.all():
@@ -300,10 +302,9 @@ class CopyingCLITestCase(django.test.TestCase):
                 uri='/new_loc_add', dataset=dataset, service=LOCAL_FILE_SERVICE).delete()
 
     @mock.patch('os.symlink')
-    @mock.patch('geospaas_processing.cli.copy.path')
+    @mock.patch('os.path.isfile', return_value=True)
     def test_correct_content_of_flag_file(self, mock_isfile, mock_link):
         """ flag file should contain this 'type: test_type' information """
-        mock_isfile.isfile.return_value = True
         sys.argv = [
             "",
             '-b', "2018-04-01",
@@ -315,13 +316,15 @@ class CopyingCLITestCase(django.test.TestCase):
         sys.argv.append('-d')
         sys.argv.append(temp_directory.name)
         cli_copy.main()
-        fd = os.open(temp_directory.name + '/testing_file.test.flag', os.O_RDONLY)
-        self.assertEqual(os.read(fd, 200),
-                         b"type: test_type\nurl: https://scihub.copernicus.eu/apihub/odata/v1/Produ"
-                         + b"cts('6127111d-c9bd-4689-bab5-412dd39e1e81')/$value\nurl: https://scihu"
-                         + b"b.copernicus.eu/the_second_fakeurl\n")
+        with open(os.path.join(temp_directory.name + '/testing_file.test.flag'), 'r') as fd:
+            self.assertEqual(fd.read(), (
+                "type: test_type\nurl: https://scihub.copernicus.eu/apihub/odata/v1/Produ"
+                "cts('6127111d-c9bd-4689-bab5-412dd39e1e81')/$value\nurl: https://scihu"
+                "b.copernicus.eu/the_second_fakeurl\n"
+            )
+        )
 
-    def test_copying_accomplishment_and_consistency(self):
+    def test_copying_accomplishment_and_consistency_for_symlink_of_file_copying(self):
         """ A symlink of actual sample file should be copied to the destination folder """
         sys.argv = [
             "",
@@ -332,15 +335,14 @@ class CopyingCLITestCase(django.test.TestCase):
         temp_directory_dst = tempfile.TemporaryDirectory()
         sys.argv.append('-d')
         sys.argv.append(temp_directory_dst.name)
-        os.mkdir("/testing_folder")
-        Path("/testing_folder/testing_file.test").touch()
+        Path("/tmp/testing_file.test").touch()
         cli_copy.main()
         self.assertTrue(os.path.islink(temp_directory_dst.name+'/testing_file.test'))
         cli_copy.main()  # assertion of completion of copy for the second time without error
         self.assertTrue(os.path.islink(temp_directory_dst.name+'/testing_file.test'))
-        shutil.rmtree("/testing_folder")
+        os.remove("/tmp/testing_file.test")
 
-    def test_copying_accomplishment_and_consistency(self):
+    def test_copying_accomplishment_and_consistency_for_actual_file_copying(self):
         """ The actual sample file should be copied to the destination folder  """
         sys.argv = [
             "",
@@ -350,10 +352,9 @@ class CopyingCLITestCase(django.test.TestCase):
         temp_directory_dst = tempfile.TemporaryDirectory()
         sys.argv.append('-d')
         sys.argv.append(temp_directory_dst.name)
-        os.mkdir("/testing_folder")
-        Path("/testing_folder/testing_file.test").touch()
+        Path("/tmp/testing_file.test").touch()
         cli_copy.main()
         self.assertTrue(os.path.isfile(temp_directory_dst.name+'/testing_file.test'))
         cli_copy.main()  # assertion of completion of copy for the second time without error
         self.assertTrue(os.path.isfile(temp_directory_dst.name+'/testing_file.test'))
-        shutil.rmtree("/testing_folder")
+        os.remove("/tmp/testing_file.test")

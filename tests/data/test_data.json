@@ -100,7 +100,7 @@
         "fields": {
             "name": "fileService",
             "service": "local",
-            "uri": "/testing_folder/testing_file.test",
+            "uri": "/tmp/testing_file.test",
             "dataset": 2
         }
     },

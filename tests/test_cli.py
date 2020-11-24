@@ -45,7 +45,7 @@ class DownlaodingCLITestCase(django.test.TestCase):
         arg = cli_download.cli_parse_args()
         self.assertEqual(arg.begin, '200')
         self.assertEqual(arg.config_file, '/config_folder/config_file.yml')
-        self.assertEqual(arg.down_dir, '/test_folder/%Y_nh_polstere')
+        self.assertEqual(arg.destination_path, '/test_folder/%Y_nh_polstere')
         self.assertEqual(arg.end, '2020-08-22')
         self.assertEqual(arg.geometry, 'POLYGON ((-22 84, -22 74, 32 74, 32 84, -22 84))')
         self.assertEqual(arg.safety_limit, '100')
@@ -253,7 +253,7 @@ class CopyingCLITestCase(django.test.TestCase):
             cli_copy.main()
         mock_json.assert_not_called()
 
-    @mock.patch('os.path.isfile', side_effect=[True, False, True, False])
+    @mock.patch('os.path.isfile', side_effect=[True, False, True, False, True, False])
     # The even side effects (the 'True' ones) are associated to the destination and the odd ones are
     # associated to the source path. It is because 'os.path.isfile' is used for evaluating both
     # source paths and destination paths.
@@ -263,22 +263,16 @@ class CopyingCLITestCase(django.test.TestCase):
         downloaded once again for a second time in a different address."""
         sys.argv = [
             "",
-            '-b', "2018-04-01",
-            '-e', "2018-04-09",
+            '-b', "2018-06-01",
+            '-e', "2018-06-09",
             '-d', "/dst_folder/"
         ]
-        for dataset in Dataset.objects.all():
-            dataset.dataseturi_set.get_or_create(
-                uri='/new_loc_add', dataset=dataset, service=LOCAL_FILE_SERVICE)
         with mock.patch('shutil.copy') as mock_copy:
             cli_copy.main()
         self.assertEqual(
             [call(dst='/dst_folder/', src='/tmp/testing_file.test'),
              call(dst='/dst_folder/', src='/new_loc_add')],
             mock_copy.call_args_list)
-        for dataset in Dataset.objects.all():
-            dataset.dataseturi_set.filter(
-                uri='/new_loc_add', dataset=dataset, service=LOCAL_FILE_SERVICE).delete()
 
     @mock.patch('os.path.isfile', return_value=True)
     def test_correct_place_of_symlink_after_creation_of_it(self, mock_isfile):
@@ -287,23 +281,17 @@ class CopyingCLITestCase(django.test.TestCase):
         in the case of data downloaded once again for a second time in a different address. """
         sys.argv = [
             "",
-            '-b', "2018-04-01",
-            '-e', "2018-04-09",
+            '-b', "2018-06-01",
+            '-e', "2018-06-09",
             '-l',
             '-d', "/dst_folder/"
         ]
-        for dataset in Dataset.objects.all():
-            dataset.dataseturi_set.get_or_create(
-                uri='/new_loc_add', dataset=dataset, service=LOCAL_FILE_SERVICE)
         with mock.patch('os.symlink') as mock_symlink:
             cli_copy.main()
         self.assertEqual(
             [call(dst='/dst_folder/testing_file.test', src='/tmp/testing_file.test'),
              call(dst='/dst_folder/new_loc_add', src='/new_loc_add')],
             mock_symlink.call_args_list)
-        for dataset in Dataset.objects.all():
-            dataset.dataseturi_set.filter(
-                uri='/new_loc_add', dataset=dataset, service=LOCAL_FILE_SERVICE).delete()
 
     @mock.patch('os.symlink')
     @mock.patch('os.path.isfile', return_value=True)

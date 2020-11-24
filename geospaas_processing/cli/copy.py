@@ -25,9 +25,6 @@ def cli_parse_args():
     """Augment the common parser with additional specific arguments for copying purposes."""
     parser = util.parse_common_args()
     parser.add_argument(
-        '-d', '--destination_path', required=True, type=str,
-        help="destination path for copying the files.")
-    parser.add_argument(
         '-f', '--flag_file', required=False, action='store_true',
         help="The flag that distinguishes between the two cases of 1.writing the flag alongside the"
         + " copying or 2.just copy without writing it based on its ABSENCE or PRESENCE of this flag"

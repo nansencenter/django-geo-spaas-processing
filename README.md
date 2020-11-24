@@ -14,7 +14,7 @@ The processing modules can either be run as standalone code or asynchronously as
 # Overal table for showing the usage of short-form of arguments of all CLIs individually
 | Argument short form | Download CLI            | Copy CLI
 | ------------------- | --------------------    | --------------
-| '-d'                | '--down_dir'            | '--destination_path'
+| '-d'                | '--destination_path'    | '--destination_path'
 | '-b'                | '--begin'  (time)       | '--begin'    (time)
 | '-e'                | '--end'    (time)       | '--end'      (time)
 | '-r'                | '--rel_time_flag'       | '--rel_time_flag'

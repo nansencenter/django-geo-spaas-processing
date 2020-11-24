@@ -24,7 +24,7 @@ def main():
     arg = cli_parse_args()
     cumulative_query = util.create_cumulative_query(arg)
     download_manager = downloaders.DownloadManager(
-        download_directory=arg.down_dir.rstrip(os.path.sep),
+        download_directory=arg.destination_path.rstrip(os.path.sep),
         provider_settings_path=arg.config_file,
         max_downloads=int(arg.safety_limit),
         use_file_prefix=arg.use_filename_prefix,
@@ -38,10 +38,6 @@ def main():
 def cli_parse_args():
     """Augment the common parser with additional specific arguments for downloading purposes."""
     parser = util.parse_common_args()
-    parser.add_argument(
-        '-d', '--down_dir', required=True, type=str,
-        help="Absolute path for downloading files. If the path depends on the file date, usage "
-        + "of %Y, %m and other placeholders interpretable by strftime is accepted")
     parser.add_argument(
         '-s', '--safety_limit', required=False, type=str, default="400",
         help="The upper limit (safety limit) of number of datasets that are going to be downloaded."

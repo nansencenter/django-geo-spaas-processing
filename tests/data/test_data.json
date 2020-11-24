@@ -106,6 +106,26 @@
     },
     {
         "model": "catalog.dataseturi",
+        "pk": 7,
+        "fields": {
+            "name": "fileService",
+            "service": "local",
+            "uri": "/tmp/testing_file.test",
+            "dataset": 4
+        }
+    },
+    {
+        "model": "catalog.dataseturi",
+        "pk": 8,
+        "fields": {
+            "name": "fileService",
+            "service": "local",
+            "uri": "/new_loc_add",
+            "dataset": 4
+        }
+    },
+    {
+        "model": "catalog.dataseturi",
         "pk": 6,
         "fields": {
             "name": "http",
@@ -236,6 +256,23 @@
             "time_coverage_start": "2018-11-17T14:54:55.124Z",
             "time_coverage_end": "2018-11-17T14:57:55.124Z",
             "geographic_location": 3,
+            "gcmd_location": 1,
+            "access_constraints": null
+        }
+    },
+    {
+        "model": "catalog.dataset",
+        "pk": 4,
+        "fields": {
+            "entry_id": "entry_id1",
+            "entry_title": "test",
+            "ISO_topic_category": 1,
+            "data_center": 1,
+            "summary": "",
+            "source": 1,
+            "time_coverage_start": "2018-06-05T00:43:05.826Z",
+            "time_coverage_end": "2018-06-05T00:46:05.826Z",
+            "geographic_location": 2,
             "gcmd_location": 1,
             "access_constraints": null
         }

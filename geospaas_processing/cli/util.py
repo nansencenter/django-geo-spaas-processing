@@ -35,6 +35,11 @@ def parse_common_args():
     """Instantiates and creates common arguments of parser which works with 'argparse' of python."""
     parser = argparse.ArgumentParser(description='Process the arguments of entry_point')
     parser.add_argument(
+        '-d', '--destination_path', required=True, type=str,
+        help="Absolute path for downloading or copying files. For downloading, If the path depends "
+        + "on the file date, usage of %Y, %m and other placeholders interpretable by strftime is "
+        + "accepted")
+    parser.add_argument(
         '-b', '--begin', required=True, type=str,
         help="Absolute starting date for download in the format YYYY-MM-DD.")
     parser.add_argument(

@@ -253,7 +253,7 @@ class CopyingCLITestCase(django.test.TestCase):
             cli_copy.main()
         mock_json.assert_not_called()
 
-    @mock.patch('os.path.isfile', side_effect=[True, False, True, False, True, False])
+    @mock.patch('os.path.isfile', side_effect=[True, False, True, False])
     # The even side effects (the 'True' ones) are associated to the destination and the odd ones are
     # associated to the source path. It is because 'os.path.isfile' is used for evaluating both
     # source paths and destination paths.

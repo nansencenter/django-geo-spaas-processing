@@ -95,6 +95,26 @@
         }
     },
     {
+        "model": "catalog.dataseturi",
+        "pk": 5,
+        "fields": {
+            "name": "fileService",
+            "service": "local",
+            "uri": "/testing_folder/testing_file.test",
+            "dataset": 2
+        }
+    },
+    {
+        "model": "catalog.dataseturi",
+        "pk": 6,
+        "fields": {
+            "name": "http",
+            "service": "HTTPServer",
+            "uri": "https://scihub.copernicus.eu/the_second_fakeurl",
+            "dataset": 2
+        }
+    },
+    {
         "model": "vocabularies.platform",
         "pk": 1,
         "fields": {

@@ -25,11 +25,11 @@ class Copier():
         self.datasets = Dataset.objects.filter(**criteria)
 
     @staticmethod
-    def write_flag_file(type_in_flag_file, source_path, dataset, sopposed_full_address):
+    def write_flag_file(type_in_flag_file, source_path, dataset, destination_filename):
         """
         writes the flag file in the case of request for it. ".flag" is the extension for flag file.
         """
-        with open(sopposed_full_address + ".flag", "w") as flag_file:
+        with open(destination_filename + ".flag", "w") as flag_file:
             flag_file.write(f"type: {type_in_flag_file}" + os.linesep)
             for urlname in dataset.dataseturi_set.exclude(service=LOCAL_FILE_SERVICE):
                 flag_file.write(f"url: {urlname.uri}" + os.linesep)
@@ -39,19 +39,19 @@ class Copier():
         the database."""
         for source_path in source_paths:
             if os.path.isfile(source_path.uri):
-                sopposed_full_address = os.path.join(self.destination_path.rstrip(os.path.sep),
+                destination_filename = os.path.join(self.destination_path.rstrip(os.path.sep),
                                                      os.path.basename(source_path.uri))
                 # below if condition prevents "shutil.copy" or "os.symlink" from replacing the file
                 # in the destination in a repetitive manner.
-                if not os.path.isfile(sopposed_full_address) or not os.path.islink(
-                        sopposed_full_address):
+                if not os.path.isfile(destination_filename) or not os.path.islink(
+                        destination_filename):
                     if self.link_request:
-                        os.symlink(src=source_path.uri, dst=sopposed_full_address)
+                        os.symlink(src=source_path.uri, dst=destination_filename)
                     else:
                         shutil.copy(src=source_path.uri, dst=self.destination_path)
                     if self.flag_file_request:
                        self.write_flag_file(self.type_in_flag_file,
-                                             source_path, dataset, sopposed_full_address)
+                                             source_path, dataset, destination_filename)
                 else:
                     LOGGER.debug(
                         "For dataset with id = %s, there is already a symlink or a file with the "

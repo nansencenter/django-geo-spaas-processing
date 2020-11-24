@@ -258,7 +258,9 @@ class CopyingCLITestCase(django.test.TestCase):
     # associated to the source path. It is because 'os.path.isfile' is used for evaluating both
     # source paths and destination paths.
     def test_correct_destination_folder_for_all_files_that_are_copied(self, mock_isfile):
-        """ the copied file(s) shall be copied at the destination folder """
+        """ the copied file(s) shall be copied at the destination folder. This test for the cases
+        that we have one more addition local file address in the database in the case of data
+        downloaded once again for a second time in a different address."""
         sys.argv = [
             "",
             '-b', "2018-04-01",
@@ -280,7 +282,9 @@ class CopyingCLITestCase(django.test.TestCase):
 
     @mock.patch('os.path.isfile', return_value=True)
     def test_correct_place_of_symlink_after_creation_of_it(self, mock_isfile):
-        """ symlink must be placed at the address that is specified from the input arguments """
+        """ symlink must be placed at the address that is specified from the input arguments.
+        This test for the cases that we have one more addition local file address in the database
+        in the case of data downloaded once again for a second time in a different address. """
         sys.argv = [
             "",
             '-b', "2018-04-01",

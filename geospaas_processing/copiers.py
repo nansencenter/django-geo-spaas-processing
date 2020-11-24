@@ -18,11 +18,11 @@ class Copier():
 
     def __init__(self, type_in_flag_file, destination_path, flag_file_request=False,
                  link_request=False, **criteria):
-        self.type_in_flag_file = type_in_flag_file
-        self.destination_path = destination_path
-        self.flag_file_request = flag_file_request
-        self.link_request = link_request
-        self.datasets = Dataset.objects.filter(**criteria)
+        self.TYPE_IN_FLAG_FILE = type_in_flag_file
+        self.DESTINATION_PATH = destination_path
+        self.FLAG_FILE_REQUEST = flag_file_request
+        self.LINK_REQUEST = link_request
+        self.DATASETS = Dataset.objects.filter(**criteria)
 
     @staticmethod
     def write_flag_file(type_in_flag_file, source_path, dataset, destination_filename):
@@ -39,18 +39,18 @@ class Copier():
         the database."""
         for source_path in source_paths:
             if os.path.isfile(source_path.uri):
-                destination_filename = os.path.join(self.destination_path.rstrip(os.path.sep),
-                                                     os.path.basename(source_path.uri))
+                destination_filename = os.path.join(
+                    self.DESTINATION_PATH, os.path.basename(source_path.uri))
                 # below if condition prevents "shutil.copy" or "os.symlink" from replacing the file
                 # in the destination in a repetitive manner.
                 if not os.path.isfile(destination_filename) or not os.path.islink(
                         destination_filename):
-                    if self.link_request:
+                    if self.LINK_REQUEST:
                         os.symlink(src=source_path.uri, dst=destination_filename)
                     else:
-                        shutil.copy(src=source_path.uri, dst=self.destination_path)
-                    if self.flag_file_request:
-                       self.write_flag_file(self.type_in_flag_file,
+                        shutil.copy(src=source_path.uri, dst=self.DESTINATION_PATH)
+                    if self.FLAG_FILE_REQUEST:
+                       self.write_flag_file(self.TYPE_IN_FLAG_FILE,
                                              source_path, dataset, destination_filename)
                 else:
                     LOGGER.debug(
@@ -63,7 +63,7 @@ class Copier():
 
     def copy(self):
         """ Tries to copy all datasets based on their stored local addresses in the database."""
-        for dataset in self.datasets:
+        for dataset in self.DATASETS:
             if dataset.dataseturi_set.filter(service=LOCAL_FILE_SERVICE).exists():
                 source_paths = dataset.dataseturi_set.filter(service=LOCAL_FILE_SERVICE)
                 self.file_or_symlink_copy(source_paths=source_paths, dataset=dataset)

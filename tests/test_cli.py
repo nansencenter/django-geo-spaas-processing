@@ -315,38 +315,3 @@ class CopyingCLITestCase(django.test.TestCase):
                 "b.copernicus.eu/the_second_fakeurl\n"
             )
         )
-
-    def test_copying_accomplishment_and_consistency_for_symlink_of_file_copying(self):
-        """ A symlink of actual sample file should be copied to the destination folder """
-        sys.argv = [
-            "",
-            '-b', "2018-04-01",
-            '-e', "2018-04-09",
-            '-f', '-l'
-        ]
-        temp_directory_dst = tempfile.TemporaryDirectory()
-        sys.argv.append('-d')
-        sys.argv.append(temp_directory_dst.name)
-        Path("/tmp/testing_file.test").touch()
-        cli_copy.main()
-        self.assertTrue(os.path.islink(temp_directory_dst.name+'/testing_file.test'))
-        cli_copy.main()  # assertion of completion of copy for the second time without error
-        self.assertTrue(os.path.islink(temp_directory_dst.name+'/testing_file.test'))
-        os.remove("/tmp/testing_file.test")
-
-    def test_copying_accomplishment_and_consistency_for_actual_file_copying(self):
-        """ The actual sample file should be copied to the destination folder  """
-        sys.argv = [
-            "",
-            '-b', "2018-04-01",
-            '-e', "2018-04-09"
-        ]
-        temp_directory_dst = tempfile.TemporaryDirectory()
-        sys.argv.append('-d')
-        sys.argv.append(temp_directory_dst.name)
-        Path("/tmp/testing_file.test").touch()
-        cli_copy.main()
-        self.assertTrue(os.path.isfile(temp_directory_dst.name+'/testing_file.test'))
-        cli_copy.main()  # assertion of completion of copy for the second time without error
-        self.assertTrue(os.path.isfile(temp_directory_dst.name+'/testing_file.test'))
-        os.remove("/tmp/testing_file.test")

@@ -1,17 +1,26 @@
 """Unit tests for cli"""
+import os
+import shutil
 import sys
-import unittest
+import tempfile
 import unittest.mock as mock
+from unittest.mock import call
+
 from datetime import datetime
-
+from pathlib import Path
 from dateutil.tz import tzutc
-from django.contrib.gis.geos import GEOSGeometry
 from freezegun import freeze_time
+import django.test
+from django.contrib.gis.geos import GEOSGeometry
 
+import geospaas_processing.cli.copy as cli_copy
 import geospaas_processing.cli.download as cli_download
+import geospaas_processing.cli.util as util
+from geospaas.catalog.models import Dataset
+from geospaas.catalog.managers import LOCAL_FILE_SERVICE
 
 
-class DownlaodingCLITestCase(unittest.TestCase):
+class DownlaodingCLITestCase(django.test.TestCase):
     """Tests for the cli of downloading """
 
     def setUp(self):
@@ -36,14 +45,14 @@ class DownlaodingCLITestCase(unittest.TestCase):
         arg = cli_download.cli_parse_args()
         self.assertEqual(arg.begin, '200')
         self.assertEqual(arg.config_file, '/config_folder/config_file.yml')
-        self.assertEqual(arg.down_dir, '/test_folder/%Y_nh_polstere')
+        self.assertEqual(arg.destination_path, '/test_folder/%Y_nh_polstere')
         self.assertEqual(arg.end, '2020-08-22')
         self.assertEqual(arg.geometry, 'POLYGON ((-22 84, -22 74, 32 74, 32 84, -22 84))')
         self.assertEqual(arg.safety_limit, '100')
         self.assertEqual(arg.query,
                          '{"dataseturi__uri__contains": "osisaf", '
-                         +'"source__instrument__short_name__icontains": "AMSR2"}')
-        # testing the flag enumeration
+                         + '"source__instrument__short_name__icontains": "AMSR2"}')
+        # testing the flag presence
         self.assertTrue(arg.rel_time_flag)
         self.assertTrue(arg.save_path)
         self.assertTrue(arg.use_filename_prefix)
@@ -70,13 +79,13 @@ class DownlaodingCLITestCase(unittest.TestCase):
     @mock.patch('geospaas_processing.downloaders.DownloadManager.__init__', return_value=None)
     @mock.patch('geospaas_processing.downloaders.DownloadManager.download')
     def test_lack_of_calling_json_deserializer_when_no_query_appears(
-        self, mock_download_method, mock_download_manager_init):
+            self, mock_download_method, mock_download_manager_init):
         """'json.loads' should not called when nothing comes after '-q' """
         sys.argv.pop()
         sys.argv.pop()
         with mock.patch('json.loads') as mock_json:
             cli_download.main()
-        self.assertIsNone(mock_json.call_args)
+        mock_json.assert_not_called()
 
     @mock.patch('geospaas_processing.downloaders.DownloadManager.__init__', return_value=None)
     @mock.patch('geospaas_processing.downloaders.DownloadManager.download')
@@ -176,10 +185,133 @@ class DownlaodingCLITestCase(unittest.TestCase):
     def test_find_designated_time_function(self):
         """test the 'find_designated_time' function logics. answer_1, answer_2 are used for absolute
         and answer_3, answer_4 are used for relative timing"""
-        answer_1, answer_2 = cli_download.find_designated_time(False, '2019-10-22', '2020-08-22')
+        answer_1, answer_2 = util.find_designated_time(False, '2019-10-22', '2020-08-22')
         self.assertEqual(answer_1, datetime(2019, 10, 22, 0, 0, tzinfo=tzutc()))
         self.assertEqual(answer_2, datetime(2020, 8, 22, 0, 0, tzinfo=tzutc()))
         with freeze_time("2012-01-14"):
-            answer_3, answer_4 = cli_download.find_designated_time(True, '500', '')
+            answer_3, answer_4 = util.find_designated_time(True, '500', '')
             self.assertEqual(answer_3, datetime(2011, 12, 24, 4, 0, tzinfo=tzutc()))
             self.assertEqual(answer_4, datetime(2012, 1, 14, 0, 0, tzinfo=tzutc()))
+
+
+class CopyingCLITestCase(django.test.TestCase):
+    """Tests for the cli of copying """
+
+    fixtures = [os.path.join(os.path.dirname(__file__), 'data/test_data.json')]
+
+    def test_extract_arg(self):
+        """shall return the correct argument values based on the 'sys.argv' """
+        sys.argv = [
+            "",
+            '-d', "/test_folder/",
+            '-b', "200",
+            '-e', "2018-11-18",
+            '-r',
+            '-f',
+            '-l',
+            '-g', "POLYGON ((-22 84, -22 74, 32 74, 32 84, -22 84))",
+            '-t', 'test_type',
+            '-q',
+            '{"dataseturi__uri__contains": "osisaf", "source__instrument__short_name__icontains": '
+            + '"AMSR2"}'
+        ]
+        arg = cli_copy.cli_parse_args()
+        self.assertEqual(arg.begin, '200')
+        self.assertEqual(arg.destination_path, '/test_folder/')
+        self.assertEqual(arg.end, '2018-11-18')
+        self.assertEqual(arg.geometry, 'POLYGON ((-22 84, -22 74, 32 74, 32 84, -22 84))')
+        self.assertEqual(arg.type, 'test_type')
+        self.assertEqual(arg.query,
+                         '{"dataseturi__uri__contains": "osisaf", '
+                         + '"source__instrument__short_name__icontains": "AMSR2"}')
+        # testing the flag presence
+        self.assertTrue(arg.rel_time_flag)
+        self.assertTrue(arg.flag_file)
+        self.assertTrue(arg.link)
+        sys.argv.remove('-r')
+        sys.argv.remove('-f')
+        sys.argv.remove('-l')
+        arg = cli_copy.cli_parse_args()
+        self.assertFalse(arg.rel_time_flag)
+        self.assertFalse(arg.flag_file)
+        self.assertFalse(arg.link)
+
+    def test_lack_of_calling_json_deserializer_when_no_query_appears_for_copying(self):
+        """'json.loads' should not called when nothing comes after '-q' """
+        sys.argv = [
+            "",
+            '-d', "/test_folder/",
+            '-b', "200",
+            '-e', "2018-11-18",
+            '-r',
+            '-f',
+            '-l',
+            '-g', "POLYGON ((-22 84, -22 74, 32 74, 32 84, -22 84))",
+            '-t', 'test_type'
+        ]
+        with mock.patch('json.loads') as mock_json:
+            cli_copy.main()
+        mock_json.assert_not_called()
+
+    @mock.patch('os.path.isfile', side_effect=[True, False, True, False])
+    # The even side effects (the 'True' ones) are associated to the destination and the odd ones are
+    # associated to the source path. It is because 'os.path.isfile' is used for evaluating both
+    # source paths and destination paths.
+    def test_correct_destination_folder_for_all_files_that_are_copied(self, mock_isfile):
+        """ the copied file(s) shall be copied at the destination folder. This test for the cases
+        that we have one more addition local file address in the database in the case of data
+        downloaded once again for a second time in a different address."""
+        sys.argv = [
+            "",
+            '-b', "2018-06-01",
+            '-e', "2018-06-09",
+            '-d', "/dst_folder/"
+        ]
+        with mock.patch('shutil.copy') as mock_copy:
+            cli_copy.main()
+        self.assertEqual(
+            [call(dst='/dst_folder/', src='/tmp/testing_file.test'),
+             call(dst='/dst_folder/', src='/new_loc_add')],
+            mock_copy.call_args_list)
+
+    @mock.patch('os.path.isfile', return_value=True)
+    def test_correct_place_of_symlink_after_creation_of_it(self, mock_isfile):
+        """ symlink must be placed at the address that is specified from the input arguments.
+        This test for the cases that we have one more addition local file address in the database
+        in the case of data downloaded once again for a second time in a different address. """
+        sys.argv = [
+            "",
+            '-b', "2018-06-01",
+            '-e', "2018-06-09",
+            '-l',
+            '-d', "/dst_folder/"
+        ]
+        with mock.patch('os.symlink') as mock_symlink:
+            cli_copy.main()
+        self.assertEqual(
+            [call(dst='/dst_folder/testing_file.test', src='/tmp/testing_file.test'),
+             call(dst='/dst_folder/new_loc_add', src='/new_loc_add')],
+            mock_symlink.call_args_list)
+
+    @mock.patch('os.symlink')
+    @mock.patch('os.path.isfile', return_value=True)
+    def test_correct_content_of_flag_file(self, mock_isfile, mock_link):
+        """ flag file should contain this 'type: test_type' information """
+        sys.argv = [
+            "",
+            '-b', "2018-04-01",
+            '-e', "2018-04-09",
+            '-f', '-l',
+            '-t', 'test_type'
+        ]
+        temp_directory = tempfile.TemporaryDirectory()
+        sys.argv.append('-d')
+        sys.argv.append(temp_directory.name)
+        cli_copy.main()
+        with open(os.path.join(temp_directory.name + '/testing_file.test.flag'), 'r') as fd:
+            self.assertEqual(fd.read(), (
+                "type: test_type\nurl: https://scihub.copernicus.eu/apihub/odata/v1/Produ"
+                "cts('6127111d-c9bd-4689-bab5-412dd39e1e81')/$value\nurl: https://scihu"
+                "b.copernicus.eu/the_second_fakeurl\n"
+            )
+        )

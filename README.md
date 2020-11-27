@@ -10,6 +10,24 @@ It is composed of:
 
 The processing modules can either be run as standalone code or asynchronously as Celery tasks.
 
+---
+# Overal table for showing the usage of short-form of arguments of all CLIs individually
+| Argument short form | Download CLI            | Copy CLI
+| ------------------- | --------------------    | --------------
+| '-d'                | '--destination_path'    | '--destination_path'
+| '-b'                | '--begin'  (time)       | '--begin'    (time)
+| '-e'                | '--end'    (time)       | '--end'      (time)
+| '-r'                | '--rel_time_flag'       | '--rel_time_flag'
+| '-g'                | '--geometry'            | '--geometry'
+| '-q'                | '--query'               | '--query'
+| '-c'                | '--config_file'         |
+| '-s'                | '--safety_limit'        |
+| '-p'                | '--use_filename_prefix' |
+| '-a'                | '--save_path'           |
+| '-l'                |                         | '--link'
+| '-t'                |                         | '--type'
+| '-f'                |                         | '--flag_file'
+---
 ## Dependencies
 
 The main requirement is to have a populated GeoSPaaS database (see
@@ -18,7 +36,7 @@ The main requirement is to have a populated GeoSPaaS database (see
 
 For standalone usage, the dependencies depend on which processing module is used.
 
-For asynchronous usage, the following is needed (not including the additional dependencies for each 
+For asynchronous usage, the following is needed (not including the additional dependencies for each
 processing module):
   - a RabbitMQ instance
   - a Redis instance
@@ -26,7 +44,6 @@ processing module):
     - celery<5.0
     - django-celery-results
     - redis
-
 
 ## Processing modules
 
@@ -77,7 +94,7 @@ download_manager.download()
 #### Credentials
 
 Some providers require authentication to download datasets. The credentials for a particular
-provider can be defined in the provider settings file (by default the 
+provider can be defined in the provider settings file (by default the
 [provider_settings.yml](./geospaas_processing/provider_settings.yml) file included in the package).
 
 It is a YAML file with the following structure:
@@ -156,7 +173,7 @@ The workflow represented on the diagram is the following:
 The `geospaas_processing.tasks` module provides various Celery tasks.
 
 All these tasks are designed to work with datasets which are present in the GeoSPaaS database.
-They all take one argument: a tuple containing a dataset ID as it's first element, and other 
+They all take one argument: a tuple containing a dataset ID as it's first element, and other
 elements depending on the task. This makes it possible to prevent simultaneous operations on the
 same dataset's files, and makes it easy to chain these tasks.
 

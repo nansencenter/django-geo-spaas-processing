@@ -238,7 +238,7 @@ class DownloadManager():
     }
 
     def __init__(self, download_directory='.', provider_settings_path=None, max_downloads=100,
-                 use_file_prefix=True, **criteria):
+                 use_file_prefix=True, save_path=False, **criteria):
         """
         `criteria` accepts the same keyword arguments as Django's `filter()` method.
         When filtering on time coverage, it is preferable to use timezone aware datetimes.
@@ -251,6 +251,7 @@ class DownloadManager():
             raise DownloadError("No dataset matches the search criteria")
         self.download_folder = download_directory
         self.use_file_prefix = use_file_prefix
+        self.save_path = save_path
         LOGGER.debug("Found %d datasets", self.datasets.count())
         if self.datasets.count() > self.max_downloads:
             raise ValueError("Too many datasets to download")
@@ -274,6 +275,8 @@ class DownloadManager():
         Returns the downloaded file path if the download succeeds, an empty string otherwise.
         """
         for dataset_uri in dataset.dataseturi_set.all():
+            if dataset_uri.service == geospaas.catalog.managers.LOCAL_FILE_SERVICE:
+                continue
             # Get the extra settings for the provider
             dataset_uri_prefix = "://".join(requests.utils.urlparse(dataset_uri.uri)[0:2])
             # Find provider settings
@@ -317,6 +320,11 @@ class DownloadManager():
                         f"Could not write the dowloaded file to {error.filename}") from error
                 else:
                     if downloaded:
+                        if self.save_path:
+                            dataset.dataseturi_set.get_or_create(
+                                dataset=dataset,
+                                uri = os.path.join(os.path.realpath(download_directory), file_name),
+                                )
                         LOGGER.info("Successfully downloaded dataset %d to %s",
                                     dataset.pk, file_name)
                     else:

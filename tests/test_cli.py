@@ -310,8 +310,12 @@ class CopyingCLITestCase(django.test.TestCase):
         cli_copy.main()
         with open(os.path.join(temp_directory.name + '/testing_file.test.flag'), 'r') as fd:
             self.assertEqual(fd.read(), (
-                "type: test_type\nurl: https://scihub.copernicus.eu/apihub/odata/v1/Produ"
-                "cts('6127111d-c9bd-4689-bab5-412dd39e1e81')/$value\nurl: https://scihu"
-                "b.copernicus.eu/the_second_fakeurl\n"
+                "type: test_type\nentry_id: a35858cc-e18c-4dfe-9bce-5756138b5125\nentry_title: S3A_"
+                "SL_1_RBT____20180405T004306_20180405T004606_20180406T060255_0179_029_344_5220_LN2_"
+                "O_NT_003\nsource: SENTINEL-3A/SLSTR\ndata_center: ESA/EO\n- url: https://scihub.co"
+                "pernicus.eu/apihub/odata/v1/Products('6127111d-c9bd-4689-bab5-412dd39e1e81')/$valu"
+                "e\n- url: https://scihub.copernicus.eu/the_second_fakeurl\nsummary: Date: 2018-04-"
+                "05T00:43:05.826008Z, Instrument: SLSTR, Mode: EO, Satellite: Sentinel-3, Size: 415"
+                ".29 MB\n"
             )
         )

@@ -30,14 +30,14 @@ class Copier():
         writes the flag file in the case of request for it. ".flag" is the extension for flag file.
         """
         with open(destination_filename + ".flag", "w") as flag_file:
-            string_to_write = f"type: {type_in_flag_file}" + os.linesep
-            string_to_write += f"entry_id: {dataset.entry_id}" + os.linesep
-            string_to_write += f"entry_title: {dataset.entry_title}" + os.linesep
-            string_to_write += f"source: {dataset.source}" + os.linesep
-            string_to_write += f"data_center: {dataset.data_center}" + os.linesep
+            string_to_write = f"type: {type_in_flag_file}{os.linesep}"
+            string_to_write += f"entry_id: {dataset.entry_id}{os.linesep}"
+            string_to_write += f"entry_title: {dataset.entry_title}{os.linesep}"
+            string_to_write += f"source: {dataset.source}{os.linesep}"
+            string_to_write += f"data_center: {dataset.data_center}{os.linesep}"
             for urlname in dataset.dataseturi_set.exclude(service=LOCAL_FILE_SERVICE):
-                string_to_write += f"- url: {urlname.uri}" + os.linesep
-            string_to_write += f"summary: {dataset.summary}" + os.linesep
+                string_to_write += f"- url: {urlname.uri}{os.linesep}"
+            string_to_write += f"summary: {dataset.summary}{os.linesep}"
             flag_file.write(string_to_write)
 
     def file_or_symlink_copy(self, source_paths, dataset):

@@ -1,6 +1,7 @@
 import os
 import shutil
 import logging
+import time
 
 import django
 
@@ -16,12 +17,13 @@ LOGGER = logging.getLogger(__name__)
 class Copier():
     """Copier for datasets"""
 
-    def __init__(self, type_in_flag_file, destination_path, flag_file_request=False,
+    def __init__(self, type_in_flag_file, destination_path, obsoleteness, flag_file_request=False,
                  link_request=False, **criteria):
         self._type_in_flag_file = type_in_flag_file
         self._destination_path = destination_path
         self._flag_file_request = flag_file_request
         self._link_request = link_request
+        self.obsoleteness = obsoleteness
         self._datasets = Dataset.objects.filter(**criteria)
 
     @staticmethod
@@ -76,3 +78,18 @@ class Copier():
             else:
                 LOGGER.debug("For dataset with id = %s, there is no local file address in the "
                              "database.", dataset.id)
+
+    def delete(self):
+        """
+        Delete the file(s) or symlink(s) after a certain period of obsoleteness (in days) of the
+        file(s) or symlink(s) inside the destination path. """
+        with os.scandir(self._destination_path) as scanned_dir:
+            for entry in scanned_dir:
+                if ('.snapshot' not in entry.path
+                and entry.stat(follow_symlinks=False).st_uid == os.getuid()
+                and time.time() - entry.stat(follow_symlinks=False).st_mtime >
+                    self.obsoleteness*24*3600):
+                    if (entry.is_file(follow_symlinks=False)):
+                        os.remove(entry.path)
+                    elif entry.is_symlink():
+                        os.unlink(entry.path)

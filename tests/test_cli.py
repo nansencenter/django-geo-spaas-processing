@@ -14,7 +14,7 @@ import django.test
 from django.contrib.gis.geos import GEOSGeometry
 
 import geospaas_processing.copiers
-import geospaas_processing.cli.copy as cli_copy
+import geospaas_processing.cli.delete_and_copy as cli_copy
 import geospaas_processing.cli.download as cli_download
 import geospaas_processing.cli.util as util
 from geospaas.catalog.models import Dataset

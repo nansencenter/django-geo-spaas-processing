@@ -1,5 +1,6 @@
 """
-Copy files that are selected from the database using input criteria from copy config file.
+first delete the old ones and then copy files that are selected from the database using input
+criteria from copy config file.
 """
 import geospaas_processing.cli.util as util
 import geospaas_processing.copiers as copiers

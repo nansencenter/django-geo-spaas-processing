@@ -17,14 +17,12 @@ LOGGER = logging.getLogger(__name__)
 class Copier():
     """Copier for datasets"""
 
-    def __init__(self, type_in_flag_file, destination_path, time_to_live, keep_permanently,
+    def __init__(self, type_in_flag_file, destination_path,
     flag_file_request=False, link_request=False, **criteria):
         self._type_in_flag_file = type_in_flag_file
         self._destination_path = destination_path
         self._flag_file_request = flag_file_request
         self._link_request = link_request
-        self.ttl = time_to_live
-        self.keep_permanently = keep_permanently
         self._datasets = Dataset.objects.filter(**criteria)
 
     @staticmethod
@@ -71,10 +69,7 @@ class Copier():
                     " there is no file in the stored address: %s.", dataset.id, source_path.uri)
 
     def copy(self):
-        """ First delete the old files then tries to copy all datasets based on their stored local
-        addresses in the database."""
-        if not self.keep_permanently:
-            self.delete()
+        """ Tries to copy all datasets based on their stored local addresses in the database."""
         for dataset in self._datasets:
             if dataset.dataseturi_set.filter(service=LOCAL_FILE_SERVICE).exists():
                 source_paths = dataset.dataseturi_set.filter(service=LOCAL_FILE_SERVICE)
@@ -83,7 +78,7 @@ class Copier():
                 LOGGER.debug("For dataset with id = %s, there is no local file address in the "
                              "database.", dataset.id)
 
-    def delete(self):
+    def delete(self, ttl):
         """
         Delete the file(s) or symlink(s) after a certain period of 'time to live' (in days) of the
         file(s) or symlink(s) inside the destination path. """
@@ -92,5 +87,5 @@ class Copier():
                 if ((entry.is_file(follow_symlinks=False) or entry.is_symlink())
                     and '.snapshot' not in entry.path
                     and entry.stat(follow_symlinks=False).st_uid == os.getuid()
-                    and time.time() - entry.stat(follow_symlinks=False).st_mtime > self.ttl*24*3600):
+                    and time.time() - entry.stat(follow_symlinks=False).st_mtime > ttl*24*3600):
                         os.remove(entry.path)

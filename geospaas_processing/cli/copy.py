@@ -17,9 +17,8 @@ def main():
                                         flag_file_request=arg.flag_file,
                                         link_request=arg.link,
                                         destination_path=arg.destination_path,
-                                        time_to_live=int(arg.time_to_live),
-                                        keep_permanently=arg.keeping_permanently,
                                         **cumulative_query)
+    current_copy_action.delete(int(arg.time_to_live))
     current_copy_action.copy()
 
 
@@ -39,11 +38,6 @@ def cli_parse_args():
     parser.add_argument(
         '-t', '--type', required=False, type=str,
         help="The type of dataset (as a str) which is written in flag file for further processing.")
-    parser.add_argument(
-        '-k', '--keeping_permanently', required=False, action='store_true',
-        help="The flag that distinguishes between the two cases of 1.deletion of the previously "
-        + "copied file(s) after a certain period of time or 2.do nothing regarding deletion based "
-        + "on its ABSENCE or PRESENCE of this flag in the arguments.")
     parser.add_argument(
         '-ttl', '--time_to_live', required=False, type=str, default="90",
         help="The upper limit [in days] of file existence that have already been copied."

@@ -13,6 +13,7 @@ from freezegun import freeze_time
 import django.test
 from django.contrib.gis.geos import GEOSGeometry
 
+import geospaas_processing.copiers
 import geospaas_processing.cli.copy as cli_copy
 import geospaas_processing.cli.download as cli_download
 import geospaas_processing.cli.util as util
@@ -209,7 +210,6 @@ class CopyingCLITestCase(django.test.TestCase):
             '-r',
             '-f',
             '-l',
-            '-k',
             '-ttl', '150',
             '-g', "POLYGON ((-22 84, -22 74, 32 74, 32 84, -22 84))",
             '-t', 'test_type',
@@ -231,18 +231,16 @@ class CopyingCLITestCase(django.test.TestCase):
         self.assertTrue(arg.rel_time_flag)
         self.assertTrue(arg.flag_file)
         self.assertTrue(arg.link)
-        self.assertTrue(arg.keeping_permanently)
         sys.argv.remove('-r')
         sys.argv.remove('-f')
         sys.argv.remove('-l')
-        sys.argv.remove('-k')
         arg = cli_copy.cli_parse_args()
         self.assertFalse(arg.rel_time_flag)
         self.assertFalse(arg.flag_file)
         self.assertFalse(arg.link)
-        self.assertFalse(arg.keeping_permanently)
 
-    def test_lack_of_calling_json_deserializer_when_no_query_appears_for_copying(self):
+    @mock.patch('geospaas_processing.copiers.Copier.delete')
+    def test_lack_of_calling_json_deserializer_when_no_query_appears_for_copying(self, mock_del):
         """'json.loads' should not called when nothing comes after '-q' """
         sys.argv = [
             "",
@@ -254,17 +252,17 @@ class CopyingCLITestCase(django.test.TestCase):
             '-l',
             '-g', "POLYGON ((-22 84, -22 74, 32 74, 32 84, -22 84))",
             '-t', 'test_type',
-            '--keeping_permanently'
         ]
         with mock.patch('json.loads') as mock_json:
             cli_copy.main()
         mock_json.assert_not_called()
 
+    @mock.patch('geospaas_processing.copiers.Copier.delete')
     @mock.patch('os.path.isfile', side_effect=[True, False, True, False])
     # The even side effects (the 'True' ones) are associated to the destination and the odd ones are
     # associated to the source path. It is because 'os.path.isfile' is used for evaluating both
     # source paths and destination paths.
-    def test_correct_destination_folder_for_all_files_that_are_copied(self, mock_isfile):
+    def test_correct_destination_folder_for_all_files_that_are_copied(self, mock_isfile, mock_del):
         """ the copied file(s) shall be copied at the destination folder. This test for the cases
         that we have one more addition local file address in the database in the case of data
         downloaded once again for a second time in a different address."""
@@ -273,7 +271,6 @@ class CopyingCLITestCase(django.test.TestCase):
             '-b', "2018-06-01",
             '-e', "2018-06-09",
             '-d', "/dst_folder/",
-            "--keeping_permanently"
         ]
         with mock.patch('shutil.copy') as mock_copy:
             cli_copy.main()
@@ -282,8 +279,9 @@ class CopyingCLITestCase(django.test.TestCase):
              call(dst='/dst_folder/', src='/new_loc_add')],
             mock_copy.call_args_list)
 
+    @mock.patch('geospaas_processing.copiers.Copier.delete')
     @mock.patch('os.path.isfile', return_value=True)
-    def test_correct_place_of_symlink_after_creation_of_it(self, mock_isfile):
+    def test_correct_place_of_symlink_after_creation_of_it(self, mock_isfile, mock_delete):
         """ symlink must be placed at the address that is specified from the input arguments.
         This test for the cases that we have one more addition local file address in the database
         in the case of data downloaded once again for a second time in a different address. """
@@ -291,9 +289,8 @@ class CopyingCLITestCase(django.test.TestCase):
             "",
             '-b', "2018-06-01",
             '-e', "2018-06-09",
-            '-l',
+            '-l','-ttl','200',
             '-d', "/dst_folder/",
-            "--keeping_permanently"
         ]
         with mock.patch('os.symlink') as mock_symlink:
             cli_copy.main()

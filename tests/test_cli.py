@@ -210,7 +210,7 @@ class CopyingCLITestCase(django.test.TestCase):
             '-f',
             '-l',
             '-k',
-            '-o', '150',
+            '-ttl', '150',
             '-g', "POLYGON ((-22 84, -22 74, 32 74, 32 84, -22 84))",
             '-t', 'test_type',
             '-q',
@@ -223,7 +223,7 @@ class CopyingCLITestCase(django.test.TestCase):
         self.assertEqual(arg.end, '2018-11-18')
         self.assertEqual(arg.geometry, 'POLYGON ((-22 84, -22 74, 32 74, 32 84, -22 84))')
         self.assertEqual(arg.type, 'test_type')
-        self.assertEqual(arg.obsoleteness, '150')
+        self.assertEqual(arg.time_to_live, '150')
         self.assertEqual(arg.query,
                          '{"dataseturi__uri__contains": "osisaf", '
                          + '"source__instrument__short_name__icontains": "AMSR2"}')
@@ -302,8 +302,7 @@ class CopyingCLITestCase(django.test.TestCase):
              call(dst='/dst_folder/new_loc_add', src='/new_loc_add')],
             mock_symlink.call_args_list)
 
-    @mock.patch('os.unlink')
-    def test_delete_all_files_and_symlinks_in_destination_folder(self, mock_os_unlink):
+    def test_delete_all_files_and_symlinks_in_destination_folder(self):
         """ delete function should delete both file(s) and symlink(s) in destination folder. In this
         test a temporary file and a symlink of it is created. Both of them should be deleted."""
         with tempfile.TemporaryDirectory() as tmpdirname:
@@ -314,14 +313,14 @@ class CopyingCLITestCase(django.test.TestCase):
                     '-b', "2038-06-01",
                     '-e', "2038-06-09",
                     '-d', tmpdirname,
-                    "--obsoleteness", "0"
+                    "--time_to_live", "0"
                 ]
                 with mock.patch('shutil.copy'):
                     with mock.patch('os.remove') as mock_os_remove:
                         cli_copy.main()
             os.remove(tmpfile.name + '_symlink')
-        self.assertEqual(call(tmpfile.name), mock_os_remove.call_args)
-        self.assertEqual(call(tmpfile.name + '_symlink'), mock_os_unlink.call_args)
+        self.assertCountEqual([call(tmpfile.name), call(tmpfile.name + '_symlink')],
+                              mock_os_remove.call_args_list)
 
     @mock.patch('shutil.copy')
     def test_deleting_symlinks_without_a_reference_file(self, mock_copy):
@@ -339,11 +338,11 @@ class CopyingCLITestCase(django.test.TestCase):
                 '-b', "2038-06-01",
                 '-e', "2038-06-09",
                 '-d', tmpdirname,
-                "--obsoleteness", "0"
+                "--time_to_live", "0"
             ]
-            with mock.patch('os.unlink')as mock_os_unlink:
+            with mock.patch('os.remove')as mock_os_remove:
                 cli_copy.main()
-                self.assertEqual(call(symlink_path), mock_os_unlink.call_args)
+            self.assertEqual(call(symlink_path), mock_os_remove.call_args)
 
     @mock.patch('os.symlink')
     @mock.patch('os.path.isfile', return_value=True)

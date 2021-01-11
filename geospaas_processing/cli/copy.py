@@ -17,11 +17,10 @@ def main():
                                         flag_file_request=arg.flag_file,
                                         link_request=arg.link,
                                         destination_path=arg.destination_path,
-                                        obsoleteness=int(arg.obsoleteness),
+                                        time_to_live=int(arg.time_to_live),
+                                        keep_permanently=arg.keeping_permanently,
                                         **cumulative_query)
     current_copy_action.copy()
-    if not arg.keeping_permanently:
-        current_copy_action.delete()
 
 
 def cli_parse_args():
@@ -46,8 +45,8 @@ def cli_parse_args():
         + "copied file(s) after a certain period of time or 2.do nothing regarding deletion based "
         + "on its ABSENCE or PRESENCE of this flag in the arguments.")
     parser.add_argument(
-        '-o', '--obsoleteness', required=False, type=str, default="90",
-        help="The upper limit of days of file existence that are being copied."
+        '-ttl', '--time_to_live', required=False, type=str, default="90",
+        help="The upper limit [in days] of file existence that have already been copied."
         + " If the file is older than this limit, it will be deleted.")
     return parser.parse_args()
 

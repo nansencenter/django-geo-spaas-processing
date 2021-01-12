@@ -310,7 +310,7 @@ class CopyingCLITestCase(django.test.TestCase):
             with tempfile.NamedTemporaryFile(dir=tmpdirname) as tmpfile:
                 os.symlink(src=tmpfile.name, dst=tmpfile.name + '_symlink')  # symlink creation
                 broken_symlink_path = os.path.join(tmpdirname, 'broken_symlink')
-                os.symlink(src='/tmp/blah', dst=broken_symlink_path)
+                os.symlink(src=tmpdirname+'/blablablah', dst=broken_symlink_path)
                 copier = geospaas_processing.copiers.Copier('type1', tmpdirname)
                 with mock.patch('os.remove') as mock_os_remove:
                     copier.delete(0)
@@ -347,5 +347,4 @@ class CopyingCLITestCase(django.test.TestCase):
                 "e\n- url: https://scihub.copernicus.eu/the_second_fakeurl\nsummary: Date: 2018-04-"
                 "05T00:43:05.826008Z, Instrument: SLSTR, Mode: EO, Satellite: Sentinel-3, Size: 415"
                 ".29 MB\n"
-            )
-            )
+            ))

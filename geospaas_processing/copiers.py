@@ -18,7 +18,7 @@ class Copier():
     """Copier for datasets"""
 
     def __init__(self, type_in_flag_file, destination_path,
-    flag_file_request=False, link_request=False, **criteria):
+                 flag_file_request=False, link_request=False, **criteria):
         self._type_in_flag_file = type_in_flag_file
         self._destination_path = destination_path
         self._flag_file_request = flag_file_request

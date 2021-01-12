@@ -57,7 +57,7 @@ class Copier():
                     else:
                         shutil.copy(src=source_path.uri, dst=self._destination_path)
                     if self._flag_file_request:
-                       self.write_flag_file(self._type_in_flag_file,
+                        self.write_flag_file(self._type_in_flag_file,
                                              source_path, dataset, destination_filename)
                 else:
                     LOGGER.debug(

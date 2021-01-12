@@ -301,45 +301,35 @@ class CopyingCLITestCase(django.test.TestCase):
 
     def test_delete_all_files_and_symlinks_in_destination_folder(self):
         """ delete function should delete both file(s) and symlink(s) in destination folder. In this
-        test a temporary file and a symlink of it is created. Both of them should be deleted."""
+        test a temporary file and a symlink of it is created. Both of them should be deleted.
+        """
         with tempfile.TemporaryDirectory() as tmpdirname:
             with tempfile.NamedTemporaryFile(dir=tmpdirname) as tmpfile:
                 os.symlink(src=tmpfile.name, dst=tmpfile.name + '_symlink')  # symlink creation
-                sys.argv = [
-                    "",
-                    '-b', "2038-06-01",
-                    '-e', "2038-06-09",
-                    '-d', tmpdirname,
-                    "--time_to_live", "0"
-                ]
-                with mock.patch('shutil.copy'):
-                    with mock.patch('os.remove') as mock_os_remove:
-                        cli_copy.main()
-            os.remove(tmpfile.name + '_symlink')
-        self.assertCountEqual([call(tmpfile.name), call(tmpfile.name + '_symlink')],
-                              mock_os_remove.call_args_list)
+                copier = geospaas_processing.copiers.Copier('type1', tmpdirname)
+                with mock.patch('os.remove') as mock_os_remove:
+                    copier.delete(0)
+                    self.assertCountEqual([call(tmpfile.name), call(tmpfile.name + '_symlink')],
+                                        mock_os_remove.call_args_list)
 
-    @mock.patch('shutil.copy')
-    def test_deleting_symlinks_without_a_reference_file(self, mock_copy):
-        """ delete function should delete the symlink(s) regardless of the state of existence of the
-        reference file. In this test, the symlink is existing without a reference file. The test
-        shall remove that symlink."""
+    def test_deleting_symlinks_without_a_reference_file(self):
+        """
+        delete function should also delete the symlink(s) regardless of the state of existence of
+        the reference file. In this test, the symlink is existing without a reference file. The test
+        shall remove that symlink.
+        """
         with tempfile.TemporaryDirectory() as tmpdirname:
+            copier = geospaas_processing.copiers.Copier('type1', tmpdirname)
             path_of_file = os.path.join(tmpdirname, 'test_file_name')
             Path(path_of_file).touch()
             symlink_path = path_of_file + '_symlink'
             os.symlink(src=path_of_file, dst=symlink_path)  # symlink creation
             os.remove(path_of_file)  # remove the reference file of the symlink
-            sys.argv = [
-                "",
-                '-b', "2038-06-01",
-                '-e', "2038-06-09",
-                '-d', tmpdirname,
-                "--time_to_live", "0"
-            ]
-            with mock.patch('os.remove')as mock_os_remove:
-                cli_copy.main()
-            self.assertEqual(call(symlink_path), mock_os_remove.call_args)
+            with mock.patch('os.remove') as mock_os_remove:
+                copier.delete(0)
+                self.assertEqual(call(symlink_path), mock_os_remove.call_args)
+
+
 
     @mock.patch('os.symlink')
     @mock.patch('os.path.isfile', return_value=True)

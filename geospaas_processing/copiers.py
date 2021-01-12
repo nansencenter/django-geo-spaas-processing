@@ -81,11 +81,12 @@ class Copier():
     def delete(self, ttl):
         """
         Delete the file(s) or symlink(s) after a certain period of 'time to live' (in days) of the
-        file(s) or symlink(s) inside the destination path. """
+        file(s) or symlink(s) inside the destination path.
+        """
         with os.scandir(self._destination_path) as scanned_dir:
             for entry in scanned_dir:
                 if ((entry.is_file(follow_symlinks=False) or entry.is_symlink())
                     and '.snapshot' not in entry.path
                     and entry.stat(follow_symlinks=False).st_uid == os.getuid()
                     and time.time() - entry.stat(follow_symlinks=False).st_mtime > ttl*24*3600):
-                        os.remove(entry.path)
+                    os.remove(entry.path)

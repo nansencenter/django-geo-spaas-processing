@@ -1,6 +1,7 @@
 import os
 import shutil
 import logging
+import time
 
 import django
 
@@ -16,8 +17,8 @@ LOGGER = logging.getLogger(__name__)
 class Copier():
     """Copier for datasets"""
 
-    def __init__(self, type_in_flag_file, destination_path, flag_file_request=False,
-                 link_request=False, **criteria):
+    def __init__(self, type_in_flag_file, destination_path,
+                 flag_file_request=False, link_request=False, **criteria):
         self._type_in_flag_file = type_in_flag_file
         self._destination_path = destination_path
         self._flag_file_request = flag_file_request
@@ -56,7 +57,7 @@ class Copier():
                     else:
                         shutil.copy(src=source_path.uri, dst=self._destination_path)
                     if self._flag_file_request:
-                       self.write_flag_file(self._type_in_flag_file,
+                        self.write_flag_file(self._type_in_flag_file,
                                              source_path, dataset, destination_filename)
                 else:
                     LOGGER.debug(
@@ -76,3 +77,16 @@ class Copier():
             else:
                 LOGGER.debug("For dataset with id = %s, there is no local file address in the "
                              "database.", dataset.id)
+
+    def delete(self, ttl):
+        """
+        Delete the file(s) or symlink(s) after a certain period of 'time to live' (in days) of the
+        file(s) or symlink(s) inside the destination path.
+        """
+        with os.scandir(self._destination_path) as scanned_dir:
+            for entry in scanned_dir:
+                if ((entry.is_file(follow_symlinks=False) or entry.is_symlink())
+                    and '.snapshot' not in entry.path
+                    and entry.stat(follow_symlinks=False).st_uid == os.getuid()
+                    and time.time() - entry.stat(follow_symlinks=False).st_mtime > ttl*24*3600):
+                    os.remove(entry.path)

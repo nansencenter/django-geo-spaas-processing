@@ -13,7 +13,8 @@ from freezegun import freeze_time
 import django.test
 from django.contrib.gis.geos import GEOSGeometry
 
-import geospaas_processing.cli.copy as cli_copy
+import geospaas_processing.copiers
+import geospaas_processing.cli.delete_and_copy as cli_copy
 import geospaas_processing.cli.download as cli_download
 import geospaas_processing.cli.util as util
 from geospaas.catalog.models import Dataset
@@ -209,6 +210,7 @@ class CopyingCLITestCase(django.test.TestCase):
             '-r',
             '-f',
             '-l',
+            '-ttl', '150',
             '-g', "POLYGON ((-22 84, -22 74, 32 74, 32 84, -22 84))",
             '-t', 'test_type',
             '-q',
@@ -221,6 +223,7 @@ class CopyingCLITestCase(django.test.TestCase):
         self.assertEqual(arg.end, '2018-11-18')
         self.assertEqual(arg.geometry, 'POLYGON ((-22 84, -22 74, 32 74, 32 84, -22 84))')
         self.assertEqual(arg.type, 'test_type')
+        self.assertEqual(arg.time_to_live, '150')
         self.assertEqual(arg.query,
                          '{"dataseturi__uri__contains": "osisaf", '
                          + '"source__instrument__short_name__icontains": "AMSR2"}')
@@ -236,7 +239,8 @@ class CopyingCLITestCase(django.test.TestCase):
         self.assertFalse(arg.flag_file)
         self.assertFalse(arg.link)
 
-    def test_lack_of_calling_json_deserializer_when_no_query_appears_for_copying(self):
+    @mock.patch('geospaas_processing.copiers.Copier.delete')
+    def test_lack_of_calling_json_deserializer_when_no_query_appears_for_copying(self, mock_del):
         """'json.loads' should not called when nothing comes after '-q' """
         sys.argv = [
             "",
@@ -247,17 +251,18 @@ class CopyingCLITestCase(django.test.TestCase):
             '-f',
             '-l',
             '-g', "POLYGON ((-22 84, -22 74, 32 74, 32 84, -22 84))",
-            '-t', 'test_type'
+            '-t', 'test_type',
         ]
         with mock.patch('json.loads') as mock_json:
             cli_copy.main()
         mock_json.assert_not_called()
 
+    @mock.patch('geospaas_processing.copiers.Copier.delete')
     @mock.patch('os.path.isfile', side_effect=[True, False, True, False])
     # The even side effects (the 'True' ones) are associated to the destination and the odd ones are
     # associated to the source path. It is because 'os.path.isfile' is used for evaluating both
     # source paths and destination paths.
-    def test_correct_destination_folder_for_all_files_that_are_copied(self, mock_isfile):
+    def test_correct_destination_folder_for_all_files_that_are_copied(self, mock_isfile, mock_del):
         """ the copied file(s) shall be copied at the destination folder. This test for the cases
         that we have one more addition local file address in the database in the case of data
         downloaded once again for a second time in a different address."""
@@ -265,7 +270,7 @@ class CopyingCLITestCase(django.test.TestCase):
             "",
             '-b', "2018-06-01",
             '-e', "2018-06-09",
-            '-d', "/dst_folder/"
+            '-d', "/dst_folder/",
         ]
         with mock.patch('shutil.copy') as mock_copy:
             cli_copy.main()
@@ -274,8 +279,9 @@ class CopyingCLITestCase(django.test.TestCase):
              call(dst='/dst_folder/', src='/new_loc_add')],
             mock_copy.call_args_list)
 
+    @mock.patch('geospaas_processing.copiers.Copier.delete')
     @mock.patch('os.path.isfile', return_value=True)
-    def test_correct_place_of_symlink_after_creation_of_it(self, mock_isfile):
+    def test_correct_place_of_symlink_after_creation_of_it(self, mock_isfile, mock_delete):
         """ symlink must be placed at the address that is specified from the input arguments.
         This test for the cases that we have one more addition local file address in the database
         in the case of data downloaded once again for a second time in a different address. """
@@ -283,8 +289,8 @@ class CopyingCLITestCase(django.test.TestCase):
             "",
             '-b', "2018-06-01",
             '-e', "2018-06-09",
-            '-l',
-            '-d', "/dst_folder/"
+            '-l', '-ttl', '200',
+            '-d', "/dst_folder/",
         ]
         with mock.patch('os.symlink') as mock_symlink:
             cli_copy.main()
@@ -292,6 +298,30 @@ class CopyingCLITestCase(django.test.TestCase):
             [call(dst='/dst_folder/testing_file.test', src='/tmp/testing_file.test'),
              call(dst='/dst_folder/new_loc_add', src='/new_loc_add')],
             mock_symlink.call_args_list)
+
+    def test_delete_all_files_and_symlinks_in_destination_folder(self):
+        """ delete function should delete both file(s) and symlink(s) in destination folder. In this
+        test a temporary file and a symlink of it is created. Both of them should be deleted.
+        delete function should also delete the symlink(s) regardless of the state of existence of
+        the reference file. In this test, the symlink is existing without a reference file. The test
+        shall remove that symlink.
+        """
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            with tempfile.NamedTemporaryFile(dir=tmpdirname) as tmpfile:
+                os.symlink(src=tmpfile.name, dst=tmpfile.name + '_symlink')  # symlink creation
+                broken_symlink_path = os.path.join(tmpdirname, 'broken_symlink')
+                os.symlink(src=os.path.join(tmpdirname, 'blablablah'), dst=broken_symlink_path)
+                copier = geospaas_processing.copiers.Copier('type1', tmpdirname)
+                with mock.patch('os.remove') as mock_os_remove:
+                    copier.delete(0)
+                    self.assertCountEqual(
+                        [
+                            call(tmpfile.name),
+                            call(tmpfile.name + '_symlink'),
+                            call(broken_symlink_path)
+                        ],
+                        mock_os_remove.call_args_list
+                    )
 
     @mock.patch('os.symlink')
     @mock.patch('os.path.isfile', return_value=True)
@@ -317,5 +347,4 @@ class CopyingCLITestCase(django.test.TestCase):
                 "e\n- url: https://scihub.copernicus.eu/the_second_fakeurl\nsummary: Date: 2018-04-"
                 "05T00:43:05.826008Z, Instrument: SLSTR, Mode: EO, Satellite: Sentinel-3, Size: 415"
                 ".29 MB\n"
-            )
-        )
+            ))

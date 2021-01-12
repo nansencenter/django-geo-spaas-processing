@@ -1,5 +1,6 @@
 """
-Copy files that are selected from the database using input criteria from copy config file.
+first delete the old ones and then copy files that are selected from the database using input
+criteria from copy config file.
 """
 import geospaas_processing.cli.util as util
 import geospaas_processing.copiers as copiers
@@ -18,6 +19,7 @@ def main():
                                         link_request=arg.link,
                                         destination_path=arg.destination_path,
                                         **cumulative_query)
+    current_copy_action.delete(int(arg.time_to_live))
     current_copy_action.copy()
 
 
@@ -37,6 +39,10 @@ def cli_parse_args():
     parser.add_argument(
         '-t', '--type', required=False, type=str,
         help="The type of dataset (as a str) which is written in flag file for further processing.")
+    parser.add_argument(
+        '-ttl', '--time_to_live', required=False, type=str, default="90",
+        help="The upper limit [in days] of file existence that have already been copied."
+        + " If the file is older than this limit, it will be deleted.")
     return parser.parse_args()
 
 

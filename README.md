@@ -27,6 +27,7 @@ The processing modules can either be run as standalone code or asynchronously as
 | '-l'                |                         | '--link'
 | '-t'                |                         | '--type'
 | '-f'                |                         | '--flag_file'
+| '-ttl'              |                         | '--time_to_live'
 ---
 ## Dependencies
 

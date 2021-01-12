@@ -310,7 +310,7 @@ class CopyingCLITestCase(django.test.TestCase):
             with tempfile.NamedTemporaryFile(dir=tmpdirname) as tmpfile:
                 os.symlink(src=tmpfile.name, dst=tmpfile.name + '_symlink')  # symlink creation
                 broken_symlink_path = os.path.join(tmpdirname, 'broken_symlink')
-                os.symlink(src=tmpdirname+'/blablablah', dst=broken_symlink_path)
+                os.symlink(src=os.path.join(tmpdirname, 'blablablah'), dst=broken_symlink_path)
                 copier = geospaas_processing.copiers.Copier('type1', tmpdirname)
                 with mock.patch('os.remove') as mock_os_remove:
                     copier.delete(0)

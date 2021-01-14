@@ -40,7 +40,7 @@ def cli_parse_args():
         '-t', '--type', required=False, type=str,
         help="The type of dataset (as a str) which is written in flag file for further processing.")
     parser.add_argument(
-        '-ttl', '--time_to_live', required=False, type=str, default="90",
+        '-ttl', '--time_to_live', required=True, type=str, default="90",
         help="The upper limit [in days] of file existence that have already been copied."
         + " If the file is older than this limit, it will be deleted.")
     return parser.parse_args()

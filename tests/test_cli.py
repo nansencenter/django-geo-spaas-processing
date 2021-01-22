@@ -8,6 +8,7 @@ from unittest.mock import call
 
 from datetime import datetime
 from pathlib import Path
+import distutils.dir_util
 from dateutil.tz import tzutc
 from freezegun import freeze_time
 import django.test
@@ -258,10 +259,10 @@ class CopyingCLITestCase(django.test.TestCase):
         mock_json.assert_not_called()
 
     @mock.patch('geospaas_processing.copiers.Copier.delete')
-    @mock.patch('os.path.isfile', side_effect=[True, False, True, False])
-    # The even side effects (the 'True' ones) are associated to the destination and the odd ones are
-    # associated to the source path. It is because 'os.path.isfile' is used for evaluating both
-    # source paths and destination paths.
+    @mock.patch('os.path.isfile', side_effect=[True, False, True, True, False, True])
+    # The even side effects are grouped into three ones, one for source, one for destination,
+    # and one for determination of copying file item or folder item.This is done two times for two
+    # addresses in db. Thus we have six value for running the test for two addresses in the fixtures
     def test_correct_destination_folder_for_all_files_that_are_copied(self, mock_isfile, mock_del):
         """ the copied file(s) shall be copied at the destination folder. This test for the cases
         that we have one more addition local file address in the database in the case of data
@@ -274,14 +275,39 @@ class CopyingCLITestCase(django.test.TestCase):
         ]
         with mock.patch('shutil.copy') as mock_copy:
             cli_copy.main()
-        self.assertEqual(
-            [call(dst='/dst_folder/', src='/tmp/testing_file.test'),
+        self.assertCountEqual(
+            [call(dst='/dst_folder/', src='/tmp/testing_file_or_folder.test'),
              call(dst='/dst_folder/', src='/new_loc_add')],
             mock_copy.call_args_list)
 
     @mock.patch('geospaas_processing.copiers.Copier.delete')
+    @mock.patch('os.path.isdir', side_effect=[True, False, True, True, False, True])
+    # The even side effects are grouped into three ones, one for source, one for destination,
+    # and one for determination of copying file item or folder item.This is done two times for two
+    # addresses in db. Thus we have six value for running the test for two addresses in the fixtures
+    def test_correct_destination_folder_for_all_folders_that_are_copied(self, mock_isdir, mock_del):
+        """ Test that the folder which is stored at the database are correctly copied into the
+        destination address. This test for the cases that we have one more addition local folder
+        address in the database in the case of local folder address is stored for a second time
+        in a different address."""
+        sys.argv = [
+            "",
+            '-b', "2018-06-01",
+            '-e', "2018-06-09",
+            '-d', "/dst_folder/",
+        ]
+        with mock.patch('geospaas_processing.copiers.copy_tree') as mock_copy:
+            cli_copy.main()
+        self.assertCountEqual([
+            call(dst='/dst_folder/testing_file_or_folder.test',
+                 src='/tmp/testing_file_or_folder.test'),
+            call(dst='/dst_folder/new_loc_add',
+                 src='/new_loc_add')],
+            mock_copy.call_args_list)
+
+    @mock.patch('geospaas_processing.copiers.Copier.delete')
     @mock.patch('os.path.isfile', return_value=True)
-    def test_correct_place_of_symlink_after_creation_of_it(self, mock_isfile, mock_delete):
+    def test_correct_place_of_symlink_of_files_after_creation_of_it(self, mock_isfile, mock_delete):
         """ symlink must be placed at the address that is specified from the input arguments.
         This test for the cases that we have one more addition local file address in the database
         in the case of data downloaded once again for a second time in a different address. """
@@ -294,9 +320,33 @@ class CopyingCLITestCase(django.test.TestCase):
         ]
         with mock.patch('os.symlink') as mock_symlink:
             cli_copy.main()
-        self.assertEqual(
-            [call(dst='/dst_folder/testing_file.test', src='/tmp/testing_file.test'),
-             call(dst='/dst_folder/new_loc_add', src='/new_loc_add')],
+        self.assertEqual([
+            call(
+                dst='/dst_folder/testing_file_or_folder.test',
+                src='/tmp/testing_file_or_folder.test'),
+            call(dst='/dst_folder/new_loc_add', src='/new_loc_add')],
+            mock_symlink.call_args_list)
+
+    @mock.patch('geospaas_processing.copiers.Copier.delete')
+    @mock.patch('os.path.isdir', return_value=True)
+    def test_correct_place_of_symlink_of_folders_after_creation_of_it(self, mock_isfile, mock_del):
+        """ symlink must be placed at the address that is specified from the input arguments.
+        This test for the cases that we have one more addition local FOLDER address in the database
+        in the case of data downloaded once again for a second time in a different address. """
+        sys.argv = [
+            "",
+            '-b', "2018-06-01",
+            '-e', "2018-06-09",
+            '-l', '-ttl', '200',
+            '-d', "/dst_folder/",
+        ]
+        with mock.patch('os.symlink') as mock_symlink:
+            cli_copy.main()
+        self.assertEqual([
+            call(
+                dst='/dst_folder/testing_file_or_folder.test',
+                src='/tmp/testing_file_or_folder.test'),
+            call(dst='/dst_folder/new_loc_add', src='/new_loc_add')],
             mock_symlink.call_args_list)
 
     def test_delete_all_files_and_symlinks_in_destination_folder(self):
@@ -338,7 +388,7 @@ class CopyingCLITestCase(django.test.TestCase):
         sys.argv.append('-d')
         sys.argv.append(temp_directory.name)
         cli_copy.main()
-        with open(os.path.join(temp_directory.name + '/testing_file.test.flag'), 'r') as fd:
+        with open(os.path.join(temp_directory.name + '/testing_file_or_folder.test.flag'), 'r') as fd:
             self.assertEqual(fd.read(), (
                 "type: test_type\nentry_id: a35858cc-e18c-4dfe-9bce-5756138b5125\nentry_title: S3A_"
                 "SL_1_RBT____20180405T004306_20180405T004606_20180406T060255_0179_029_344_5220_LN2_"

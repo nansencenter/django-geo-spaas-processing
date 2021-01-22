@@ -2,6 +2,7 @@ import os
 import shutil
 import logging
 import time
+from distutils.dir_util import copy_tree
 
 import django
 
@@ -42,31 +43,44 @@ class Copier():
             flag_file.write(string_to_write)
 
     def file_or_symlink_copy(self, source_paths, dataset):
-        """copy the file or a symlink of the file of dataset based on its stored local address in
-        the database."""
+        """copy the file or a symlink of the file/folder of dataset based on its stored local
+        address in the database."""
         for source_path in source_paths:
-            if os.path.isfile(source_path.uri):
-                destination_filename = os.path.join(
-                    self._destination_path, os.path.basename(source_path.uri))
+            self.source_is_file = os.path.isfile(source_path.uri)
+            self.source_is_folder = os.path.isdir(source_path.uri)
+            destination_file_or_folder_name = os.path.join(
+                self._destination_path, os.path.basename(source_path.uri))
+            if (self.source_is_file or self.source_is_folder):
                 # below if condition prevents "shutil.copy" or "os.symlink" from replacing the file
-                # in the destination in a repetitive manner.
-                if not os.path.isfile(destination_filename) or not os.path.islink(
-                        destination_filename):
-                    if self._link_request:
-                        os.symlink(src=source_path.uri, dst=destination_filename)
-                    else:
-                        shutil.copy(src=source_path.uri, dst=self._destination_path)
-                    if self._flag_file_request:
-                        self.write_flag_file(self._type_in_flag_file,
-                                             source_path, dataset, destination_filename)
+                # or folder in the destination in a repetitive manner.
+                if (not (os.path.isfile(destination_file_or_folder_name)
+                         or os.path.isdir(destination_file_or_folder_name))
+                    or not os.path.islink(destination_file_or_folder_name)):
+                    self.copy_item(source_path, destination_file_or_folder_name, dataset)
                 else:
                     LOGGER.debug(
-                        "For dataset with id = %s, there is already a symlink or a file with the "
-                        + "same name in the destination folder.", dataset.id)
+                        "For dataset with id = %s, there is already a symlink or a file or a folder"
+                        + "with the same name in the destination folder.", dataset.id)
             else:
                 LOGGER.debug(
                     "For stored address of dataset with id = %s,"
-                    " there is no file in the stored address: %s.", dataset.id, source_path.uri)
+                    " there is no file or no folder in the stored address: %s.", dataset.id,
+                    source_path.uri)
+
+    def copy_item(self, source_path, destination_file_or_folder_name, dataset):
+        """ Copy the 'source_path.uri' (regardless of being folder or file) or a symlink of it
+         into destination. Moreover, write a flag file if requested. """
+        if self._link_request:
+            os.symlink(src=source_path.uri, dst=destination_file_or_folder_name)
+        else:
+            if self.source_is_file:
+                shutil.copy(src=source_path.uri, dst=self._destination_path)
+            elif self.source_is_folder:
+                copy_tree(src=source_path.uri, dst=os.path.join(
+                    self._destination_path, os.path.basename(source_path.uri)))
+        if self._flag_file_request:
+            self.write_flag_file(self._type_in_flag_file,
+                                 source_path, dataset, destination_file_or_folder_name)
 
     def copy(self):
         """ Tries to copy all datasets based on their stored local addresses in the database."""
@@ -88,5 +102,5 @@ class Copier():
                 if ((entry.is_file(follow_symlinks=False) or entry.is_symlink())
                     and '.snapshot' not in entry.path
                     and entry.stat(follow_symlinks=False).st_uid == os.getuid()
-                    and time.time() - entry.stat(follow_symlinks=False).st_mtime > ttl*24*3600):
+                        and time.time() - entry.stat(follow_symlinks=False).st_mtime > ttl*24*3600):
                     os.remove(entry.path)

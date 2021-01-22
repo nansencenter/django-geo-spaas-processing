@@ -2,8 +2,7 @@ import os
 import shutil
 import logging
 import time
-from distutils.dir_util import copy_tree
-
+from os.path import exists
 import django
 
 from geospaas.catalog.models import Dataset
@@ -46,21 +45,17 @@ class Copier():
         """copy the file or a symlink of the file/folder of dataset based on its stored local
         address in the database."""
         for source_path in source_paths:
-            self.source_is_file = os.path.isfile(source_path.uri)
-            self.source_is_folder = os.path.isdir(source_path.uri)
             destination_file_or_folder_name = os.path.join(
                 self._destination_path, os.path.basename(source_path.uri))
-            if (self.source_is_file or self.source_is_folder):
+            if exists(source_path.uri):
                 # below if condition prevents "shutil.copy" or "os.symlink" from replacing the file
                 # or folder in the destination in a repetitive manner.
-                if (not (os.path.isfile(destination_file_or_folder_name)
-                         or os.path.isdir(destination_file_or_folder_name))
-                    or not os.path.islink(destination_file_or_folder_name)):
+                if not exists(destination_file_or_folder_name):
                     self.copy_item(source_path, destination_file_or_folder_name, dataset)
                 else:
-                    LOGGER.debug(
-                        "For dataset with id = %s, there is already a symlink or a file or a folder"
-                        + "with the same name in the destination folder.", dataset.id)
+                    LOGGER.warning(
+                        "Failed to copy dataset %s: the destination path already exists.",
+                        dataset.id)
             else:
                 LOGGER.debug(
                     "For stored address of dataset with id = %s,"
@@ -73,10 +68,10 @@ class Copier():
         if self._link_request:
             os.symlink(src=source_path.uri, dst=destination_file_or_folder_name)
         else:
-            if self.source_is_file:
+            if os.path.isfile(source_path.uri):
                 shutil.copy(src=source_path.uri, dst=self._destination_path)
-            elif self.source_is_folder:
-                copy_tree(src=source_path.uri, dst=os.path.join(
+            elif os.path.isdir(source_path.uri):
+                shutil.copytree(src=source_path.uri, dst=os.path.join(
                     self._destination_path, os.path.basename(source_path.uri)))
         if self._flag_file_request:
             self.write_flag_file(self._type_in_flag_file,
@@ -100,7 +95,7 @@ class Copier():
         with os.scandir(self._destination_path) as scanned_dir:
             for entry in scanned_dir:
                 if ((entry.is_file(follow_symlinks=False) or entry.is_symlink())
-                    and '.snapshot' not in entry.path
-                    and entry.stat(follow_symlinks=False).st_uid == os.getuid()
+                        and '.snapshot' not in entry.path
+                        and entry.stat(follow_symlinks=False).st_uid == os.getuid()
                         and time.time() - entry.stat(follow_symlinks=False).st_mtime > ttl*24*3600):
                     os.remove(entry.path)

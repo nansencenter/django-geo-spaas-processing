@@ -259,11 +259,13 @@ class CopyingCLITestCase(django.test.TestCase):
         mock_json.assert_not_called()
 
     @mock.patch('geospaas_processing.copiers.Copier.delete')
-    @mock.patch('os.path.isfile', side_effect=[True, False, True, True, False, True])
-    # The even side effects are grouped into three ones, one for source, one for destination,
-    # and one for determination of copying file item or folder item.This is done two times for two
-    # addresses in db. Thus we have six value for running the test for two addresses in the fixtures
-    def test_correct_destination_folder_for_all_files_that_are_copied(self, mock_isfile, mock_del):
+    @mock.patch('os.path.isfile', return_value=True)
+    @mock.patch('geospaas_processing.copiers.exists', side_effect=[True, False, True, False])
+    # The even side effects (the 'False' ones) are associated to the destination and the odd ones are
+    # associated to the source path. It is because 'geospaas_processing.copiers.exists' is used for
+    # evaluating both source paths and destination paths.
+    def test_correct_destination_folder_for_all_files_that_are_copied(
+            self, mock_exs, mock_isfile, mock_del):
         """ the copied file(s) shall be copied at the destination folder. This test for the cases
         that we have one more addition local file address in the database in the case of data
         downloaded once again for a second time in a different address."""
@@ -281,11 +283,13 @@ class CopyingCLITestCase(django.test.TestCase):
             mock_copy.call_args_list)
 
     @mock.patch('geospaas_processing.copiers.Copier.delete')
-    @mock.patch('os.path.isdir', side_effect=[True, False, True, True, False, True])
-    # The even side effects are grouped into three ones, one for source, one for destination,
-    # and one for determination of copying file item or folder item.This is done two times for two
-    # addresses in db. Thus we have six value for running the test for two addresses in the fixtures
-    def test_correct_destination_folder_for_all_folders_that_are_copied(self, mock_isdir, mock_del):
+    @mock.patch('os.path.isdir', return_value=True)
+    @mock.patch('geospaas_processing.copiers.exists', side_effect=[True, False, True, False])
+    # The even side effects (the 'False' ones) are associated to the destination and the odd ones are
+    # associated to the source path. It is because 'geospaas_processing.copiers.exists' is used for
+    # evaluating both source paths and destination paths.
+    def test_correct_destination_folder_for_all_folders_that_are_copied(
+            self, mock_exs, mock_isdir, mock_del):
         """ Test that the folder which is stored at the database are correctly copied into the
         destination address. This test for the cases that we have one more addition local folder
         address in the database in the case of local folder address is stored for a second time
@@ -296,7 +300,7 @@ class CopyingCLITestCase(django.test.TestCase):
             '-e', "2018-06-09",
             '-d', "/dst_folder/",
         ]
-        with mock.patch('geospaas_processing.copiers.copy_tree') as mock_copy:
+        with mock.patch('shutil.copytree') as mock_copy:
             cli_copy.main()
         self.assertCountEqual([
             call(dst='/dst_folder/testing_file_or_folder.test',
@@ -307,7 +311,12 @@ class CopyingCLITestCase(django.test.TestCase):
 
     @mock.patch('geospaas_processing.copiers.Copier.delete')
     @mock.patch('os.path.isfile', return_value=True)
-    def test_correct_place_of_symlink_of_files_after_creation_of_it(self, mock_isfile, mock_delete):
+    @mock.patch('geospaas_processing.copiers.exists', side_effect=[True, False, True, False])
+    # The even side effects (the 'False' ones) are associated to the destination and the odd ones are
+    # associated to the source path. It is because 'geospaas_processing.copiers.exists' is used for
+    # evaluating both source paths and destination paths.
+    def test_correct_place_of_symlink_of_files_after_creation_of_it(
+            self, mock_exs, mock_isfile, mock_delete):
         """ symlink must be placed at the address that is specified from the input arguments.
         This test for the cases that we have one more addition local file address in the database
         in the case of data downloaded once again for a second time in a different address. """
@@ -329,7 +338,12 @@ class CopyingCLITestCase(django.test.TestCase):
 
     @mock.patch('geospaas_processing.copiers.Copier.delete')
     @mock.patch('os.path.isdir', return_value=True)
-    def test_correct_place_of_symlink_of_folders_after_creation_of_it(self, mock_isfile, mock_del):
+    @mock.patch('geospaas_processing.copiers.exists', side_effect=[True, False, True, False])
+    # The even side effects (the 'False' ones) are associated to the destination and the odd ones are
+    # associated to the source path. It is because 'geospaas_processing.copiers.exists' is used for
+    # evaluating both source paths and destination paths.
+    def test_correct_place_of_symlink_of_folders_after_creation_of_it(
+            self, mock_exs, mock_isfile, mock_del):
         """ symlink must be placed at the address that is specified from the input arguments.
         This test for the cases that we have one more addition local FOLDER address in the database
         in the case of data downloaded once again for a second time in a different address. """
@@ -375,7 +389,11 @@ class CopyingCLITestCase(django.test.TestCase):
 
     @mock.patch('os.symlink')
     @mock.patch('os.path.isfile', return_value=True)
-    def test_correct_content_of_flag_file(self, mock_isfile, mock_link):
+    @mock.patch('geospaas_processing.copiers.exists', side_effect=[True, False, True, False])
+    # The even side effects (the 'False' ones) are associated to the destination and the odd ones are
+    # associated to the source path. It is because 'geospaas_processing.copiers.exists' is used for
+    # evaluating both source paths and destination paths.
+    def test_correct_content_of_flag_file(self, mock_exs, mock_isfile, mock_link):
         """ flag file should contain this 'type: test_type' information """
         sys.argv = [
             "",

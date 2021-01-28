@@ -21,6 +21,9 @@ import geospaas_processing.cli.util as util
 from geospaas.catalog.models import Dataset
 from geospaas.catalog.managers import LOCAL_FILE_SERVICE
 
+import logging
+LOGGER = logging.getLogger(__name__)
+
 
 class DownlaodingCLITestCase(django.test.TestCase):
     """Tests for the cli of downloading """
@@ -362,6 +365,29 @@ class CopyingCLITestCase(django.test.TestCase):
                 src='/tmp/testing_file_or_folder.test'),
             call(dst='/dst_folder/new_loc_add', src='/new_loc_add')],
             mock_symlink.call_args_list)
+
+    # @mock.patch('geospaas_processing.copiers.Copier.delete')
+    # @mock.patch('os.path.isdir', return_value=True)
+    # @mock.patch('geospaas_processing.copiers.exists', side_effect=[True, False, True, False])
+    # The even side effects (the 'False' ones) are associated to the destination and the odd ones are
+    # associated to the source path. It is because 'geospaas_processing.copiers.exists' is used for
+    # evaluating both source paths and destination paths.
+    @mock.patch('geospaas_processing.copiers.Copier.delete')
+    def test_warning_for_copying_action(self, mock_del):
+        #    self, mock_exs, mock_isdir, mock_del):
+        sys.argv = [
+            "",
+            '-b', "2018-09-01",
+            '-e', "2018-09-09",
+            '-l', '-ttl', '200',
+            '-d', "/dst_folder/",
+        ]
+        with self.assertLogs(level='WARNING') as warn:
+            cli_copy.main()
+            self.assertIn(
+                'WARNING:geospaas_processing.copiers:For dataset with id = 5, there is no local '
+                'file/folder address in the database.',
+                warn.output)
 
     def test_delete_all_files_and_symlinks_in_destination_folder(self):
         """ delete function should delete both file(s) and symlink(s) in destination folder. In this

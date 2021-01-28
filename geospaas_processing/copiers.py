@@ -57,7 +57,7 @@ class Copier():
                         "Failed to copy dataset %s: the destination path already exists.",
                         dataset.id)
             else:
-                LOGGER.debug(
+                LOGGER.warning(
                     "For stored address of dataset with id = %s,"
                     " there is no file or no folder in the stored address: %s.", dataset.id,
                     source_path.uri)
@@ -84,8 +84,8 @@ class Copier():
                 source_paths = dataset.dataseturi_set.filter(service=LOCAL_FILE_SERVICE)
                 self.file_or_symlink_copy(source_paths=source_paths, dataset=dataset)
             else:
-                LOGGER.debug("For dataset with id = %s, there is no local file address in the "
-                             "database.", dataset.id)
+                LOGGER.warning("For dataset with id = %s, there is no local file/folder address in "
+                             "the database.", dataset.id)
 
     def delete(self, ttl):
         """

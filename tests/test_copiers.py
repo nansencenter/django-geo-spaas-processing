@@ -8,7 +8,7 @@ class CopyingWarningTestCase(TestCase):
     @mock.patch('os.path.basename')
     @mock.patch('os.path.join')
     @mock.patch('geospaas_processing.copiers.exists', return_value=True)
-    def test_warning_for_copying_action( self, mock_exs, mock_join, mock_basename):
+    def test_warning_for_the_destination_path( self, mock_exs, mock_join, mock_basename):
         """Tests warning logs for the cases that there is already a file or folder with same name in
         the destination folder """
         source_path = mock.MagicMock()
@@ -24,7 +24,7 @@ class CopyingWarningTestCase(TestCase):
     @mock.patch('os.path.basename')
     @mock.patch('os.path.join')
     @mock.patch('geospaas_processing.copiers.exists', return_value=False)
-    def test_warning_for_copying_action2( self, mock_exs, mock_join, mock_basename):
+    def test_warning_for_database_address( self, mock_exs, mock_join, mock_basename):
         """
         Tests warning logs for the cases that the is an incorrect address in the database for source
         """

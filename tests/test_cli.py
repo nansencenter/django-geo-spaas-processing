@@ -384,10 +384,10 @@ class CopyingCLITestCase(django.test.TestCase):
         ]
         with self.assertLogs(level='WARNING') as warn:
             cli_copy.main()
-            self.assertIn(
-                'WARNING:geospaas_processing.copiers:For dataset with id = 5, there is no local '
-                'file/folder address in the database.',
-                warn.output)
+        self.assertIn(
+            'WARNING:geospaas_processing.copiers:For dataset with id = 5, there is no local '
+            'file/folder address in the database.',
+            warn.output)
 
     def test_delete_all_files_and_symlinks_in_destination_folder(self):
         """ delete function should delete both file(s) and symlink(s) in destination folder. In this

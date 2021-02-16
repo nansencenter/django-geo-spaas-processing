@@ -12,7 +12,7 @@ services:
 
 env:
   global:
-    - BASE_IMAGE_NAME="${DOCKER_ORG}/geospaas:2.0.0-slim"
+    - BASE_IMAGE_NAME="${DOCKER_ORG}/geospaas:2.3.3-slim"
     - IMAGE_NAME="${DOCKER_ORG}/geospaas_processing_worker"
     - IDF_CONVERTER_VERSION=0.0.124
 jobs:

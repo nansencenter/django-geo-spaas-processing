@@ -100,7 +100,7 @@
         "fields": {
             "name": "fileService",
             "service": "local",
-            "uri": "/tmp/testing_file.test",
+            "uri": "/tmp/testing_file_or_folder.test",
             "dataset": 2
         }
     },
@@ -110,7 +110,7 @@
         "fields": {
             "name": "fileService",
             "service": "local",
-            "uri": "/tmp/testing_file.test",
+            "uri": "/tmp/testing_file_or_folder.test",
             "dataset": 4
         }
     },
@@ -272,6 +272,23 @@
             "source": 1,
             "time_coverage_start": "2018-06-05T00:43:05.826Z",
             "time_coverage_end": "2018-06-05T00:46:05.826Z",
+            "geographic_location": 2,
+            "gcmd_location": 1,
+            "access_constraints": null
+        }
+    },
+    {
+        "model": "catalog.dataset",
+        "pk": 5,
+        "fields": {
+            "entry_id": "entry_id5",
+            "entry_title": "test5",
+            "ISO_topic_category": 1,
+            "data_center": 1,
+            "summary": "",
+            "source": 1,
+            "time_coverage_start": "2018-09-05T00:43:05.826Z",
+            "time_coverage_end": "2018-09-05T00:46:05.826Z",
             "geographic_location": 2,
             "gcmd_location": 1,
             "access_constraints": null

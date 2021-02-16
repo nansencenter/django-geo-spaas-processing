@@ -8,6 +8,7 @@ from unittest.mock import call
 
 from datetime import datetime
 from pathlib import Path
+import distutils.dir_util
 from dateutil.tz import tzutc
 from freezegun import freeze_time
 import django.test
@@ -19,6 +20,9 @@ import geospaas_processing.cli.download as cli_download
 import geospaas_processing.cli.util as util
 from geospaas.catalog.models import Dataset
 from geospaas.catalog.managers import LOCAL_FILE_SERVICE
+
+import logging
+LOGGER = logging.getLogger(__name__)
 
 
 class DownlaodingCLITestCase(django.test.TestCase):
@@ -258,11 +262,13 @@ class CopyingCLITestCase(django.test.TestCase):
         mock_json.assert_not_called()
 
     @mock.patch('geospaas_processing.copiers.Copier.delete')
-    @mock.patch('os.path.isfile', side_effect=[True, False, True, False])
-    # The even side effects (the 'True' ones) are associated to the destination and the odd ones are
-    # associated to the source path. It is because 'os.path.isfile' is used for evaluating both
-    # source paths and destination paths.
-    def test_correct_destination_folder_for_all_files_that_are_copied(self, mock_isfile, mock_del):
+    @mock.patch('os.path.isfile', return_value=True)
+    @mock.patch('geospaas_processing.copiers.exists', side_effect=[True, False, True, False])
+    # The even side effects (the 'False' ones) are associated to the destination and the odd ones are
+    # associated to the source path. It is because 'geospaas_processing.copiers.exists' is used for
+    # evaluating both source paths and destination paths.
+    def test_correct_destination_folder_for_all_files_that_are_copied(
+            self, mock_exs, mock_isfile, mock_del):
         """ the copied file(s) shall be copied at the destination folder. This test for the cases
         that we have one more addition local file address in the database in the case of data
         downloaded once again for a second time in a different address."""
@@ -274,14 +280,46 @@ class CopyingCLITestCase(django.test.TestCase):
         ]
         with mock.patch('shutil.copy') as mock_copy:
             cli_copy.main()
-        self.assertEqual(
-            [call(dst='/dst_folder/', src='/tmp/testing_file.test'),
+        self.assertCountEqual(
+            [call(dst='/dst_folder/', src='/tmp/testing_file_or_folder.test'),
              call(dst='/dst_folder/', src='/new_loc_add')],
             mock_copy.call_args_list)
 
     @mock.patch('geospaas_processing.copiers.Copier.delete')
+    @mock.patch('os.path.isdir', return_value=True)
+    @mock.patch('geospaas_processing.copiers.exists', side_effect=[True, False, True, False])
+    # The even side effects (the 'False' ones) are associated to the destination and the odd ones are
+    # associated to the source path. It is because 'geospaas_processing.copiers.exists' is used for
+    # evaluating both source paths and destination paths.
+    def test_correct_destination_folder_for_all_folders_that_are_copied(
+            self, mock_exs, mock_isdir, mock_del):
+        """ Test that the folder which is stored at the database are correctly copied into the
+        destination address. This test for the cases that we have one more addition local folder
+        address in the database in the case of local folder address is stored for a second time
+        in a different address."""
+        sys.argv = [
+            "",
+            '-b', "2018-06-01",
+            '-e', "2018-06-09",
+            '-d', "/dst_folder/",
+        ]
+        with mock.patch('shutil.copytree') as mock_copy:
+            cli_copy.main()
+        self.assertCountEqual([
+            call(dst='/dst_folder/testing_file_or_folder.test',
+                 src='/tmp/testing_file_or_folder.test'),
+            call(dst='/dst_folder/new_loc_add',
+                 src='/new_loc_add')],
+            mock_copy.call_args_list)
+
+    @mock.patch('geospaas_processing.copiers.Copier.delete')
     @mock.patch('os.path.isfile', return_value=True)
-    def test_correct_place_of_symlink_after_creation_of_it(self, mock_isfile, mock_delete):
+    @mock.patch('geospaas_processing.copiers.exists', side_effect=[True, False, True, False])
+    # The even side effects (the 'False' ones) are associated to the destination and the odd ones are
+    # associated to the source path. It is because 'geospaas_processing.copiers.exists' is used for
+    # evaluating both source paths and destination paths.
+    def test_correct_place_of_symlink_of_files_after_creation_of_it(
+            self, mock_exs, mock_isfile, mock_delete):
         """ symlink must be placed at the address that is specified from the input arguments.
         This test for the cases that we have one more addition local file address in the database
         in the case of data downloaded once again for a second time in a different address. """
@@ -294,10 +332,62 @@ class CopyingCLITestCase(django.test.TestCase):
         ]
         with mock.patch('os.symlink') as mock_symlink:
             cli_copy.main()
-        self.assertEqual(
-            [call(dst='/dst_folder/testing_file.test', src='/tmp/testing_file.test'),
-             call(dst='/dst_folder/new_loc_add', src='/new_loc_add')],
+        self.assertEqual([
+            call(
+                dst='/dst_folder/testing_file_or_folder.test',
+                src='/tmp/testing_file_or_folder.test'),
+            call(dst='/dst_folder/new_loc_add', src='/new_loc_add')],
             mock_symlink.call_args_list)
+
+    @mock.patch('geospaas_processing.copiers.Copier.delete')
+    @mock.patch('os.path.isdir', return_value=True)
+    @mock.patch('geospaas_processing.copiers.exists', side_effect=[True, False, True, False])
+    # The even side effects (the 'False' ones) are associated to the destination and the odd ones are
+    # associated to the source path. It is because 'geospaas_processing.copiers.exists' is used for
+    # evaluating both source paths and destination paths.
+    def test_correct_place_of_symlink_of_folders_after_creation_of_it(
+            self, mock_exs, mock_isfile, mock_del):
+        """ symlink must be placed at the address that is specified from the input arguments.
+        This test for the cases that we have one more addition local FOLDER address in the database
+        in the case of data downloaded once again for a second time in a different address. """
+        sys.argv = [
+            "",
+            '-b', "2018-06-01",
+            '-e', "2018-06-09",
+            '-l', '-ttl', '200',
+            '-d', "/dst_folder/",
+        ]
+        with mock.patch('os.symlink') as mock_symlink:
+            cli_copy.main()
+        self.assertEqual([
+            call(
+                dst='/dst_folder/testing_file_or_folder.test',
+                src='/tmp/testing_file_or_folder.test'),
+            call(dst='/dst_folder/new_loc_add', src='/new_loc_add')],
+            mock_symlink.call_args_list)
+
+    # @mock.patch('geospaas_processing.copiers.Copier.delete')
+    # @mock.patch('os.path.isdir', return_value=True)
+    # @mock.patch('geospaas_processing.copiers.exists', side_effect=[True, False, True, False])
+    # The even side effects (the 'False' ones) are associated to the destination and the odd ones are
+    # associated to the source path. It is because 'geospaas_processing.copiers.exists' is used for
+    # evaluating both source paths and destination paths.
+    @mock.patch('geospaas_processing.copiers.Copier.delete')
+    def test_warning_for_copying_action(self, mock_del):
+        #    self, mock_exs, mock_isdir, mock_del):
+        sys.argv = [
+            "",
+            '-b', "2018-09-01",
+            '-e', "2018-09-09",
+            '-l', '-ttl', '200',
+            '-d', "/dst_folder/",
+        ]
+        with self.assertLogs(level='WARNING') as warn:
+            cli_copy.main()
+        self.assertIn(
+            'WARNING:geospaas_processing.copiers:For dataset with id = 5, there is no local '
+            'file/folder address in the database.',
+            warn.output)
 
     def test_delete_all_files_and_symlinks_in_destination_folder(self):
         """ delete function should delete both file(s) and symlink(s) in destination folder. In this
@@ -325,7 +415,11 @@ class CopyingCLITestCase(django.test.TestCase):
 
     @mock.patch('os.symlink')
     @mock.patch('os.path.isfile', return_value=True)
-    def test_correct_content_of_flag_file(self, mock_isfile, mock_link):
+    @mock.patch('geospaas_processing.copiers.exists', side_effect=[True, False, True, False])
+    # The even side effects (the 'False' ones) are associated to the destination and the odd ones are
+    # associated to the source path. It is because 'geospaas_processing.copiers.exists' is used for
+    # evaluating both source paths and destination paths.
+    def test_correct_content_of_flag_file(self, mock_exs, mock_isfile, mock_link):
         """ flag file should contain this 'type: test_type' information """
         sys.argv = [
             "",
@@ -338,7 +432,7 @@ class CopyingCLITestCase(django.test.TestCase):
         sys.argv.append('-d')
         sys.argv.append(temp_directory.name)
         cli_copy.main()
-        with open(os.path.join(temp_directory.name + '/testing_file.test.flag'), 'r') as fd:
+        with open(os.path.join(temp_directory.name + '/testing_file_or_folder.test.flag'), 'r') as fd:
             self.assertEqual(fd.read(), (
                 "type: test_type\nentry_id: a35858cc-e18c-4dfe-9bce-5756138b5125\nentry_title: S3A_"
                 "SL_1_RBT____20180405T004306_20180405T004606_20180406T060255_0179_029_344_5220_LN2_"

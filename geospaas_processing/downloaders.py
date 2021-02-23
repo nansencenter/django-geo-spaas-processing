@@ -218,7 +218,11 @@ class FTPDownloader(Downloader):
     @classmethod
     def get_file_size(cls, url, connection):
         """Get the file size from the remote server"""
-        return connection.size(urlparse(url).path)
+        try:
+            return connection.size(urlparse(url).path)
+        except ftplib.all_errors as error:
+            LOGGER.warning("Could not get the size from '%s'", url)
+            return None
 
     @classmethod
     def download_file(cls, file, url, connection):

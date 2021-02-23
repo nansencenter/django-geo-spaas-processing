@@ -213,7 +213,7 @@ class FTPDownloader(Downloader):
     @classmethod
     def get_file_name(cls, url, connection):
         """Extracts the file name from the URL"""
-        return urlparse(url).path.split('/')[-1]
+        return urlparse(url).path.split('/')[-1] or None
 
     @classmethod
     def get_file_size(cls, url, connection):

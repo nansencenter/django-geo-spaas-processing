@@ -542,7 +542,7 @@ class DownloadManagerTestCase(django.test.TestCase):
         dataset_file_name = 'dataset_1_file'
 
         # Function used to mock a download failure on the first URL
-        def check_and_download_url_side_effect(url, download_dir, file_prefix='', **kwargs):  # pylint: disable=unused-argument
+        def check_and_download_url_side_effect(url, download_dir, **kwargs):  # pylint: disable=unused-argument
             if url == 'https://scihub.copernicus.eu/fakeurl':
                 return dataset_file_name, True
             else:

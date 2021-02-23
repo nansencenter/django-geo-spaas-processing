@@ -1,5 +1,6 @@
 """Unit tests for downloaders"""
 import errno
+import ftplib
 import io
 import logging
 import os
@@ -27,7 +28,7 @@ class DownloaderTestCase(unittest.TestCase):
         """
 
         @classmethod
-        def connect(cls, url, auth):
+        def connect(cls, url, auth=(None, None)):
             return mock.Mock()
 
         @classmethod
@@ -252,6 +253,75 @@ class HTTPDownloaderTestCase(unittest.TestCase):
         response.raw = io.BytesIO(b'')
         with self.assertRaises(downloaders.DownloadError):
             downloaders.HTTPDownloader.download_file(mock.Mock(), 'url', response)
+
+
+class FTPDownloaderTestCase(unittest.TestCase):
+    """Tests for the FTPDownloader"""
+
+    def test_connect(self):
+        """connect() should return an FTP connection"""
+        with mock.patch('ftplib.FTP', return_value='placeholder') as mock_ftp:
+            self.assertEqual(
+                downloaders.FTPDownloader.connect('ftp://host/path', ('user', 'password')),
+                'placeholder'
+            )
+        mock_ftp.assert_called_with(host='host', user='user', passwd='password')
+
+    def test_connect_error(self):
+        """A DownloadError should be raised if an error happens during
+        the connection
+        """
+        with mock.patch('ftplib.FTP', side_effect=ftplib.error_perm) as mock_ftp:
+            with self.assertRaises(downloaders.DownloadError):
+                downloaders.FTPDownloader.connect('ftp://host/path', ('user', 'password'))
+
+    def test_get_file_name(self):
+        """get_file_name() should extract the file name from the URL"""
+        self.assertEqual(
+            downloaders.FTPDownloader.get_file_name('ftp://host/path/file.nc', None),
+            'file.nc'
+        )
+
+    def test_get_file_name_folder_url(self):
+        """If the URL ends with a slash,
+        get_file_name() should return None
+        """
+        self.assertIsNone(downloaders.FTPDownloader.get_file_name('ftp://host/path/', None))
+
+    def test_get_file_size(self):
+        """get_file_size() should get the file size from the remote
+        server
+        """
+        mock_connection = mock.Mock()
+        mock_connection.size.return_value = 42
+        self.assertEqual(
+            downloaders.FTPDownloader.get_file_size('ftp://host/path/file.nc', mock_connection),
+            42
+        )
+        mock_connection.size.assert_called_with('/path/file.nc')
+
+    def test_get_file_size_none_on_error(self):
+        """get_file_size() should return None if an error happens
+        while retrieving the size
+        """
+        mock_connection = mock.Mock()
+        mock_connection.size.side_effect = ftplib.error_perm
+        with self.assertLogs(downloaders.LOGGER):
+            self.assertIsNone(
+                downloaders.FTPDownloader.get_file_size('ftp://host/path/file.nc', mock_connection)
+            )
+
+    def test_get_download_file(self):
+        """get_download_file() should write the remote file to the file
+        object argument
+        """
+        mock_file = mock.Mock()
+        mock_connection = mock.Mock()
+
+        downloaders.FTPDownloader.download_file(
+            mock_file, 'ftp://host/path/file.nc', mock_connection)
+
+        mock_connection.retrbinary.assert_called_with('RETR /path/file.nc', mock_file.write)
 
 
 class DownloadLockTestCase(unittest.TestCase):

@@ -20,7 +20,7 @@ import geospaas_processing.copiers
 LOGGER = logging.getLogger(__name__)
 
 
-class DownlaodingCLITestCase(django.test.TestCase):
+class DownloadingCLITestCase(django.test.TestCase):
     """Tests for the cli of downloading """
 
     def setUp(self):

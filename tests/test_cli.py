@@ -1,27 +1,22 @@
 """Unit tests for cli"""
+import logging
 import os
-import shutil
 import sys
 import tempfile
 import unittest.mock as mock
+from datetime import datetime
 from unittest.mock import call
 
-from datetime import datetime
-from pathlib import Path
-import distutils.dir_util
-from dateutil.tz import tzutc
-from freezegun import freeze_time
 import django.test
+from dateutil.tz import tzutc
 from django.contrib.gis.geos import GEOSGeometry
+from freezegun import freeze_time
 
-import geospaas_processing.copiers
 import geospaas_processing.cli.delete_and_copy as cli_copy
 import geospaas_processing.cli.download as cli_download
 import geospaas_processing.cli.util as util
-from geospaas.catalog.models import Dataset
-from geospaas.catalog.managers import LOCAL_FILE_SERVICE
+import geospaas_processing.copiers
 
-import logging
 LOGGER = logging.getLogger(__name__)
 
 

@@ -27,47 +27,35 @@ class ParameterType(Enum):
 
 class IDFConverter():
     """IDF converter which uses the idf_converter package from ODL"""
-
     PARAMETERS_DIR = os.path.join(os.path.dirname(__file__), 'parameters')
-    PARAMETERS_CONDITIONS = {
-        "sentinel3_olci_l1_efr": [
-            lambda d: d.entry_title.startswith('S3A_OL_1_EFR'),
-            lambda d: d.entry_title.startswith('S3B_OL_1_EFR')
-        ],
-        "sentinel3_olci_l2_wfr": [
-            lambda d: d.entry_title.startswith('S3A_OL_2_WFR'),
-            lambda d: d.entry_title.startswith('S3B_OL_2_WFR')
-        ],
-        "sentinel3_slstr_l1_bt": [
-            lambda d: d.entry_title.startswith('S3A_SL_1_RBT'),
-            lambda d: d.entry_title.startswith('S3B_SL_1_RBT')
-        ],
-        "sentinel3_slstr_l2_wst": [
-            lambda d: d.entry_title.startswith('S3A_SL_2'),
-            lambda d: d.entry_title.startswith('S3B_SL_2')
-        ]
-    }
 
-    def __init__(self, working_directory):
-        self.working_directory = working_directory
+    def __init__(self, parameter_file):
+        """"""
+        self.parameter_path = os.path.join(self.PARAMETERS_DIR, parameter_file)
+        self.collection = self.extract_parameter_value(ParameterType.OUTPUT, 'collection')
 
-    @staticmethod
-    def run_converter(in_file, out_dir, parameter_file):
-        """Runs the IDF converter"""
+    @classmethod
+    def get_parameter_file(cls, dataset):
+        """Returns the name of the parameter file to use for the
+        dataset argument.
+        """
+        raise NotImplementedError()
+
+    def run(self, in_file, out_dir):
+        """Run the IDF converter"""
         input_cli_args = ['-i', 'path', '=', in_file]
         output_cli_args = ['-o', 'path', '=', out_dir]
         LOGGER.debug(
-            "Converting %s to IDF using parameter file %s", in_file, parameter_file)
+            "Converting %s to IDF using parameter file %s", in_file, self.parameter_path)
         result = subprocess.run(
-            ['idf-converter', f"{parameter_file}@", *input_cli_args, *output_cli_args],
+            ['idf-converter', f"{self.parameter_path}@", *input_cli_args, *output_cli_args],
             cwd=os.path.dirname(__file__), check=True, capture_output=True
         )
         return result
 
-    @staticmethod
-    def extract_parameter_value(parameter_file, parameter_type, parameter_name):
-        """Get the value for a parameter from a parameter file"""
-        with open(parameter_file, 'r') as file_handler:
+    def extract_parameter_value(self, parameter_type, parameter_name):
+        """Get the value of a parameter from the parameter file"""
+        with open(self.parameter_path, 'r') as file_handler:
             line = file_handler.readline()
             current_param_type = ''
             parameter_value = None
@@ -80,17 +68,69 @@ class IDFConverter():
                 line = file_handler.readline()
         return parameter_value
 
+    def get_results(self, working_directory, dataset_file_name):
+        """Look for the resulting files after a conversion.
+        This method can be overridden in child classes to account for
+        the behavior of different conversion configurations.
+        This method should always return an iterable.
+        """
+        result_file = ''
+        for dir_element in os.listdir(os.path.join(working_directory, self.collection)):
+            if dataset_file_name == dir_element:
+                result_file = os.path.join(self.collection, dir_element)
+                break
+
+        return [result_file]
+
+
+class PrefixMatchingIDFConverter(IDFConverter):
+    """IDF converter which selects the parameter file by checking that
+    the datasets' entry_id starts with a particular prefix.
+    """
+
+    PARAMETER_FILES = tuple()
+
     @classmethod
-    def choose_parameter_file(cls, dataset_id):
+    def get_parameter_file(cls, dataset):
+        for parameter_file, prefixes in cls.PARAMETER_FILES:
+            for prefix in prefixes:
+                if dataset.entry_id.startswith(prefix):
+                    return parameter_file
+        return None
+
+
+class Sentinel3IDFConverter(PrefixMatchingIDFConverter):
+    """IDF converter for Sentinel-3 datasets"""
+
+    PARAMETER_FILES = (
+        ('sentinel3_olci_l1_efr', ('S3A_OL_1_EFR', 'S3B_OL_1_EFR'),),
+        ('sentinel3_olci_l2_wfr', ('S3A_OL_2_WFR', 'S3B_OL_2_WFR')),
+        ('sentinel3_slstr_l1_bt', ('S3A_SL_1_RBT', 'S3B_SL_1_RBT')),
+        ('sentinel3_slstr_l2_wst', ('S3A_SL_2', 'S3B_SL_2')),
+    )
+
+
+class IDFConversionManager():
+    """IDF converter which uses the idf_converter package from ODL"""
+
+    CONVERTERS = [
+        Sentinel3IDFConverter
+    ]
+
+    def __init__(self, working_directory):
+        self.working_directory = working_directory
+
+    @classmethod
+    def get_converter(cls, dataset_id):
         """Choose a parameter file based on the dataset"""
         dataset = Dataset.objects.get(pk=dataset_id)
-        for parameter_file, conditions in cls.PARAMETERS_CONDITIONS.items():
-            for condition in conditions:
-                if condition(dataset):
-                    LOGGER.debug("Using %s for dataset %s", parameter_file, dataset_id)
-                    return os.path.join(cls.PARAMETERS_DIR, parameter_file)
+        for converter in cls.CONVERTERS:
+            parameter_file = converter.get_parameter_file(dataset)
+            if parameter_file:
+                LOGGER.debug("Using %s for dataset %s", converter, parameter_file)
+                return converter(parameter_file)
         raise ConversionError(
-            f"Could not find a conversion parameters file for dataset {dataset_id}")
+            f"Could not find a converter for dataset {dataset_id}")
 
     def get_dataset_files(self, dataset_id):
         """Find files corresponding to the dataset in the working directory"""
@@ -107,19 +147,12 @@ class IDFConverter():
             # Set the extracted file as the path to convert
             file_path = os.path.join(extract_dir, os.listdir(extract_dir)[0])
 
-        # Find out the parameters file to use
-        parameter_file = self.choose_parameter_file(dataset_id)
-
-        # Get the collection name, which is the directory where the conversion results will be
-        collection = self.extract_parameter_value(
-            os.path.join(self.PARAMETERS_DIR, parameter_file),
-            ParameterType.OUTPUT,
-            'collection'
-        )
+        # Find out the converter to use
+        converter = self.get_converter(dataset_id)
 
         # Convert the file
         try:
-            self.run_converter(file_path, self.working_directory, parameter_file)
+            converter.run(file_path, self.working_directory)
         except subprocess.CalledProcessError as error:
             raise ConversionError(
                 f"Conversion failed with the following message: {error.stdout}") from error
@@ -129,10 +162,4 @@ class IDFConverter():
             shutil.rmtree(extract_dir)
 
         # Find results directory
-        result_file = ''
-        for dir_element in os.listdir(os.path.join(self.working_directory, collection)):
-            if os.path.basename(file_path) == dir_element:
-                result_file = os.path.join(collection, dir_element)
-                break
-
-        return result_file
+        return converter.get_results(self.working_directory, os.path.basename(file_path))

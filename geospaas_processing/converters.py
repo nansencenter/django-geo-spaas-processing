@@ -2,9 +2,11 @@
 import glob
 import logging
 import os.path
+import re
 import shutil
 import subprocess
 from enum import Enum
+from datetime import datetime, timedelta
 
 from geospaas.catalog.models import Dataset
 
@@ -110,11 +112,46 @@ class Sentinel3IDFConverter(PrefixMatchingIDFConverter):
     )
 
 
+class CMEMS_001_024_IDFConverter(PrefixMatchingIDFConverter):
+    """IDF converter for CMEMS GLOBAL_ANALYSIS_FORECAST_PHY_001_024
+    product.
+    """
+
+    PARAMETER_FILES = (
+        ('cmems_001_024_hourly_mean_surface', ('mercatorpsy4v3r1_gl12_hrly',)),
+    )
+
+    def get_results(self, working_directory, dataset_file_name):
+        """The converter configuration used by this class produces
+        multiple result folders for one dataset, with time stamps
+        comprised in the dataset's time coverage.
+        This method looks in the collection folder for folders with a
+        time stamp within the dataset's time range.
+        """
+        file_date = datetime.strptime(
+            re.match(r'^.*_([0-9]{8})_.*$', dataset_file_name)[1],
+            '%Y%m%d'
+        )
+        file_time_range = (file_date, file_date + timedelta(days=1))
+
+        result_files = []
+        for dir_element in os.listdir(os.path.join(working_directory, self.collection)):
+            element_date = datetime.strptime(
+                re.match(rf'^{self.collection}_([0-9]{{14}})_.*$', dir_element)[1],
+                '%Y%m%d%H%M%S'
+            )
+            if element_date > file_time_range[0] and element_date < file_time_range[1]:
+                result_files.append(os.path.join(self.collection, dir_element))
+
+        return result_files
+
+
 class IDFConversionManager():
     """IDF converter which uses the idf_converter package from ODL"""
 
     CONVERTERS = [
-        Sentinel3IDFConverter
+        Sentinel3IDFConverter,
+        CMEMS_001_024_IDFConverter
     ]
 
     def __init__(self, working_directory):

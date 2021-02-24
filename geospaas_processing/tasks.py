@@ -108,15 +108,16 @@ def convert_to_idf(self, args):  # pylint: disable=unused-argument
     Takes a tuple.
     The first element is the dataset's ID (mandatory).
     The second element is the file to convert (optional: can be None).
+    For compatibility with other tasks, the second element should be a one-element list.
     If the file path is `None`, an attempt is made to find a file based on the dataset ID.
     """
     dataset_id = args[0]
-    dataset_file_path = args[1][0]
-    LOGGER.debug("Converting dataset file '%s' to IDF", dataset_file_path)
+    dataset_files_paths = args[1][0]
+    LOGGER.debug("Converting dataset file '%s' to IDF", dataset_files_paths)
     converted_files = IDFConversionManager(WORKING_DIRECTORY).convert(
-        dataset_id, dataset_file_path)
+        dataset_id, dataset_files_paths)
     LOGGER.info("Successfully converted '%s' to IDF. The results directores are '%s'",
-                dataset_file_path, converted_files)
+                dataset_files_paths, converted_files)
     return (dataset_id, converted_files)
 
 

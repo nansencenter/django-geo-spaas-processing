@@ -1,5 +1,4 @@
 """Tools for file format conversion"""
-import glob
 import logging
 import os.path
 import re
@@ -149,10 +148,10 @@ class CMEMS001024IDFConverter(PrefixMatchingIDFConverter):
 class IDFConversionManager():
     """IDF converter which uses the idf_converter package from ODL"""
 
-    CONVERTERS = [
+    CONVERTERS = (
         Sentinel3IDFConverter,
         CMEMS001024IDFConverter
-    ]
+    )
 
     def __init__(self, working_directory):
         self.working_directory = working_directory

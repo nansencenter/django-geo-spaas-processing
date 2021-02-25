@@ -72,9 +72,12 @@ class IDFConverter():
 
     def get_results(self, working_directory, dataset_file_name):
         """Look for the resulting files after a conversion.
+        This is the basic version which looks for folders having the
+        same name as the file to convert.
         This method can be overridden in child classes to account for
         the behavior of different conversion configurations.
-        This method should always return an iterable.
+        This method returns an iterable of paths relative to the
+        working directory.
         """
         result_file = ''
         for dir_element in os.listdir(os.path.join(working_directory, self.collection)):
@@ -112,7 +115,7 @@ class Sentinel3IDFConverter(PrefixMatchingIDFConverter):
     )
 
 
-class CMEMS_001_024_IDFConverter(PrefixMatchingIDFConverter):
+class CMEMS001024IDFConverter(PrefixMatchingIDFConverter):
     """IDF converter for CMEMS GLOBAL_ANALYSIS_FORECAST_PHY_001_024
     product.
     """
@@ -151,7 +154,7 @@ class IDFConversionManager():
 
     CONVERTERS = [
         Sentinel3IDFConverter,
-        CMEMS_001_024_IDFConverter
+        CMEMS001024IDFConverter
     ]
 
     def __init__(self, working_directory):
@@ -169,14 +172,9 @@ class IDFConversionManager():
         raise ConversionError(
             f"Could not find a converter for dataset {dataset_id}")
 
-    def get_dataset_files(self, dataset_id):
-        """Find files corresponding to the dataset in the working directory"""
-        return glob.glob(os.path.join(self.working_directory, f"dataset_{dataset_id}*"))
-
-    def convert(self, dataset_id, file_name=None):
+    def convert(self, dataset_id, file_name):
         """Converts a file to IDF"""
-        file_path = (os.path.join(self.working_directory, file_name) if file_name
-                     else self.get_dataset_files(dataset_id)[0])
+        file_path = os.path.join(self.working_directory, file_name)
 
         # Unzip the file if necessary
         extract_dir = utils.unarchive(file_path)

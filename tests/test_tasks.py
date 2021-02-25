@@ -87,7 +87,7 @@ class DownloadTestCase(unittest.TestCase):
         self.dm_mock.return_value.download.return_value = [dataset_file_name]
         self.assertEqual(
             tasks.download((1,)), # pylint: disable=no-value-for-parameter
-            (1, dataset_file_name)
+            (1, (dataset_file_name,))
         )
 
     def test_log_if_no_download_return(self):
@@ -127,7 +127,7 @@ class ConvertToIDFTestCase(unittest.TestCase):
     """Tests for the convert_to_idf() task"""
 
     def setUp(self):
-        idf_converter_patcher = mock.patch('geospaas_processing.tasks.IDFConverter')
+        idf_converter_patcher = mock.patch('geospaas_processing.tasks.IDFConversionManager')
         self.idf_converter_mock = idf_converter_patcher.start()
         self.addCleanup(mock.patch.stopall)
 
@@ -135,10 +135,10 @@ class ConvertToIDFTestCase(unittest.TestCase):
         """A conversion must be triggered if the lock is acquired"""
         dataset_file_name = 'dataset.nc'
         converted_file_name = f"{dataset_file_name}.idf"
-        self.idf_converter_mock.return_value.convert.return_value = converted_file_name
+        self.idf_converter_mock.return_value.convert.return_value = [converted_file_name]
         self.assertEqual(
-            tasks.convert_to_idf((1, dataset_file_name)),  # pylint: disable=no-value-for-parameter
-            (1, converted_file_name)
+            tasks.convert_to_idf((1, (dataset_file_name,))),  # pylint: disable=no-value-for-parameter
+            (1, [converted_file_name])
         )
 
 
@@ -152,14 +152,14 @@ class ArchiveTestCase(unittest.TestCase):
             with mock.patch('os.remove') as mock_remove:
                 mock_tar_gzip.return_value = f"{file_name}.tar.gz"
                 self.assertEqual(
-                    tasks.archive((1, file_name)),  # pylint: disable=no-value-for-parameter
-                    (1, mock_tar_gzip.return_value)
+                    tasks.archive((1, [file_name])),  # pylint: disable=no-value-for-parameter
+                    (1, [mock_tar_gzip.return_value])
                 )
             mock_remove.assert_called_with(os.path.join(tasks.WORKING_DIRECTORY, file_name))
             # Test that a directory is also removed
             with mock.patch('os.remove', side_effect=IsADirectoryError):
                 with mock.patch('shutil.rmtree') as mock_rmtree:
-                    tasks.archive((1, file_name))  # pylint: disable=no-value-for-parameter
+                    tasks.archive((1, [file_name]))  # pylint: disable=no-value-for-parameter
                 mock_rmtree.assert_called_with(os.path.join(tasks.WORKING_DIRECTORY, file_name))
 
 
@@ -179,7 +179,7 @@ class PublishTestCase(unittest.TestCase):
             with mock.patch('os.path.getsize', return_value=1), \
                     mock.patch.object(utils.RemoteStorage, '__init__', return_value=None), \
                     mock.patch.object(utils.RemoteStorage, '__del__', return_value=None):
-                tasks.publish((1, file_name))  # pylint: disable=no-value-for-parameter
+                tasks.publish((1, [file_name]))  # pylint: disable=no-value-for-parameter
             mock_free_space.assert_called()
             mock_put.assert_called()
 
@@ -206,7 +206,7 @@ class PublishTestCase(unittest.TestCase):
                     mock.patch.object(utils.RemoteStorage, '__init__', return_value=None), \
                     mock.patch.object(utils.RemoteStorage, '__del__', return_value=None):
                 with self.assertRaises(celery.exceptions.Retry):
-                    tasks.publish((1, file_name))  # pylint: disable=no-value-for-parameter
+                    tasks.publish((1, [file_name]))  # pylint: disable=no-value-for-parameter
             mock_remove.assert_called()
 
     def test_scp_error(self):
@@ -221,4 +221,4 @@ class PublishTestCase(unittest.TestCase):
                     mock.patch.object(utils.RemoteStorage, '__init__', return_value=None), \
                     mock.patch.object(utils.RemoteStorage, '__del__', return_value=None):
                 with self.assertRaises(scp.SCPException):
-                    tasks.publish((1, file_name))  # pylint: disable=no-value-for-parameter
+                    tasks.publish((1, [file_name]))  # pylint: disable=no-value-for-parameter

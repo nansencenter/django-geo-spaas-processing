@@ -11,27 +11,41 @@ import django.test
 import geospaas_processing.converters as converters
 
 
-class IDFConverterTestCase(django.test.TestCase):
+class IDFConverterTestCase(unittest.TestCase):
     """Tests for the IDF converter"""
 
     fixtures = [Path(__file__).parent / 'data/test_data.json']
 
     def setUp(self):
-        self.temp_directory = tempfile.TemporaryDirectory()
-        self.temp_dir_path = Path(self.temp_directory.name)
-        self.converter = converters.IDFConverter(self.temp_directory.name)
+        mock.patch(
+            'geospaas_processing.converters.IDFConverter.PARAMETERS_DIR',
+            str(Path(__file__).parent / 'data')
+        ).start()
+        self.addCleanup(mock.patch.stopall)
 
-    def tearDown(self):
-        self.temp_directory.cleanup()
+        self.converter = converters.IDFConverter('parameters_file')
 
-    def test_run_converter(self):
+    def test_init(self):
+        """Test the correct instantiation of an IDFConverter object"""
+        self.assertEqual(
+            self.converter.parameter_path,
+            str(Path(__file__).parent / 'data' / 'parameters_file')
+        )
+        self.assertEqual(self.converter.collection, 'some_collection')
+
+    def test_abstract_get_parameter_file(self):
+        """get_parameter_file() should raise a NotImplementedError"""
+        with self.assertRaises(NotImplementedError):
+            self.converter.get_parameter_file(None)
+
+    def test_run(self):
         """Test that the correct command is run"""
         with mock.patch('subprocess.run') as run_mock:
-            self.converter.run_converter('foo', 'bar', 'sentinel3_olci_l1_efr')
+            self.converter.run('foo', 'bar')
             run_mock.assert_called_with(
                 [
                     'idf-converter',
-                    'sentinel3_olci_l1_efr@',
+                    self.converter.parameter_path + '@',
                     '-i', 'path', '=', 'foo',
                     '-o', 'path', '=', 'bar'
                 ],
@@ -41,47 +55,141 @@ class IDFConverterTestCase(django.test.TestCase):
 
     def test_extract_parameter_value(self):
         """Extract the right value from an idf-converter parameter file"""
-        parameters_dir_path = Path(converters.__file__).parent / 'parameters'
         self.assertEqual(
-            'sentinel3_olci_l1_efr',
-            converters.IDFConverter.extract_parameter_value(
-                str(parameters_dir_path / 'sentinel3_olci_l1_efr'),
+            'some_collection',
+            self.converter.extract_parameter_value(
                 converters.ParameterType.OUTPUT,
                 'collection'
             )
         )
 
-    def test_choose_parameter_file(self):
-        """The correct parameter file must be chosen for each dataset"""
-        parameters_dir = Path(converters.__file__).parent / 'parameters'
+    def test_get_results(self):
+        """get_results() should return the file in the collection
+        folder which bears the same name as the dataset file to convert
+        """
+        collection_folder_contents = ['dataset1', 'dataset2', 'dataset3']
+        with mock.patch('os.listdir', return_value=collection_folder_contents):
+            self.assertListEqual(
+                self.converter.get_results('', 'dataset2'),
+                ['some_collection/dataset2']
+            )
+
+    def test_get_results_nothing_found(self):
+        """get_results() should return an empty list
+        when no result file is found
+        """
+        collection_folder_contents = ['dataset1', 'dataset2', 'dataset3']
+        with mock.patch('os.listdir', return_value=collection_folder_contents):
+            self.assertListEqual(self.converter.get_results('', 'dataset4'), [])
+
+
+class PrefixMatchingIDFConverterTestCase(unittest.TestCase):
+    """Tests for the PrefixMatchingIDFConverter class"""
+
+    class TestPrefixMatchingIDFConverter(converters.PrefixMatchingIDFConverter):
+        PARAMETER_FILES = (
+            ('parameters_file_1', ('prefix_1', 'prefix_2')),
+            ('parameters_file_2', ('prefix_3',))
+        )
+
+    def test_get_parameter_file(self):
+        """get_parameter_file() should return the parameter file whose
+        associated prefix the dataset starts with
+        """
+        dataset = mock.Mock()
+        dataset.entry_id = 'prefix_2_dataset'
+
         self.assertEqual(
-            self.converter.choose_parameter_file(1),
-            str(parameters_dir / 'sentinel3_olci_l1_efr')
+            self.TestPrefixMatchingIDFConverter.get_parameter_file(dataset),
+            'parameters_file_1'
         )
 
-    def test_no_parameter_file(self):
-        """An error must be raised if no parameter file is available for the dataset"""
-        with mock.patch.object(converters.IDFConverter, 'PARAMETERS_CONDITIONS') as pc_mock:
-            pc_mock.return_value = {}
+    def test_get_parameter_file_none_if_not_found(self):
+        """get_parameter_file() should return None
+        if no parameter file is found
+        """
+        dataset = mock.Mock()
+        dataset.entry_id = 'prefix_5_dataset'
+
+        self.assertIsNone(self.TestPrefixMatchingIDFConverter.get_parameter_file(dataset))
+
+
+class CMEMS001024IDFConverterTestCase(unittest.TestCase):
+    """Tests for the CMEMS001024IDFConverter class"""
+
+    def test_get_results(self):
+        """get_results() should return all files with a timestamp
+        within the time range of the dataset
+        """
+        working_directory = '/foo/bar'
+        collection = 'cmems_001_024_hourly_mean_surface'
+        conversion_results = [
+            'cmems_001_024_hourly_mean_surface_20190430003000_L4_v1.0_fv1.0',
+            'cmems_001_024_hourly_mean_surface_20190430013000_L4_v1.0_fv1.0',
+            'cmems_001_024_hourly_mean_surface_20190430023000_L4_v1.0_fv1.0',
+            'cmems_001_024_hourly_mean_surface_20190430033000_L4_v1.0_fv1.0',
+            'cmems_001_024_hourly_mean_surface_20190430043000_L4_v1.0_fv1.0',
+            'cmems_001_024_hourly_mean_surface_20190430053000_L4_v1.0_fv1.0',
+        ]
+        non_result_files = [
+            'cmems_001_024_hourly_mean_surface_20190330003000_L4_v1.0_fv1.0',
+            'cmems_001_024_hourly_mean_surface_20200430063000_L4_v1.0_fv1.0',
+        ]
+
+        with mock.patch('geospaas_processing.converters.IDFConverter.extract_parameter_value',
+                        return_value=collection):
+            converter = converters.CMEMS001024IDFConverter('')
+
+        with mock.patch('os.listdir', return_value=conversion_results + non_result_files):
+            self.assertListEqual(
+                converter.get_results(working_directory,
+                                      'mercatorpsy4v3r1_gl12_hrly_20190430_R20190508.nc'),
+                [str(Path(collection) / file_name) for file_name in conversion_results]
+            )
+
+        with mock.patch('os.listdir', return_value=non_result_files):
+            self.assertListEqual(
+                converter.get_results(working_directory,
+                                      'mercatorpsy4v3r1_gl12_hrly_20190430_R20190508.nc'),
+                []
+            )
+
+
+class IDFConversionManagerTestCase(django.test.TestCase):
+    """Tests for the IDFConversionManager class"""
+
+    fixtures = [Path(__file__).parent / 'data/test_data.json']
+
+    def setUp(self):
+        self.temp_directory = tempfile.TemporaryDirectory()
+        self.temp_dir_path = Path(self.temp_directory.name)
+
+        # Make an empty test file
+        self.test_file_path = self.temp_dir_path / 'dataset_1.nc'
+        self.test_file_path.touch()
+
+        self.conversion_manager = converters.IDFConversionManager(self.temp_directory.name)
+
+    def test_get_converter(self):
+        """get_converter() should return the first converter in the
+        CONVERTERS list which can provide a parameter file for the
+        dataset
+        """
+        converter = converters.IDFConversionManager.get_converter(1)
+        self.assertIsInstance(converter, converters.Sentinel3IDFConverter)
+        self.assertEqual(
+            converter.parameter_path,
+            '/workspace/geospaas_processing/parameters/sentinel3_olci_l1_efr')
+        self.assertEqual(converter.collection, 'sentinel3_olci_l1_efr')
+
+    def test_get_converter_error(self):
+        """get_converter() should raise a ConversionError
+        if no converter is found
+        """
+        with mock.patch('geospaas_processing.converters.Dataset') as mock_dataset:
+            mock_dataset.objects.get.return_value.entry_id.startswith.return_value = False
             with self.assertRaises(converters.ConversionError):
-                print(self.converter.choose_parameter_file(1))
-
-    def test_get_dataset_files(self):
-        """Test that the dataset files are correctly listed"""
-        matching_file_names = ['dataset_1', 'dataset_1_foo_bar.zip']
-        non_matching_file_names = ['dataset_2', 'foo_bar_dataset_1']
-        temp_directory_path = self.temp_dir_path
-
-        # Create empty files in the temporary directory
-        for file_name in matching_file_names + non_matching_file_names:
-            (temp_directory_path / file_name).touch()
-
-        dataset_files = self.converter.get_dataset_files(1)
-        dataset_files.sort()
-        self.assertListEqual(
-            dataset_files,
-            [str(temp_directory_path / file_name) for file_name in matching_file_names]
-        )
+                converters.IDFConversionManager.get_converter(1)
 
     def create_result_dir(self, *args, **kwargs):  # pylint: disable=unused-argument
         """Creates a dummy result file"""
@@ -90,39 +198,14 @@ class IDFConverterTestCase(django.test.TestCase):
 
     def test_convert(self):
         """Test a simple conversion"""
-        # Make an empty test file
-        test_file_path = self.temp_dir_path / 'dataset_1.nc'
-        test_file_path.touch()
-
         with mock.patch('subprocess.run') as run_mock:
             run_mock.side_effect = self.create_result_dir
-            result = self.converter.convert(1)
+            self.conversion_manager.convert(1, 'dataset_1.nc')
             run_mock.assert_called_with(
                 [
                     'idf-converter',
                     str(Path(converters.__file__).parent / 'parameters' / 'sentinel3_olci_l1_efr@'),
-                    '-i', 'path', '=', str(test_file_path),
-                    '-o', 'path', '=', str(self.temp_dir_path)
-                ],
-                cwd=str(Path(converters.__file__).parent),
-                check=True, capture_output=True
-            )
-        self.assertEqual(result, 'sentinel3_olci_l1_efr/dataset_1.nc')
-
-    def test_convert_explicit_file_name(self):
-        """Test a simple conversion with an explicit file name"""
-        # Make an empty test file
-        test_file_path = self.temp_dir_path / 'some_file.nc'
-        test_file_path.touch()
-
-        with mock.patch('subprocess.run') as run_mock:
-            run_mock.side_effect = self.create_result_dir
-            self.converter.convert(1, 'some_file.nc')
-            run_mock.assert_called_with(
-                [
-                    'idf-converter',
-                    str(Path(converters.__file__).parent / 'parameters' / 'sentinel3_olci_l1_efr@'),
-                    '-i', 'path', '=', str(test_file_path),
+                    '-i', 'path', '=', str(self.test_file_path),
                     '-o', 'path', '=', str(self.temp_dir_path)
                 ],
                 cwd=str(Path(converters.__file__).parent),
@@ -142,7 +225,7 @@ class IDFConverterTestCase(django.test.TestCase):
 
         with mock.patch('subprocess.run') as run_mock:
             run_mock.side_effect = self.create_result_dir
-            self.converter.convert(1)
+            self.conversion_manager.convert(1, 'dataset_1.zip')
             run_mock.assert_called_with(
                 [
                     'idf-converter',
@@ -157,14 +240,10 @@ class IDFConverterTestCase(django.test.TestCase):
         self.assertFalse((self.temp_dir_path / 'dataset_1').exists())
 
     def test_convert_error(self):
+        """convert() must raise an exception if an error occurs when
+        running the conversion command
         """
-        convert() must raise an exception if an error occurs when running the conversion command
-        """
-        # Make an empty test file
-        test_file_path = self.temp_dir_path / 'dataset_1.nc'
-        test_file_path.touch()
-
         with mock.patch('subprocess.run') as run_mock:
             run_mock.side_effect = subprocess.CalledProcessError(1, '')
             with self.assertRaises(converters.ConversionError):
-                self.converter.convert(1)
+                self.conversion_manager.convert(1, 'dataset_1.nc')

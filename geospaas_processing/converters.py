@@ -79,13 +79,10 @@ class IDFConverter():
         This method returns an iterable of paths relative to the
         working directory.
         """
-        result_file = ''
         for dir_element in os.listdir(os.path.join(working_directory, self.collection)):
             if dataset_file_name == dir_element:
-                result_file = os.path.join(self.collection, dir_element)
-                break
-
-        return [result_file]
+                return [os.path.join(self.collection, dir_element)]
+        return []
 
 
 class PrefixMatchingIDFConverter(IDFConverter):

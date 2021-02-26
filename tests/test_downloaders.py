@@ -1,5 +1,7 @@
 """Unit tests for downloaders"""
 import errno
+import ftplib
+import io
 import logging
 import os
 import os.path
@@ -16,211 +18,310 @@ from geospaas.catalog.models import Dataset
 from geospaas.catalog.managers import LOCAL_FILE_SERVICE
 from redis import Redis
 
+
 class DownloaderTestCase(unittest.TestCase):
     """Tests for the base Downloader class"""
 
-    def test_abstract_download_url(self):
-        """The `check_and_download_url` method must be abstract"""
-        downloader = downloaders.Downloader()
-        with self.assertRaises(NotImplementedError):
-            downloader.check_and_download_url('', '')
-
-
-class HTTPDownloaderUtilsTestCase(unittest.TestCase):
-    """Tests for the HTTPDownloader utility methods"""
-
-    def test_extract_filename(self):
-        """Test the correct extraction of a file name from a standard Content-Disposition header"""
-        file_name = "test_file.txt"
-        response = requests.Response()
-        response.headers['Content-Disposition'] = f'inline;filename="{file_name}"'
-        self.assertEqual(downloaders.HTTPDownloader.extract_file_name_from_response(response), file_name)
-
-    def test_extract_filename_no_header(self):
+    class TestDownloader(downloaders.Downloader):
+        """This class is used to test the functionalities of the base
+        Downloader class
         """
-        `extract_file_name_from_response` must return an empty string if
-        the Content-Disposition header is not present
-        """
-        response = requests.Response()
-        self.assertEqual(downloaders.HTTPDownloader.extract_file_name_from_response(response), '')
 
-    def test_extract_filename_no_filename_in_header(self):
-        """
-        `extract_file_name_from_response` must return an empty string if the filename
-        is not contained in the Content-Disposition header
-        """
-        response = requests.Response()
-        response.headers['Content-Disposition'] = ''
-        self.assertEqual(downloaders.HTTPDownloader.extract_file_name_from_response(response), '')
+        @classmethod
+        def connect(cls, url, auth=(None, None)):
+            return mock.Mock()
 
-    def test_extract_filename_multiple_possibilities(self):
-        """An error must be raised if several file names are found in the header"""
-        response = requests.Response()
-        response.headers['Content-Disposition'] = 'inline;filename="f1";filename="f2"'
-        with self.assertRaises(ValueError):
-            downloaders.HTTPDownloader.extract_file_name_from_response(response)
+        @classmethod
+        def get_file_name(cls, url, connection):
+            return 'test_file.txt'
 
-    def test_build_basic_auth(self):
-        """Test building the authentication argument for a GET request"""
-        os.environ['TEST_PASSWORD'] = 'test123'
-        self.assertEqual(
-            downloaders.HTTPDownloader.build_basic_auth(
-                {'username': 'test', 'password_env_var': 'TEST_PASSWORD'}),
-            ('test', 'test123')
-        )
+        @classmethod
+        def get_file_size(cls, url, connection, auth=(None, None)):
+            return 8
 
-
-class HTTPDownloaderTestCase(unittest.TestCase):
-    """Tests for the `download_url` method of the HTTPDownloader"""
+        @classmethod
+        def download_file(cls, file, url, connection):
+            file.write(b'contents')
 
     def setUp(self):
         self.temp_directory = tempfile.TemporaryDirectory()
         self.download_dir = self.temp_directory.name
-        self.file_name = "test_file.txt"
-        self.file_path = os.path.join(self.download_dir, self.file_name)
-
-        # Prepare Response object for mocking
-        self.response_text = 'hello'
-        self.response = requests.Response()
-        self.response.headers['Content-Disposition'] = f'inline;filename="{self.file_name}"'
-        self.response.headers['Content-Length'] = 1
-        self.response.status_code = 200
-        self.response._content = bytes(self.response_text, 'utf-8') #pylint:disable=protected-access
-
         self.mock_free_space = mock.patch.object(utils.LocalStorage, 'free_space').start()
-        mock.patch('geospaas_processing.utils.REDIS_HOST', None).start()
-        mock.patch('geospaas_processing.utils.REDIS_PORT', None).start()
         self.addCleanup(mock.patch.stopall)
 
     def tearDown(self):
         self.temp_directory.cleanup()
 
-    def test_get_size_from_response(self):
-        """Test getting the file size from the GET response headers"""
-        self.assertEqual(downloaders.HTTPDownloader.get_remote_file_size(self.response, {}), 1)
+    def test_get_auth(self):
+        """Test getting the username and password from the keyword
+        arguments
+        """
+        os.environ['TEST_PASSWORD'] = 'test123'
+        self.assertEqual(
+            downloaders.Downloader.get_auth(
+                {'username': 'test', 'password_env_var': 'TEST_PASSWORD'}),
+            ('test', 'test123')
+        )
 
-    def test_get_size_from_head_request(self):
-        """Test getting the file size from a HEAD response headers"""
-        del self.response.headers['Content-Length']
-        head_response = requests.Response()
-        head_response.headers['Content-Length'] = 2
-        with mock.patch('requests.head', return_value=head_response):
-            self.assertEqual(downloaders.HTTPDownloader.get_remote_file_size(self.response, {}), 2)
+    def test_abstract_connect(self):
+        """the connect() method must raise a NotImplementedError"""
+        with self.assertRaises(NotImplementedError):
+            downloaders.Downloader.connect('url')
 
-    def test_get_size_none_if_not_found(self):
-        """get_remote_file_size() must return None if no size was found"""
-        del self.response.headers['Content-Length']
-        with mock.patch('requests.head', return_value=requests.Response()):
-            self.assertIsNone(downloaders.HTTPDownloader.get_remote_file_size(self.response, {}))
+    def test_close_connection(self):
+        """close_connection() should simply call the close() method of
+        the connection argument
+        """
+        mock_connection = mock.Mock()
+        downloaders.Downloader.close_connection(mock_connection)
+        mock_connection.close.assert_called_with()
+
+    def test_abstract_get_file_name(self):
+        """the get_file_name() method must raise a NotImplementedError
+        """
+        with self.assertRaises(NotImplementedError):
+            downloaders.Downloader.get_file_name('url', None)
+
+    def test_abstract_get_file_size(self):
+        """the get_file_size() method must raise a NotImplementedError
+        """
+        with self.assertRaises(NotImplementedError):
+            downloaders.Downloader.get_file_size('url', None)
+
+    def test_abstract_download_file(self):
+        """the download_file() method must raise a NotImplementedError
+        """
+        with self.assertRaises(NotImplementedError):
+            downloaders.Downloader.download_file(None, 'url', None)
 
     def test_check_and_download_url(self):
         """Test a simple file download"""
-        with mock.patch('requests.get', return_value=self.response):
-            result = downloaders.HTTPDownloader.check_and_download_url('', self.download_dir)
-        self.assertEqual(result, (self.file_name, True))
-
-        with open(os.path.join(self.download_dir, self.file_name), 'r') as file_handler:
+        self.assertEqual(
+            self.TestDownloader.check_and_download_url('', self.temp_directory.name),
+            ('test_file.txt', True)
+        )
+        with open(os.path.join(self.download_dir, 'test_file.txt'), 'r') as file_handler:
             file_contents = file_handler.readlines()
-        self.assertEqual(file_contents[0], self.response_text)
+        self.assertEqual(file_contents[0], 'contents')
 
     def test_check_and_download_url_frees_space(self):
         """check_and_download_url() must call utils.free_space()"""
-        with mock.patch('requests.get', return_value=self.response):
-            downloaders.HTTPDownloader.check_and_download_url('', self.download_dir)
+        self.TestDownloader.check_and_download_url('', self.download_dir)
         self.mock_free_space.assert_called_once()
 
-    def test_check_and_download_url_with_prefix(self):
-        """Test that the prefix is prepended to the downloaded file's name"""
-        prefix = 'dataset_1'
-        with mock.patch('requests.get', return_value=self.response):
-            result = downloaders.HTTPDownloader.check_and_download_url('', self.download_dir, prefix)
-        self.assertEqual(result, (f"{prefix}_{self.file_name}", True))
-
-    def test_check_and_download_url_with_prefix_None(self):
-        """Test that the prefix (=None) is not prepended to the downloaded file's name"""
-        prefix = None
-        with mock.patch('requests.get', return_value=self.response):
-            result = downloaders.HTTPDownloader.check_and_download_url('', self.download_dir, prefix)
-        self.assertEqual(result, (f"{self.file_name}", True))
-
-    def test_check_and_download_url_with_prefix_empty_string(self):
-        """Test that the prefix (='') is not prepended to the downloaded file's name"""
-        prefix = ''
-        with mock.patch('requests.get', return_value=self.response):
-            result = downloaders.HTTPDownloader.check_and_download_url('', self.download_dir, prefix)
-        self.assertEqual(result, (f"{self.file_name}", True))
-
-    def test_check_and_download_url_only_prefix(self):
-        """The downloaded file name must be the prefix if nothing can be found in the headers"""
-        prefix = 'dataset_1'
-        del self.response.headers['Content-Disposition']
-        with mock.patch('requests.get', return_value=self.response):
-            result = downloaders.HTTPDownloader.check_and_download_url('', self.download_dir, prefix)
-        self.assertEqual(result, (prefix, True))
-
     def test_check_and_download_url_error_if_no_file_name(self):
+        """An exception must be raised if no file name is found
         """
-        An exception must be raised if no prefix is provided and nothing can be found in the headers
-        """
-        del self.response.headers['Content-Disposition']
-        with mock.patch('requests.get', return_value=self.response):
-            with self.assertRaises(ValueError):
-                downloaders.HTTPDownloader.check_and_download_url('', self.download_dir)
+        with mock.patch.object(self.TestDownloader, 'get_file_name', return_value=None):
+            with self.assertRaises(downloaders.DownloadError):
+                self.TestDownloader.check_and_download_url('', self.download_dir)
 
     def test_check_and_download_url_error_if_invalid_download_dir(self):
         """An exception must be raised if the download directory does not exist"""
-        with mock.patch('requests.get', return_value=self.response):
-            with self.assertRaises(FileNotFoundError):
-                downloaders.HTTPDownloader.check_and_download_url('', '/drgdfsr')
+        with self.assertRaises(FileNotFoundError):
+            self.TestDownloader.check_and_download_url('', '/drgdfsr')
 
     def test_check_and_download_url_error_if_target_is_a_directory(self):
         """An exception must be raised if the destination file already exists and is a directory"""
-        os.mkdir(self.file_path)
-        with mock.patch('requests.get', return_value=self.response):
-            with self.assertRaises(IsADirectoryError):
-                downloaders.HTTPDownloader.check_and_download_url('', self.download_dir)
+        os.mkdir(os.path.join(self.download_dir, 'test_file.txt'))
+        with self.assertRaises(IsADirectoryError):
+            self.TestDownloader.check_and_download_url('', self.download_dir)
 
     def test_check_and_download_url_if_file_already_exists(self):
         """check_and_download_url should return false if the destination file already exists """
-        Path(self.file_path).touch()
-        with mock.patch('requests.get', return_value=self.response):
-            self.assertFalse(
-                downloaders.HTTPDownloader.check_and_download_url('', self.download_dir)[1])
-
-    def test_check_and_download_url_error_if_empty_file(self):
-        """An exception must be raised if the response is empty"""
-        self.response._content = b''  # pylint: disable=protected-access
-        with mock.patch('requests.get', return_value=self.response):
-            with self.assertRaises(downloaders.DownloadError):
-                downloaders.HTTPDownloader.check_and_download_url('', self.download_dir)
-
-    def test_check_and_download_url_error_if_request_exception(self):
-        """
-        An exception must be raised if an error happens during the request
-        (it can be a wrong HTTP response code)
-        """
-        with mock.patch('requests.get', side_effect=requests.HTTPError):
-            with self.assertRaises(downloaders.DownloadError):
-                downloaders.HTTPDownloader.check_and_download_url('', self.download_dir)
+        Path(os.path.join(self.download_dir, 'test_file.txt')).touch()
+        self.assertFalse(
+            self.TestDownloader.check_and_download_url('', self.download_dir)[1])
 
     def test_check_and_download_url_remove_file_if_no_space_left(self):
         """
         If a 'No space left' error occurs, an attempt must be made
         to remove the potential partially downloaded file
         """
-        self.response.iter_content = mock.Mock()
-        self.response.iter_content.side_effect = OSError(errno.ENOSPC, '')
-        with mock.patch('requests.get', return_value=self.response):
+        def simulate_no_space_left(file, url, connection):
+            file.write(b'cont')
+            raise OSError(errno.ENOSPC, '')
+
+        with mock.patch.object(self.TestDownloader, 'download_file',
+                               side_effect=simulate_no_space_left):
             # there is a file to delete
             with self.assertRaises(OSError):
-                downloaders.HTTPDownloader.check_and_download_url('', self.download_dir)
-            self.assertFalse(os.path.exists(self.file_path))
+                self.TestDownloader.check_and_download_url('', self.download_dir)
+            self.assertFalse(os.path.exists(os.path.join(self.download_dir, 'test_file.txt')))
 
             # there is no file to delete
             with mock.patch('os.remove', side_effect=FileNotFoundError) as mock_rm:
                 with self.assertRaises(OSError):
-                    downloaders.HTTPDownloader.check_and_download_url('', self.download_dir)
+                    self.TestDownloader.check_and_download_url('', self.download_dir)
             mock_rm.assert_called_once()
+
+
+class HTTPDownloaderTestCase(unittest.TestCase):
+    """Tests for the HTTPDownloader"""
+
+    def test_get_file_name(self):
+        """Test the correct extraction of a file name from a standard
+        Content-Disposition header
+        """
+        file_name = "test_file.txt"
+        response = requests.Response()
+        response.headers['Content-Disposition'] = f'inline;filename="{file_name}"'
+        self.assertEqual(downloaders.HTTPDownloader.get_file_name('url', response), file_name)
+
+    def test_get_file_name_no_header(self):
+        """`get_file_name()` must return an empty string if the
+        Content-Disposition header is not present
+        """
+        response = requests.Response()
+        self.assertEqual(downloaders.HTTPDownloader.get_file_name('url', response), '')
+
+    def test_get_file_name_no_filename_in_header(self):
+        """`get_file_name()` must return an empty string if the
+        filename is not contained in the Content-Disposition header
+        """
+        response = requests.Response()
+        response.headers['Content-Disposition'] = ''
+        self.assertEqual(downloaders.HTTPDownloader.get_file_name('url', response), '')
+
+    def test_get_file_name_multiple_possibilities(self):
+        """An error must be raised if several file names are found in the header"""
+        response = requests.Response()
+        response.headers['Content-Disposition'] = 'inline;filename="f1";filename="f2"'
+        with self.assertRaises(ValueError):
+            downloaders.HTTPDownloader.get_file_name('url', response)
+
+    def test_connect(self):
+        """Connect should return a Response object"""
+        response = requests.Response()
+        response.status_code = 200
+        with mock.patch('requests.get', return_value=response):
+            connect_result = downloaders.HTTPDownloader.connect('url')
+        self.assertEqual(connect_result, response)
+
+    def test_connect_error_code(self):
+        """An exception should be raised when an error code is received
+        """
+        response = requests.Response()
+        response.status_code = 400
+        with self.assertRaises(downloaders.DownloadError) as error:
+            with mock.patch('requests.get', return_value=response):
+                downloaders.HTTPDownloader.connect('url')
+        self.assertIsInstance(error.exception.__cause__, requests.HTTPError)
+
+    def test_connect_request_exception(self):
+        """An exception must be raised if an error happens during the
+        request (it can be a wrong HTTP response code)
+        """
+        with mock.patch('requests.get', side_effect=requests.HTTPError):
+            with self.assertRaises(downloaders.DownloadError):
+                downloaders.HTTPDownloader.connect('url')
+
+    def test_get_size_from_response(self):
+        """Test getting the file size from the GET response headers"""
+        response = requests.Response()
+        response.headers['Content-Length'] = 2
+        self.assertEqual(downloaders.HTTPDownloader.get_file_size('url', response), 2)
+
+    def test_get_size_from_head_request(self):
+        """Test getting the file size from a HEAD response headers"""
+        original_response = requests.Response()
+        head_response = requests.Response()
+        head_response.headers['Content-Length'] = 2
+        with mock.patch('requests.head', return_value=head_response):
+            self.assertEqual(downloaders.HTTPDownloader.get_file_size('url', original_response), 2)
+
+    def test_get_size_none_if_not_found(self):
+        """get_remote_file_size() must return None if no size was found"""
+        response = requests.Response()
+        with mock.patch('requests.head', return_value=response):
+            self.assertIsNone(downloaders.HTTPDownloader.get_file_size('url', response))
+
+    def test_download_file(self):
+        """Test downloading a file from a existing Response"""
+        response = requests.Response()
+        contents = 'foo'
+        buffer = io.StringIO()
+
+        with mock.patch.object(response, 'iter_content', return_value=[contents]):
+            downloaders.HTTPDownloader.download_file(buffer, 'url', response)
+        self.assertEqual(buffer.getvalue(), contents)
+        buffer.close()
+
+    def test_download_empty_file(self):
+        """An exception must be raised if the response is empty"""
+        response = requests.Response()
+        response.raw = io.BytesIO(b'')
+        with self.assertRaises(downloaders.DownloadError):
+            downloaders.HTTPDownloader.download_file(mock.Mock(), 'url', response)
+
+
+class FTPDownloaderTestCase(unittest.TestCase):
+    """Tests for the FTPDownloader"""
+
+    def test_connect(self):
+        """connect() should return an FTP connection"""
+        with mock.patch('ftplib.FTP', return_value='placeholder') as mock_ftp:
+            self.assertEqual(
+                downloaders.FTPDownloader.connect('ftp://host/path', ('user', 'password')),
+                'placeholder'
+            )
+        mock_ftp.assert_called_with(host='host', user='user', passwd='password')
+
+    def test_connect_error(self):
+        """A DownloadError should be raised if an error happens during
+        the connection
+        """
+        with mock.patch('ftplib.FTP', side_effect=ftplib.error_perm) as mock_ftp:
+            with self.assertRaises(downloaders.DownloadError):
+                downloaders.FTPDownloader.connect('ftp://host/path', ('user', 'password'))
+
+    def test_get_file_name(self):
+        """get_file_name() should extract the file name from the URL"""
+        self.assertEqual(
+            downloaders.FTPDownloader.get_file_name('ftp://host/path/file.nc', None),
+            'file.nc'
+        )
+
+    def test_get_file_name_folder_url(self):
+        """If the URL ends with a slash,
+        get_file_name() should return None
+        """
+        self.assertIsNone(downloaders.FTPDownloader.get_file_name('ftp://host/path/', None))
+
+    def test_get_file_size(self):
+        """get_file_size() should get the file size from the remote
+        server
+        """
+        mock_connection = mock.Mock()
+        mock_connection.size.return_value = 42
+        self.assertEqual(
+            downloaders.FTPDownloader.get_file_size('ftp://host/path/file.nc', mock_connection),
+            42
+        )
+        mock_connection.size.assert_called_with('/path/file.nc')
+
+    def test_get_file_size_none_on_error(self):
+        """get_file_size() should return None if an error happens
+        while retrieving the size
+        """
+        mock_connection = mock.Mock()
+        mock_connection.size.side_effect = ftplib.error_perm
+        with self.assertLogs(downloaders.LOGGER):
+            self.assertIsNone(
+                downloaders.FTPDownloader.get_file_size('ftp://host/path/file.nc', mock_connection)
+            )
+
+    def test_get_download_file(self):
+        """get_download_file() should write the remote file to the file
+        object argument
+        """
+        mock_file = mock.Mock()
+        mock_connection = mock.Mock()
+
+        downloaders.FTPDownloader.download_file(
+            mock_file, 'ftp://host/path/file.nc', mock_connection)
+
+        mock_connection.retrbinary.assert_called_with('RETR /path/file.nc', mock_file.write)
 
 
 class DownloadLockTestCase(unittest.TestCase):
@@ -376,15 +477,6 @@ class DownloadManagerTestCase(django.test.TestCase):
                 download_manager.download_dataset(Dataset.objects.get(pk=1), '')
                 mock_dl_url.assert_called()
 
-    def test_the_correct_call_of_check_and_download_url_without_file_prefix(self):
-        """Test that correct call of check_and_download_url is accomplished with file_prefix=None"""
-        download_manager = downloaders.DownloadManager(use_file_prefix=False)
-        dataset = Dataset.objects.get(pk=1)
-        with mock.patch.object(downloaders.HTTPDownloader, 'check_and_download_url') as mock_dl_url:
-            mock_dl_url.return_value = ('test.nc', True)
-            download_manager.download_dataset(dataset, 'testing_value')
-            self.assertIsNone(mock_dl_url.call_args[1]['file_prefix'])
-
     def test_the_storing_ability_of_file_local_address(self):
         """
         Test that address of downloaded file is added to the dataseturi model.
@@ -411,7 +503,6 @@ class DownloadManagerTestCase(django.test.TestCase):
             mock_dl_url.assert_called_with(
                 url=dataset_url,
                 download_dir='',
-                file_prefix='dataset_1',
                 username='topvoys',
                 password_env_var='COPERNICUS_OPEN_HUB_PASSWORD',
                 max_parallel_downloads=2
@@ -451,7 +542,7 @@ class DownloadManagerTestCase(django.test.TestCase):
         dataset_file_name = 'dataset_1_file'
 
         # Function used to mock a download failure on the first URL
-        def check_and_download_url_side_effect(url, download_dir, file_prefix='', **kwargs):  # pylint: disable=unused-argument
+        def check_and_download_url_side_effect(url, download_dir, **kwargs):  # pylint: disable=unused-argument
             if url == 'https://scihub.copernicus.eu/fakeurl':
                 return dataset_file_name, True
             else:

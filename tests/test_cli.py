@@ -1,31 +1,26 @@
 """Unit tests for cli"""
+import logging
 import os
-import shutil
 import sys
 import tempfile
 import unittest.mock as mock
+from datetime import datetime
 from unittest.mock import call
 
-from datetime import datetime
-from pathlib import Path
-import distutils.dir_util
-from dateutil.tz import tzutc
-from freezegun import freeze_time
 import django.test
+from dateutil.tz import tzutc
 from django.contrib.gis.geos import GEOSGeometry
+from freezegun import freeze_time
 
-import geospaas_processing.copiers
 import geospaas_processing.cli.delete_and_copy as cli_copy
 import geospaas_processing.cli.download as cli_download
 import geospaas_processing.cli.util as util
-from geospaas.catalog.models import Dataset
-from geospaas.catalog.managers import LOCAL_FILE_SERVICE
+import geospaas_processing.copiers
 
-import logging
 LOGGER = logging.getLogger(__name__)
 
 
-class DownlaodingCLITestCase(django.test.TestCase):
+class DownloadingCLITestCase(django.test.TestCase):
     """Tests for the cli of downloading """
 
     def setUp(self):
@@ -37,7 +32,6 @@ class DownlaodingCLITestCase(django.test.TestCase):
             '-r',
             '-a',
             '-s', "100",
-            '-p',
             '-g', "POLYGON ((-22 84, -22 74, 32 74, 32 84, -22 84))",
             '-c', "/config_folder/config_file.yml",
             '-q',
@@ -60,14 +54,11 @@ class DownlaodingCLITestCase(django.test.TestCase):
         # testing the flag presence
         self.assertTrue(arg.rel_time_flag)
         self.assertTrue(arg.save_path)
-        self.assertTrue(arg.use_filename_prefix)
         sys.argv.remove('-r')
         sys.argv.remove('-a')
-        sys.argv.remove('-p')
         arg = cli_download.cli_parse_args()
         self.assertFalse(arg.rel_time_flag)
         self.assertFalse(arg.save_path)
-        self.assertFalse(arg.use_filename_prefix)
 
     @mock.patch('geospaas_processing.downloaders.DownloadManager.__init__', return_value=None)
     @mock.patch('geospaas_processing.downloaders.DownloadManager.download')
@@ -94,55 +85,6 @@ class DownlaodingCLITestCase(django.test.TestCase):
 
     @mock.patch('geospaas_processing.downloaders.DownloadManager.__init__', return_value=None)
     @mock.patch('geospaas_processing.downloaders.DownloadManager.download')
-    def test_correct_call_DownloadManager_without_file_prefix(
-            self, mock_download_method, mock_download_manager_init):
-        """shall return the proper call for the case of lack of file prefix ('-p') in arguments"""
-        sys.argv.remove('-p')
-        sys.argv.remove('-r')
-        sys.argv[4] = '2019-10-22'
-        arg = cli_download.cli_parse_args()
-        cli_download.main()
-        self.assertIn({
-            'download_directory': '/test_folder/%Y_nh_polstere',
-            'geographic_location__geometry__intersects':
-            GEOSGeometry('POLYGON ((-22 84, -22 74, 32 74, 32 84, -22 84))'),
-            'max_downloads': 100,
-            'provider_settings_path': '/config_folder/config_file.yml',
-            'time_coverage_end__lte': datetime(2020, 8, 22, 0, 0, tzinfo=tzutc()),
-            'time_coverage_start__gte': datetime(2019, 10, 22, 0, 0, tzinfo=tzutc()),
-            'dataseturi__uri__contains': 'osisaf',
-            'source__instrument__short_name__icontains': 'AMSR2',
-            'use_file_prefix': False,
-            'save_path': True
-        }, mock_download_manager_init.call_args)
-
-    @mock.patch('geospaas_processing.downloaders.DownloadManager.__init__', return_value=None)
-    @mock.patch('geospaas_processing.downloaders.DownloadManager.download')
-    def test_correct_call_DownloadManager_with_file_prefix(
-            self, mock_download_method, mock_download_manager_init):
-        """
-        shall return the proper call for the case of lack of two definite time points in arguments
-        """
-        sys.argv.remove('-r')
-        sys.argv[4] = '2019-10-22'
-        arg = cli_download.cli_parse_args()
-        cli_download.main()
-        self.assertIn({
-            'download_directory': '/test_folder/%Y_nh_polstere',
-            'geographic_location__geometry__intersects':
-            GEOSGeometry('POLYGON ((-22 84, -22 74, 32 74, 32 84, -22 84))'),
-            'max_downloads': 100,
-            'provider_settings_path': '/config_folder/config_file.yml',
-            'time_coverage_end__lte': datetime(2020, 8, 22, 0, 0, tzinfo=tzutc()),
-            'time_coverage_start__gte': datetime(2019, 10, 22, 0, 0, tzinfo=tzutc()),
-            'dataseturi__uri__contains': 'osisaf',
-            'source__instrument__short_name__icontains': 'AMSR2',
-            'use_file_prefix': True,
-            'save_path': True
-        }, mock_download_manager_init.call_args)
-
-    @mock.patch('geospaas_processing.downloaders.DownloadManager.__init__', return_value=None)
-    @mock.patch('geospaas_processing.downloaders.DownloadManager.download')
     def test_correct_call_DownloadManager_without_geometry(
             self, mock_download_method, mock_download_manager_init):
         """shall return the proper call for the case of lack of geometry in arguments"""
@@ -160,7 +102,6 @@ class DownlaodingCLITestCase(django.test.TestCase):
             'time_coverage_start__gte': datetime(2019, 10, 22, 0, 0, tzinfo=tzutc()),
             'dataseturi__uri__contains': 'osisaf',
             'source__instrument__short_name__icontains': 'AMSR2',
-            'use_file_prefix': True,
             'save_path': True
         }, mock_download_manager_init.call_args)
 
@@ -183,7 +124,6 @@ class DownlaodingCLITestCase(django.test.TestCase):
             'time_coverage_start__gte': datetime(2012, 1, 12, 8, 0, tzinfo=tzutc()),
             'dataseturi__uri__contains': 'osisaf',
             'source__instrument__short_name__icontains': 'AMSR2',
-            'use_file_prefix': True,
             'save_path': True
         }, mock_download_manager_init.call_args)
 

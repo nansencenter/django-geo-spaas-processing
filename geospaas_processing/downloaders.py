@@ -8,9 +8,11 @@ The Redis instance hostname and port can be set via the following environment va
   - GEOSPAAS_PROCESSING_REDIS_PORT
 """
 import errno
+import ftplib
 import logging
 import os
 import os.path
+from urllib.parse import urlparse
 
 import requests
 import requests.utils
@@ -39,27 +41,104 @@ class TooManyDownloadsError(DownloadError):
 
 class Downloader():
     """Base class for downloaders"""
+
+    @staticmethod
+    def get_auth(kwargs):
+        """Builds the `auth` argument taken by `requests.get()` from
+        the keyword arguments. Uses Basic Auth.
+        """
+        if ('username' in kwargs) and ('password_env_var') in kwargs:
+            return (kwargs['username'], os.getenv(kwargs['password_env_var']))
+        return (None, None)
+
     @classmethod
-    def check_and_download_url(cls, url, download_dir, file_prefix=None, **kwargs):
+    def connect(cls, url, auth=(None, None)):
+        """Connect to the remote repository. This should return an
+        object from which the file to download can be read.
+        """
+        raise NotImplementedError()
+
+    @classmethod
+    def close_connection(cls, connection):
+        """Closes the open connection. Most objects used as connections
+        have a close() method, but it might be necessary to override
+        this in child classes.
+        """
+        connection.close()
+
+    @classmethod
+    def get_file_name(cls, url, connection):
+        """Returns the name of the file"""
+        raise NotImplementedError()
+
+    @classmethod
+    def get_file_size(cls, url, connection, auth=(None, None)):
+        """Returns the size of the file"""
+        raise NotImplementedError()
+
+    @classmethod
+    def download_file(cls, file, url, connection):
+        """Writes the remote file to the file object contained in the
+        `file` argument"""
+        raise NotImplementedError()
+
+    @classmethod
+    def check_and_download_url(cls, url, download_dir, **kwargs):
         """
         Downloads the file from the requested URL. To be implemented in child classes.
         Must call utils.free_space() before downloading, and manage the case where there
         is no space left to write the downloaded file.
         """
-        raise NotImplementedError()
+        auth = cls.get_auth(kwargs)
+        connection = cls.connect(url, auth)
+
+        file_name = cls.get_file_name(url, connection)
+        if not file_name:
+            raise DownloadError(f"Could not find file name for '{url}'")
+        file_path = os.path.join(download_dir, file_name)
+        LOGGER.info("file_path %s", file_path)
+        if os.path.exists(file_path) and os.path.isfile(file_path):
+            LOGGER.info("file exists")
+            return file_name, False
+
+        file_size = cls.get_file_size(url, connection)
+        if file_size:
+            LOGGER.debug("Checking there is enough free space to download %s bytes", file_size)
+            utils.LocalStorage(path=download_dir).free_space(file_size)
+
+        try:
+            with open(file_path, 'wb') as target_file:
+                cls.download_file(target_file, url, connection)
+        except OSError as error:
+            if error.errno == errno.ENOSPC:
+                # In case of "No space left on device" error,
+                # try to remove the partially downloaded file
+                try:
+                    os.remove(file_path)
+                except FileNotFoundError:
+                    pass
+            raise
+        finally:
+            cls.close_connection(connection)
+
+        return file_name, True
 
 
 class HTTPDownloader(Downloader):
     """Downloader for repositories which work over HTTP, like OpenDAP"""
     CHUNK_SIZE = 1024 * 1024
 
-    @staticmethod
-    def extract_file_name_from_response(response):
-        """Extracts the file name from the Content-Disposition header of an HTTP response"""
+    @classmethod
+    def get_file_name(cls, url, connection):
+        """Extracts the file name from the Content-Disposition header
+        of an HTTP response
+        """
         filename_key = 'filename='
 
         try:
-            content_disposition = map(str.strip, response.headers['Content-Disposition'].split(';'))
+            content_disposition = [
+                i.strip() for i in connection.headers['Content-Disposition'].split(';')
+            ]
             filename_attributes = [a for a in content_disposition if a.startswith(filename_key)]
         except KeyError:
             filename_attributes = []
@@ -71,54 +150,12 @@ class HTTPDownloader(Downloader):
             return filename_attributes[0].replace(filename_key, '').strip('"')
         return ''
 
-    @staticmethod
-    def build_basic_auth(kwargs):
-        """
-        Builds the `auth` argument taken by `requests.get()` from the keyword arguments.
-        Uses Basic Auth.
-        """
-        if ('username' in kwargs) and ('password_env_var') in kwargs:
-            return (kwargs['username'], os.getenv(kwargs['password_env_var']))
-        return None
-
-    @staticmethod
-    def get_remote_file_size(response, auth):
-        """
-        Try to get the file size from the response Content-Length header.
-        If that does not work, try to get it from a HEAD request
-        """
-        file_size = None
-        try:
-            file_size = int(response.headers['Content-Length'])
-        except KeyError:
-            try:
-                file_size = int(requests.head(response.url, auth=auth).headers['Content-Length'])
-            except KeyError:
-                pass
-        return file_size
-
     @classmethod
-    def get_file_name(cls, response, url, file_prefix=None):
-        """ Get the name of downloaded file either from header of <response>, or from <url>.
-        Prepend the file name with <file_prefix> if given """
-        file_name = cls.extract_file_name_from_response(response)
-        if not file_name:
-            file_name = url.split('/')[-1]
-        file_name = '_'.join([name for name in [file_prefix, file_name] if name])
-        if not file_name:
-            raise ValueError(
-                "No file name could be extracted from the request and no file prefix was provided")
-        return file_name
-
-    @classmethod
-    def check_and_download_url(cls, url, download_dir, file_prefix='', **kwargs):
+    def connect(cls, url, auth=(None, None)):
+        """For HTTP downloads, the "connection" actually just consists
+        of sending a GET request to the download URL and return the
+        corresponding Response object
         """
-        Download a file from a HTTP URL if it doesn't already exist.
-        The return value is a two-elements tuple containing:
-        - the name of the file
-        - a boolean which is True if the file was downloaded, and False if it was already present
-        """
-        auth = cls.build_basic_auth(kwargs)
         try:
             response = requests.get(url, stream=True, auth=auth)
             response.raise_for_status()
@@ -126,39 +163,71 @@ class HTTPDownloader(Downloader):
         except requests.RequestException as error:
             raise DownloadError(f"Could not download from '{url}'") from error
 
-        # Sometimes scihub's response is empty
-        if len(response.content) == 0:
-            raise DownloadError(f"Getting an empty file from '{url}'")
+        return response
 
-        # early quit if file already exists
-        file_name = cls.get_file_name(response, url, file_prefix)
-        file_path = os.path.join(download_dir, file_name)
-        if os.path.exists(file_path) and os.path.isfile(file_path):
-            return file_name, False
-
-        # Try to free some space if we can get the size of the file about to be downloaded
-        file_size = cls.get_remote_file_size(response, auth)
-        if file_size:
-            LOGGER.debug("Checking there is enough free space to download %s bytes", file_size)
-            utils.LocalStorage(path=download_dir).free_space(file_size)
-
+    @classmethod
+    def get_file_size(cls, url, connection, auth=(None, None)):
+        """Try to get the file size from the response Content-Length
+        header. If that does not work, try to get it from a HEAD
+        request.
+        """
+        file_size = None
         try:
-            with open(file_path, 'wb') as target_file:
-                for chunk in response.iter_content(chunk_size=cls.CHUNK_SIZE):
-                    target_file.write(chunk)
-        except OSError as error:
-            if error.errno == errno.ENOSPC:
-                # In case of "No space left on device" error,
-                # try to remove the partially downloaded file
-                try:
-                    os.remove(file_path)
-                except FileNotFoundError:
-                    pass
-            raise
-        finally:
-            response.close()
+            file_size = int(connection.headers['Content-Length'])
+        except KeyError:
+            try:
+                file_size = int(requests.head(connection.url, auth=auth).headers['Content-Length'])
+            except KeyError:
+                pass
+        return file_size
 
-        return file_name, True
+    @classmethod
+    def download_file(cls, file, url, connection):
+        """Download the file using the Response object contained in the
+        `connection` argument
+        """
+        chunk = None
+        for chunk in connection.iter_content(chunk_size=cls.CHUNK_SIZE):
+            file.write(chunk)
+        else:
+            # This executes after the loop and raises an error if the
+            # response is unexpectedly empty like it sometimes happens
+            # with scihub
+            if chunk is None:
+                raise DownloadError(f"Getting an empty file from '{url}'")
+
+
+class FTPDownloader(Downloader):
+    """Downloader for FTP repositories"""
+
+    @classmethod
+    def connect(cls, url, auth=(None, None)):
+        """Connects to the remote FTP repository.
+        Returns a ftplib.FTP object.
+        """
+        try:
+            return ftplib.FTP(host=urlparse(url).netloc, user=auth[0], passwd=auth[1])
+        except ftplib.all_errors as error:
+            raise DownloadError(f"Could not download from '{url}'") from error
+
+    @classmethod
+    def get_file_name(cls, url, connection):
+        """Extracts the file name from the URL"""
+        return urlparse(url).path.split('/')[-1] or None
+
+    @classmethod
+    def get_file_size(cls, url, connection):
+        """Get the file size from the remote server"""
+        try:
+            return connection.size(urlparse(url).path)
+        except ftplib.all_errors as error:
+            LOGGER.warning("Could not get the size from '%s'", url)
+            return None
+
+    @classmethod
+    def download_file(cls, file, url, connection):
+        """Downloads the remote file to the `file` object"""
+        connection.retrbinary(f"RETR {urlparse(url).path}", file.write)
 
 
 class DownloadLock():
@@ -234,11 +303,12 @@ class DownloadManager():
 
     DOWNLOADERS = {
         geospaas.catalog.managers.OPENDAP_SERVICE: HTTPDownloader,
-        geospaas.catalog.managers.HTTP_SERVICE: HTTPDownloader
+        geospaas.catalog.managers.HTTP_SERVICE: HTTPDownloader,
+        'ftp': FTPDownloader
     }
 
     def __init__(self, download_directory='.', provider_settings_path=None, max_downloads=100,
-                 use_file_prefix=True, save_path=False, **criteria):
+                 save_path=False, **criteria):
         """
         `criteria` accepts the same keyword arguments as Django's `filter()` method.
         When filtering on time coverage, it is preferable to use timezone aware datetimes.
@@ -250,7 +320,6 @@ class DownloadManager():
         if not self.datasets:
             raise DownloadError("No dataset matches the search criteria")
         self.download_folder = download_directory
-        self.use_file_prefix = use_file_prefix
         self.save_path = save_path
         LOGGER.debug("Found %d datasets", self.datasets.count())
         if self.datasets.count() > self.max_downloads:
@@ -284,10 +353,6 @@ class DownloadManager():
             if extra_settings:
                 LOGGER.debug("Loaded extra settings for provider %s: %s",
                              dataset_uri_prefix, extra_settings)
-            if self.use_file_prefix:
-                file_prefix = f"dataset_{dataset.pk}"
-            else:
-                file_prefix = None
             # Launch download if the maximum number of parallel downloads has not been reached
             with DownloadLock(dataset_uri_prefix,
                               extra_settings.get('max_parallel_downloads'),
@@ -307,7 +372,7 @@ class DownloadManager():
                 try:
                     file_name, downloaded = downloader.check_and_download_url(
                         url=dataset_uri.uri, download_dir=download_directory,
-                        file_prefix=file_prefix, **extra_settings
+                        **extra_settings
                     )
                 except DownloadError:
                     LOGGER.warning(

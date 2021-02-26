@@ -22,7 +22,6 @@ The processing modules can either be run as standalone code or asynchronously as
 | '-q'                | '--query'               | '--query'
 | '-c'                | '--config_file'         |
 | '-s'                | '--safety_limit'        |
-| '-p'                | '--use_filename_prefix' |
 | '-a'                | '--save_path'           |
 | '-l'                |                         | '--link'
 | '-t'                |                         | '--type'

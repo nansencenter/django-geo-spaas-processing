@@ -118,6 +118,7 @@ class CMEMS001024IDFConverter(PrefixMatchingIDFConverter):
 
     PARAMETER_FILES = (
         ('cmems_001_024_hourly_mean_surface', ('mercatorpsy4v3r1_gl12_hrly',)),
+        ('cmems_001_024_hourly_smoc', ('SMOC_',))
     )
 
     def get_results(self, working_directory, dataset_file_name):
@@ -136,7 +137,7 @@ class CMEMS001024IDFConverter(PrefixMatchingIDFConverter):
         result_files = []
         for dir_element in os.listdir(os.path.join(working_directory, self.collection)):
             element_date = datetime.strptime(
-                re.match(rf'^{self.collection}_([0-9]{{14}})_.*$', dir_element)[1],
+                re.match(rf'^(.*_)?{self.collection}_([0-9]{{14}})_.*$', dir_element)[2],
                 '%Y%m%d%H%M%S'
             )
             if element_date > file_time_range[0] and element_date < file_time_range[1]:

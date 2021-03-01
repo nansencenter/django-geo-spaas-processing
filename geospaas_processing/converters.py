@@ -87,33 +87,32 @@ class IDFConverter():
         raise NotImplementedError()
 
 
-class PrefixMatchingIDFConverter(IDFConverter):
-    """IDF converter which selects the parameter file by checking that
-    the datasets' entry_id starts with a particular prefix.
+class RegexMatchingIDFConverter(IDFConverter):
+    """IDF converter which selects the parameter files by checking that
+    the datasets' entry_id matches a particular regular expression.
     """
 
     PARAMETER_FILES = tuple()
 
     @classmethod
     def get_parameter_files(cls, dataset):
-        for parameter_files, prefixes in cls.PARAMETER_FILES:
-            for prefix in prefixes:
-                if dataset.entry_id.startswith(prefix):
-                    return parameter_files
+        for parameter_files, regex in cls.PARAMETER_FILES:
+            if re.match(regex, dataset.entry_id):
+                return parameter_files
         return None
 
     def get_results(self, working_directory, dataset_file_name):
         raise NotImplementedError()
 
 
-class Sentinel3IDFConverter(PrefixMatchingIDFConverter):
+class Sentinel3IDFConverter(RegexMatchingIDFConverter):
     """IDF converter for Sentinel-3 datasets"""
 
     PARAMETER_FILES = (
-        (('sentinel3_olci_l1_efr',), ('S3A_OL_1_EFR', 'S3B_OL_1_EFR'),),
-        (('sentinel3_olci_l2_wfr',), ('S3A_OL_2_WFR', 'S3B_OL_2_WFR')),
-        (('sentinel3_slstr_l1_bt',), ('S3A_SL_1_RBT', 'S3B_SL_1_RBT')),
-        (('sentinel3_slstr_l2_wst',), ('S3A_SL_2', 'S3B_SL_2')),
+        (('sentinel3_olci_l1_efr',), '^S3[AB]_OL_1_EFR.*$'),
+        (('sentinel3_olci_l2_wfr',), '^S3[AB]_OL_2_WFR.*$'),
+        (('sentinel3_slstr_l1_bt',), '^S3[AB]_SL_1_RBT.*$'),
+        (('sentinel3_slstr_l2_wst',), '^S3[AB]_SL_2.*$'),
     )
 
     def get_results(self, working_directory, dataset_file_name):
@@ -126,12 +125,14 @@ class Sentinel3IDFConverter(PrefixMatchingIDFConverter):
         return []
 
 
-class SingleResultIDFConverter(PrefixMatchingIDFConverter):
+class SingleResultIDFConverter(RegexMatchingIDFConverter):
     """IDF converter for CMEMS
     SEALEVEL_GLO_PHY_L4_NRT_OBSERVATIONS_008_046 product
     """
     PARAMETER_FILES = (
-        (('cmems_008_046',), ('nrt_global_allsat_phy_l4_',)),
+        (('cmems_008_046',),'^nrt_global_allsat_phy_l4_.*$'),
+        (('esa_cci_sst',),
+         '^D[0-9]{3}-ESACCI-L4_GHRSST-SSTdepth-OSTIA-GLOB_CDR2.1-v02.0-fv01.0$'),
     )
 
     def get_results(self, working_directory, dataset_file_name):
@@ -144,15 +145,15 @@ class SingleResultIDFConverter(PrefixMatchingIDFConverter):
         return []
 
 
-class MultiResultIDFConverter(PrefixMatchingIDFConverter):
+class MultiResultIDFConverter(RegexMatchingIDFConverter):
     """IDF converter for CMEMS GLOBAL_ANALYSIS_FORECAST_PHY_001_024
     product
     """
 
     PARAMETER_FILES = (
-        (('cmems_001_024_hourly_mean_surface',), ('mercatorpsy4v3r1_gl12_hrly',)),
-        (('cmems_001_024_hourly_smoc',), ('SMOC_',)),
-        (('cmems_015_003_0m', 'cmems_015_003_15m'), ('dataset-uv-nrt-hourly_',)),
+        (('cmems_001_024_hourly_mean_surface',), '^mercatorpsy4v3r1_gl12_hrly.*$'),
+        (('cmems_001_024_hourly_smoc',), '^SMOC_.*$'),
+        (('cmems_015_003_0m', 'cmems_015_003_15m'), '^dataset-uv-nrt-hourly_.*$'),
     )
 
     def get_results(self, working_directory, dataset_file_name):

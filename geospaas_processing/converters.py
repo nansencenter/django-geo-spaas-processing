@@ -30,13 +30,18 @@ class IDFConverter():
     """IDF converter which uses the idf_converter package from ODL"""
     PARAMETERS_DIR = os.path.join(os.path.dirname(__file__), 'parameters')
 
-    def __init__(self, parameter_file):
-        self.parameter_path = os.path.join(self.PARAMETERS_DIR, parameter_file)
-        self.collection = self.extract_parameter_value(ParameterType.OUTPUT, 'collection')
+    def __init__(self, parameter_files):
+        self.parameter_paths = [
+            os.path.join(self.PARAMETERS_DIR, parameter_file) for parameter_file in parameter_files
+        ]
+        self.collections = [
+            self.extract_parameter_value(parameter_path, ParameterType.OUTPUT, 'collection')
+            for parameter_path in self.parameter_paths
+        ]
 
     @classmethod
-    def get_parameter_file(cls, dataset):
-        """Returns the name of the parameter file to use for the
+    def get_parameter_files(cls, dataset):
+        """Returns the list of parameter files to use for the
         dataset argument.
         """
         raise NotImplementedError()
@@ -45,17 +50,21 @@ class IDFConverter():
         """Run the IDF converter"""
         input_cli_args = ['-i', 'path', '=', in_file]
         output_cli_args = ['-o', 'path', '=', out_dir]
-        LOGGER.debug(
-            "Converting %s to IDF using parameter file %s", in_file, self.parameter_path)
-        result = subprocess.run(
-            ['idf-converter', f"{self.parameter_path}@", *input_cli_args, *output_cli_args],
-            cwd=os.path.dirname(__file__), check=True, capture_output=True
-        )
-        return result
 
-    def extract_parameter_value(self, parameter_type, parameter_name):
+        results = []
+        for parameter_path in self.parameter_paths:
+            LOGGER.debug(
+                "Converting %s to IDF using parameter file %s", in_file, parameter_path)
+            results.append(subprocess.run(
+                ['idf-converter', f"{parameter_path}@", *input_cli_args, *output_cli_args],
+                cwd=os.path.dirname(__file__), check=True, capture_output=True
+            ))
+        return results
+
+    @staticmethod
+    def extract_parameter_value(parameter_path, parameter_type, parameter_name):
         """Get the value of a parameter from the parameter file"""
-        with open(self.parameter_path, 'r') as file_handler:
+        with open(parameter_path, 'r') as file_handler:
             line = file_handler.readline()
             current_param_type = ''
             parameter_value = None
@@ -86,60 +95,64 @@ class PrefixMatchingIDFConverter(IDFConverter):
     PARAMETER_FILES = tuple()
 
     @classmethod
-    def get_parameter_file(cls, dataset):
-        for parameter_file, prefixes in cls.PARAMETER_FILES:
+    def get_parameter_files(cls, dataset):
+        for parameter_files, prefixes in cls.PARAMETER_FILES:
             for prefix in prefixes:
                 if dataset.entry_id.startswith(prefix):
-                    return parameter_file
+                    return parameter_files
         return None
+
+    def get_results(self, working_directory, dataset_file_name):
+        raise NotImplementedError()
 
 
 class Sentinel3IDFConverter(PrefixMatchingIDFConverter):
     """IDF converter for Sentinel-3 datasets"""
 
     PARAMETER_FILES = (
-        ('sentinel3_olci_l1_efr', ('S3A_OL_1_EFR', 'S3B_OL_1_EFR'),),
-        ('sentinel3_olci_l2_wfr', ('S3A_OL_2_WFR', 'S3B_OL_2_WFR')),
-        ('sentinel3_slstr_l1_bt', ('S3A_SL_1_RBT', 'S3B_SL_1_RBT')),
-        ('sentinel3_slstr_l2_wst', ('S3A_SL_2', 'S3B_SL_2')),
+        (('sentinel3_olci_l1_efr',), ('S3A_OL_1_EFR', 'S3B_OL_1_EFR'),),
+        (('sentinel3_olci_l2_wfr',), ('S3A_OL_2_WFR', 'S3B_OL_2_WFR')),
+        (('sentinel3_slstr_l1_bt',), ('S3A_SL_1_RBT', 'S3B_SL_1_RBT')),
+        (('sentinel3_slstr_l2_wst',), ('S3A_SL_2', 'S3B_SL_2')),
     )
 
     def get_results(self, working_directory, dataset_file_name):
         """Looks for folders having the same name as the file to
         convert
         """
-        for dir_element in os.listdir(os.path.join(working_directory, self.collection)):
+        for dir_element in os.listdir(os.path.join(working_directory, self.collections[0])):
             if dataset_file_name == dir_element:
-                return [os.path.join(self.collection, dir_element)]
+                return [os.path.join(self.collections[0], dir_element)]
         return []
 
 
-class CMEMS008046IDFConverter(PrefixMatchingIDFConverter):
+class SingleResultIDFConverter(PrefixMatchingIDFConverter):
     """IDF converter for CMEMS
     SEALEVEL_GLO_PHY_L4_NRT_OBSERVATIONS_008_046 product
     """
     PARAMETER_FILES = (
-        ('cmems_008_046', ('nrt_global_allsat_phy_l4_',)),
+        (('cmems_008_046',), ('nrt_global_allsat_phy_l4_',)),
     )
 
     def get_results(self, working_directory, dataset_file_name):
         """Looks for folders having the same name as the file to
         convert minus the '.nc' extension
         """
-        for dir_element in os.listdir(os.path.join(working_directory, self.collection)):
+        for dir_element in os.listdir(os.path.join(working_directory, self.collections[0])):
             if os.path.splitext(dataset_file_name)[0] == dir_element:
-                return [os.path.join(self.collection, dir_element)]
+                return [os.path.join(self.collections[0], dir_element)]
         return []
 
 
-class CMEMS001024IDFConverter(PrefixMatchingIDFConverter):
+class MultiResultIDFConverter(PrefixMatchingIDFConverter):
     """IDF converter for CMEMS GLOBAL_ANALYSIS_FORECAST_PHY_001_024
     product
     """
 
     PARAMETER_FILES = (
-        ('cmems_001_024_hourly_mean_surface', ('mercatorpsy4v3r1_gl12_hrly',)),
-        ('cmems_001_024_hourly_smoc', ('SMOC_',)),
+        (('cmems_001_024_hourly_mean_surface',), ('mercatorpsy4v3r1_gl12_hrly',)),
+        (('cmems_001_024_hourly_smoc',), ('SMOC_',)),
+        (('cmems_015_003_0m', 'cmems_015_003_15m'), ('dataset-uv-nrt-hourly_',)),
     )
 
     def get_results(self, working_directory, dataset_file_name):
@@ -150,19 +163,20 @@ class CMEMS001024IDFConverter(PrefixMatchingIDFConverter):
         time stamp within the dataset's time range.
         """
         file_date = datetime.strptime(
-            re.match(r'^.*_([0-9]{8})_.*$', dataset_file_name)[1],
+            re.match(r'^.*_([0-9]{8})(T[0-9]+Z)_.*$', dataset_file_name)[1],
             '%Y%m%d'
         )
         file_time_range = (file_date, file_date + timedelta(days=1))
 
         result_files = []
-        for dir_element in os.listdir(os.path.join(working_directory, self.collection)):
-            element_date = datetime.strptime(
-                re.match(rf'^(.*_)?{self.collection}_([0-9]{{14}})_.*$', dir_element)[2],
-                '%Y%m%d%H%M%S'
-            )
-            if element_date > file_time_range[0] and element_date < file_time_range[1]:
-                result_files.append(os.path.join(self.collection, dir_element))
+        for collection in self.collections:
+            for dir_element in os.listdir(os.path.join(working_directory, collection)):
+                element_date = datetime.strptime(
+                    re.match(rf'^(.*_)?{collection}_([0-9]{{14}})_.*$', dir_element)[2],
+                    '%Y%m%d%H%M%S'
+                )
+                if element_date >= file_time_range[0] and element_date < file_time_range[1]:
+                    result_files.append(os.path.join(collection, dir_element))
 
         return result_files
 
@@ -172,8 +186,8 @@ class IDFConversionManager():
 
     CONVERTERS = (
         Sentinel3IDFConverter,
-        CMEMS001024IDFConverter,
-        CMEMS008046IDFConverter,
+        SingleResultIDFConverter,
+        MultiResultIDFConverter,
     )
 
     def __init__(self, working_directory):
@@ -184,10 +198,10 @@ class IDFConversionManager():
         """Choose a parameter file based on the dataset"""
         dataset = Dataset.objects.get(pk=dataset_id)
         for converter in cls.CONVERTERS:
-            parameter_file = converter.get_parameter_file(dataset)
-            if parameter_file:
-                LOGGER.debug("Using %s for dataset %s", converter, parameter_file)
-                return converter(parameter_file)
+            parameter_files = converter.get_parameter_files(dataset)
+            if parameter_files:
+                LOGGER.debug("Using %s for dataset %s", converter, parameter_files)
+                return converter(parameter_files)
         raise ConversionError(
             f"Could not find a converter for dataset {dataset_id}")
 

@@ -31,7 +31,6 @@ class IDFConverter():
     PARAMETERS_DIR = os.path.join(os.path.dirname(__file__), 'parameters')
 
     def __init__(self, parameter_file):
-        """"""
         self.parameter_path = os.path.join(self.PARAMETERS_DIR, parameter_file)
         self.collection = self.extract_parameter_value(ParameterType.OUTPUT, 'collection')
 

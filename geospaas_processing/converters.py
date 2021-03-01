@@ -71,17 +71,12 @@ class IDFConverter():
 
     def get_results(self, working_directory, dataset_file_name):
         """Look for the resulting files after a conversion.
-        This is the basic version which looks for folders having the
-        same name as the file to convert.
-        This method can be overridden in child classes to account for
+        This needs to be overridden in child classes to account for
         the behavior of different conversion configurations.
         This method returns an iterable of paths relative to the
         working directory.
         """
-        for dir_element in os.listdir(os.path.join(working_directory, self.collection)):
-            if dataset_file_name == dir_element:
-                return [os.path.join(self.collection, dir_element)]
-        return []
+        raise NotImplementedError()
 
 
 class PrefixMatchingIDFConverter(IDFConverter):
@@ -109,6 +104,15 @@ class Sentinel3IDFConverter(PrefixMatchingIDFConverter):
         ('sentinel3_slstr_l1_bt', ('S3A_SL_1_RBT', 'S3B_SL_1_RBT')),
         ('sentinel3_slstr_l2_wst', ('S3A_SL_2', 'S3B_SL_2')),
     )
+
+    def get_results(self, working_directory, dataset_file_name):
+        """Looks for folders having the same name as the file to
+        convert
+        """
+        for dir_element in os.listdir(os.path.join(working_directory, self.collection)):
+            if dataset_file_name == dir_element:
+                return [os.path.join(self.collection, dir_element)]
+        return []
 
 
 class CMEMS001024IDFConverter(PrefixMatchingIDFConverter):

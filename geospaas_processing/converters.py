@@ -115,14 +115,32 @@ class Sentinel3IDFConverter(PrefixMatchingIDFConverter):
         return []
 
 
+class CMEMS008046IDFConverter(PrefixMatchingIDFConverter):
+    """IDF converter for CMEMS
+    SEALEVEL_GLO_PHY_L4_NRT_OBSERVATIONS_008_046 product
+    """
+    PARAMETER_FILES = (
+        ('cmems_008_046', ('nrt_global_allsat_phy_l4_',)),
+    )
+
+    def get_results(self, working_directory, dataset_file_name):
+        """Looks for folders having the same name as the file to
+        convert minus the '.nc' extension
+        """
+        for dir_element in os.listdir(os.path.join(working_directory, self.collection)):
+            if os.path.splitext(dataset_file_name)[0] == dir_element:
+                return [os.path.join(self.collection, dir_element)]
+        return []
+
+
 class CMEMS001024IDFConverter(PrefixMatchingIDFConverter):
     """IDF converter for CMEMS GLOBAL_ANALYSIS_FORECAST_PHY_001_024
-    product.
+    product
     """
 
     PARAMETER_FILES = (
         ('cmems_001_024_hourly_mean_surface', ('mercatorpsy4v3r1_gl12_hrly',)),
-        ('cmems_001_024_hourly_smoc', ('SMOC_',))
+        ('cmems_001_024_hourly_smoc', ('SMOC_',)),
     )
 
     def get_results(self, working_directory, dataset_file_name):
@@ -155,7 +173,8 @@ class IDFConversionManager():
 
     CONVERTERS = (
         Sentinel3IDFConverter,
-        CMEMS001024IDFConverter
+        CMEMS001024IDFConverter,
+        CMEMS008046IDFConverter,
     )
 
     def __init__(self, working_directory):

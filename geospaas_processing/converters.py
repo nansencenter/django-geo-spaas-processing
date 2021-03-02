@@ -1,5 +1,6 @@
 """Tools for file format conversion"""
 import logging
+import os
 import os.path
 import re
 import shutil
@@ -105,6 +106,51 @@ class RegexMatchingIDFConverter(IDFConverter):
         raise NotImplementedError()
 
 
+class Sentinel1IDFConverter(RegexMatchingIDFConverter):
+    """IDF converter for Sentinel-1 datasets"""
+
+    PARAMETER_FILES = (
+        (('sentinel1_l2_rvl',), '^S1[AB]_IW_OCN.*$'),
+    )
+
+    def run(self, in_file, out_dir):
+        measurement_dir = os.path.join(in_file, 'measurement')
+        results = []
+        if os.path.isdir(measurement_dir):
+            for dataset_file in os.listdir(measurement_dir):
+                results.append(super().run(os.path.join(measurement_dir, dataset_file), out_dir))
+        else:
+            raise ConversionError(f"Could not find a measurement directory inside {in_file}")
+
+        if results:
+            return results
+        else:
+            raise ConversionError(f"Could not find a file to convert in {measurement_dir}")
+
+    def get_results(self, working_directory, dataset_file_name):
+        """In each collection directory, get the directories whose name
+        contains the dataset's identifier
+        """
+        try:
+            dataset_file_identifier = re.match(
+                r'^S1.*_(([0-9]{8}T[0-9]{6}_){2}[0-9]{6}_[0-9]{6})_[0-9]{4}\.SAFE$',
+                dataset_file_name
+            )[1]
+        except TypeError as error:
+            raise ConversionError(
+                f"Could not extract the dataset's identifier from {dataset_file_name}") from error
+
+        result_identifier = dataset_file_identifier.lower().translate(str.maketrans('_', '-'))
+
+        results = []
+        for collection in self.collections:
+            collection_dir = os.path.join(working_directory, collection)
+            for directory in os.listdir(collection_dir):
+                if result_identifier in directory:
+                    results.append(os.path.join(collection, directory))
+        return results
+
+
 class Sentinel3IDFConverter(RegexMatchingIDFConverter):
     """IDF converter for Sentinel-3 datasets"""
 
@@ -186,6 +232,7 @@ class IDFConversionManager():
     """IDF converter which uses the idf_converter package from ODL"""
 
     CONVERTERS = (
+        Sentinel1IDFConverter,
         Sentinel3IDFConverter,
         SingleResultIDFConverter,
         MultiResultIDFConverter,

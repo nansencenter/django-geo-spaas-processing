@@ -52,15 +52,22 @@ class IDFConverter():
         input_cli_args = ['-i', 'path', '=', in_file]
         output_cli_args = ['-o', 'path', '=', out_dir]
 
-        results = []
+        completed_processes = []
         for parameter_path in self.parameter_paths:
             LOGGER.debug(
                 "Converting %s to IDF using parameter file %s", in_file, parameter_path)
-            results.append(subprocess.run(
+            completed_processes.append(subprocess.run(
                 ['idf-converter', f"{parameter_path}@", *input_cli_args, *output_cli_args],
                 cwd=os.path.dirname(__file__), check=True, capture_output=True
             ))
-        return results
+
+        for process in completed_processes:
+            stderr = str(process.stderr)
+            if 'Skipping this file.' in stderr:
+                raise ConversionError(
+                    f"Could not convert {os.path.basename(in_file)}\n{stderr}")
+
+        return completed_processes
 
     @staticmethod
     def extract_parameter_value(parameter_path, parameter_type, parameter_name):
@@ -179,11 +186,18 @@ class SingleResultIDFConverter(RegexMatchingIDFConverter):
         (('cmems_008_046',),'^nrt_global_allsat_phy_l4_.*$'),
         (('esa_cci_sst',),
          '^D[0-9]{3}-ESACCI-L4_GHRSST-SSTdepth-OSTIA-GLOB_CDR2.1-v02.0-fv01.0$'),
+        (('ghrsst_l2p_modis_a_jpl_day',), r'^.*-JPL-L2P_GHRSST-SSTskin-MODIS_A-D-v02\.0-fv01\.0$'),
+        (('ghrsst_l2p_modis_a_jpl_night',),
+         r'^.*-JPL-L2P_GHRSST-SSTskin-MODIS_A-N-v02\.0-fv01\.0$'),
+        (('ghrsst_l2p_viirs_jpl',), r'^.*-JPL-L2P_GHRSST-SSTskin-VIIRS_NPP-[DN]-v02\.0-fv01\.0$'),
+        (('ghrsst_l2p_viirs_navo',), r'^.*-NAVO-L2P_GHRSST-SST1m-VIIRS_NPP-v02\.0-fv0[13]\.0$'),
+        (('ghrsst_l2p_viirs_ospo',),
+         r'^.*-OSPO-L2P_GHRSST-SSTsubskin-VIIRS_NPP-ACSPO_V2\.61-v02\.0-fv01\.0$'),
     )
 
     def get_results(self, working_directory, dataset_file_name):
         """Looks for folders having the same name as the file to
-        convert minus the '.nc' extension
+        convert minus the extension
         """
         for dir_element in os.listdir(os.path.join(working_directory, self.collections[0])):
             if os.path.splitext(dataset_file_name)[0] == dir_element:
@@ -271,7 +285,7 @@ class IDFConversionManager():
             converter.run(file_path, self.working_directory)
         except subprocess.CalledProcessError as error:
             raise ConversionError(
-                f"Conversion failed with the following message: {error.stdout}") from error
+                f"Conversion failed with the following message: {error.stderr}") from error
 
         # Remove intermediate files
         if extract_dir:

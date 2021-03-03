@@ -291,9 +291,8 @@ class CMEMSMultiResultIDFConverter(IDFConverter):
         """
         try:
             return datetime.strptime(re.match(regex, file_name).group('date'),parse_pattern)
-        except (AttributeError, IndexError) as error:
+        except (AttributeError, IndexError, ValueError) as error:
             raise ConversionError(f"Could not extract date from {file_name}") from error
-
 
     def get_results(self, working_directory, dataset_file_name):
         """The converter configuration used by this class produces

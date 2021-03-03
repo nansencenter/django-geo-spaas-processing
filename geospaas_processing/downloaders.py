@@ -96,9 +96,8 @@ class Downloader():
         if not file_name:
             raise DownloadError(f"Could not find file name for '{url}'")
         file_path = os.path.join(download_dir, file_name)
-        LOGGER.info("file_path %s", file_path)
+
         if os.path.exists(file_path) and os.path.isfile(file_path):
-            LOGGER.info("file exists")
             return file_name, False
 
         file_size = cls.get_file_size(url, connection)

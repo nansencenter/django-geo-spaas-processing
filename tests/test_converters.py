@@ -78,7 +78,9 @@ class IDFConversionManagerTestCase(django.test.TestCase):
         self.assertIsInstance(converter, converters.Sentinel3IDFConverter)
         self.assertEqual(
             converter.parameter_paths,
-            ['/workspace/geospaas_processing/parameters/sentinel3_olci_l1_efr'])
+            [os.path.join(os.path.dirname(converters.__file__),
+                          'parameters', 'sentinel3_olci_l1_efr')]
+        )
         self.assertEqual(converter.collections, ['sentinel3_olci_l1_efr'])
 
     def test_get_converter_error(self):

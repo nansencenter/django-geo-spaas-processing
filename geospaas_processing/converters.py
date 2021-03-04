@@ -132,7 +132,7 @@ class IDFConverter():
 
         for process in completed_processes:
             stderr = str(process.stderr)
-            if 'Skipping this file.' in stderr:
+            if 'Skipping this file' in stderr:
                 raise ConversionError(
                     f"Could not convert {os.path.basename(in_file)}\n{stderr}")
 

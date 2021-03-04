@@ -156,12 +156,23 @@ class IDFConverter():
 
     def get_results(self, working_directory, dataset_file_name):
         """Look for the resulting files after a conversion.
-        This needs to be overridden in child classes to account for
-        the behavior of different conversion configurations.
         This method returns an iterable of paths relative to the
         working directory.
         """
-        raise NotImplementedError()
+        results = []
+        for collection in self.collections:
+            collection_dir = os.path.join(working_directory, collection)
+            for directory in os.listdir(collection_dir):
+                if self.matches_result(collection, dataset_file_name, directory):
+                    results.append(os.path.join(collection, directory))
+        return results
+
+    def matches_result(self, collection, dataset_file_name, directory):
+        """Checks whether a directory is a result of the current
+        conversion. This needs to be overridden in child classes to
+        account for the behavior of different conversion configurations
+        """
+        raise NotImplementedError
 
 
 @IDFConversionManager.register()
@@ -173,6 +184,10 @@ class Sentinel1IDFConverter(IDFConverter):
     )
 
     def run(self, in_file, out_dir):
+        """calls the IDFConverter.run() method on all dataset files
+        contained in the "measurement" folder located in the `in_file`
+        directory
+        """
         measurement_dir = os.path.join(in_file, 'measurement')
         results = []
         if os.path.isdir(measurement_dir):
@@ -186,9 +201,9 @@ class Sentinel1IDFConverter(IDFConverter):
         else:
             raise ConversionError(f"Could not find a file to convert in {measurement_dir}")
 
-    def get_results(self, working_directory, dataset_file_name):
-        """In each collection directory, get the directories whose name
-        contains the dataset's identifier
+    def matches_result(self, collection, dataset_file_name, directory):
+        """Returns True if the directory name contains the dataset's
+        identifier
         """
         try:
             dataset_file_identifier = re.match(
@@ -201,13 +216,7 @@ class Sentinel1IDFConverter(IDFConverter):
 
         result_identifier = dataset_file_identifier.lower().translate(str.maketrans('_', '-'))
 
-        results = []
-        for collection in self.collections:
-            collection_dir = os.path.join(working_directory, collection)
-            for directory in os.listdir(collection_dir):
-                if result_identifier in directory:
-                    results.append(os.path.join(collection, directory))
-        return results
+        return result_identifier in directory
 
 
 @IDFConversionManager.register()
@@ -221,14 +230,8 @@ class Sentinel3IDFConverter(IDFConverter):
         (('sentinel3_slstr_l2_wst',), lambda d: re.match('^S3[AB]_SL_2.*$', d.entry_id)),
     )
 
-    def get_results(self, working_directory, dataset_file_name):
-        """Looks for folders having the same name as the file to
-        convert
-        """
-        for result_dir in os.listdir(os.path.join(working_directory, self.collections[0])):
-            if dataset_file_name == result_dir:
-                return [os.path.join(self.collections[0], result_dir)]
-        return []
+    def matches_result(self, collection, dataset_file_name, directory):
+        return dataset_file_name == directory
 
 
 @IDFConversionManager.register()
@@ -256,14 +259,11 @@ class SingleResultIDFConverter(IDFConverter):
              r'^.*-OSPO-L2P_GHRSST-SSTsubskin-VIIRS_NPP-ACSPO_V2\.61-v02\.0-fv01\.0$', d.entry_id)),
     )
 
-    def get_results(self, working_directory, dataset_file_name):
-        """Looks for folders having the same name as the file to
-        convert minus the extension
+    def matches_result(self, collection, dataset_file_name, directory):
+        """Returns True if the directory has the same name as the file
+        to convert minus the extension
         """
-        for result_dir in os.listdir(os.path.join(working_directory, self.collections[0])):
-            if os.path.splitext(dataset_file_name)[0] == result_dir:
-                return [os.path.join(self.collections[0], result_dir)]
-        return []
+        return os.path.splitext(dataset_file_name)[0] == directory
 
 
 @IDFConversionManager.register()
@@ -294,13 +294,7 @@ class CMEMSMultiResultIDFConverter(IDFConverter):
         except (AttributeError, IndexError, ValueError) as error:
             raise ConversionError(f"Could not extract date from {file_name}") from error
 
-    def get_results(self, working_directory, dataset_file_name):
-        """The converter configuration used by this class produces
-        multiple result folders for one dataset, with time stamps
-        comprised in the dataset's time coverage.
-        This method looks in the collection folder for folders with a
-        time stamp within the dataset's time range.
-        """
+    def matches_result(self, collection, dataset_file_name, directory):
         file_date = self.extract_date(
             dataset_file_name,
             r'^.*_(?P<date>[0-9]{8})(T[0-9]+Z)?_.*$',
@@ -308,15 +302,10 @@ class CMEMSMultiResultIDFConverter(IDFConverter):
         )
         file_time_range = (file_date, file_date + timedelta(days=1))
 
-        result_files = []
-        for collection in self.collections:
-            for result_dir in os.listdir(os.path.join(working_directory, collection)):
-                element_date = self.extract_date(
-                    result_dir,
-                    rf'^(.*_)?{collection}_(?P<date>[0-9]{{14}})_.*$',
-                    '%Y%m%d%H%M%S'
-                )
-                if element_date >= file_time_range[0] and element_date < file_time_range[1]:
-                    result_files.append(os.path.join(collection, result_dir))
+        directory_date = self.extract_date(
+            directory,
+            rf'^(.*_)?{collection}_(?P<date>[0-9]{{14}})_.*$',
+            '%Y%m%d%H%M%S'
+        )
 
-        return result_files
+        return directory_date >= file_time_range[0] and directory_date < file_time_range[1]

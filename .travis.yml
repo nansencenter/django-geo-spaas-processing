@@ -16,12 +16,14 @@ env:
     - IMAGE_NAME_WORKER="${DOCKER_ORG}/geospaas_processing_worker"
     - IMAGE_NAME_CLI="${DOCKER_ORG}/geospaas_processing_cli"
     - IDF_CONVERTER_VERSION=0.0.124
-    - GEOSPAAS_DB_HOST='db'
-    - GEOSPAAS_DB_USER='test'
+
 jobs:
   include:
     - stage: 'Unit tests'
       if: 'type = push'
+      env:
+        - GEOSPAAS_DB_HOST='db'
+        - GEOSPAAS_DB_USER='test'
       install:
         - docker network create testing
         - >
@@ -55,7 +57,7 @@ jobs:
         - docker stop "$GEOSPAAS_DB_HOST"
 
     - stage: 'Build and release'
-      name: 'Build worker the Docker image'
+      name: 'Build Docker images'
       if: type = pull_request OR tag IS present
       env:
         - DOCKER_TMP_TAG='tmp'

@@ -13,8 +13,10 @@ services:
 env:
   global:
     - BASE_IMAGE_NAME="${DOCKER_ORG}/geospaas:2.3.3-slim"
-    - IMAGE_NAME="${DOCKER_ORG}/geospaas_processing_worker"
+    - IMAGE_NAME_WORKER="${DOCKER_ORG}/geospaas_processing_worker"
+    - IMAGE_NAME_CLI="${DOCKER_ORG}/geospaas_processing_cli"
     - IDF_CONVERTER_VERSION=0.0.124
+
 jobs:
   include:
     - stage: 'Unit tests'
@@ -32,10 +34,11 @@ jobs:
           'postgis/postgis:12-3.0'
         - >
           docker build .
-          -f Dockerfile_cli
-          -t "${IMAGE_NAME}"
+          -f Dockerfile_worker
+          -t "${IMAGE_NAME_WORKER}"
           --build-arg "BASE_IMAGE=${BASE_IMAGE_NAME}"
           --target base
+
       script:
         - >
           docker run --rm
@@ -47,13 +50,14 @@ jobs:
           -e "GEOSPAAS_DB_HOST=$GEOSPAAS_DB_HOST"
           -e "GEOSPAAS_DB_USER=$GEOSPAAS_DB_USER" -e "GEOSPAAS_DB_PASSWORD=$GEOSPAAS_DB_PASSWORD"
           --entrypoint bash
-          "${IMAGE_NAME}"
+          "${IMAGE_NAME_WORKER}"
           -c "coverage run --source=geospaas_processing /src/runtests.py && coveralls"
+
       after_script:
         - docker stop "$GEOSPAAS_DB_HOST"
 
     - stage: 'Build and release'
-      name: 'Build worker the Docker image'
+      name: 'Build Docker images'
       if: type = pull_request OR tag IS present
       env:
         - DOCKER_TMP_TAG='tmp'
@@ -63,14 +67,21 @@ jobs:
           -H "Authorization: token ${GITHUB_API_TOKEN}"
           -H 'Accept: application/vnd.github.v3.raw'
           "https://api.github.com/repos/nansencenter/idf-converter/contents/idf_converter-${IDF_CONVERTER_VERSION}.tar.gz"
-        - docker pull "${IMAGE_NAME}" || true
+        - docker pull "${IMAGE_NAME_WORKER}" || true
+        - docker pull "${IMAGE_NAME_CLI}" || true
       script:
         - >
           docker build .
           -f Dockerfile_cli
-          --cache-from "${IMAGE_NAME}"
+          --cache-from "${IMAGE_NAME_CLI}"
           --build-arg "BASE_IMAGE=$BASE_IMAGE_NAME"
-          -t "${IMAGE_NAME}:${DOCKER_TMP_TAG}"
+          -t "${IMAGE_NAME_CLI}:${DOCKER_TMP_TAG}"
+        - >
+          docker build .
+          -f Dockerfile_worker
+          --cache-from "${IMAGE_NAME_WORKER}"
+          --build-arg "BASE_IMAGE=$BASE_IMAGE_NAME"
+          -t "${IMAGE_NAME_WORKER}:${DOCKER_TMP_TAG}"
       before_deploy:
         - docker login -u "${DOCKER_USER}" -p "${DOCKER_PASS}"
       deploy:

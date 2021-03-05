@@ -1,8 +1,9 @@
 #!/bin/bash
-
-for tag in $*;do
-    echo "Tag ${IMAGE_NAME}:${DOCKER_TMP_TAG} as ${IMAGE_NAME}:${tag}"
-    docker tag "${IMAGE_NAME}:${DOCKER_TMP_TAG}" "${IMAGE_NAME}:${tag}"
-    echo "Push ${IMAGE_NAME}:${tag}"
-    docker push "${IMAGE_NAME}:${tag}"
+for IMAGE in "$IMAGE_NAME_WORKER" "$IMAGE_NAME_WORKER";do
+    for tag in $*;do
+        echo "Tag ${IMAGE}:${DOCKER_TMP_TAG} as ${IMAGE}:${tag}"
+        docker tag "${IMAGE}:${DOCKER_TMP_TAG}" "${IMAGE}:${tag}"
+        echo "Push ${IMAGE}:${tag}"
+        docker push "${IMAGE}:${tag}"
+    done
 done

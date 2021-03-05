@@ -16,13 +16,12 @@ env:
     - IMAGE_NAME_WORKER="${DOCKER_ORG}/geospaas_processing_worker"
     - IMAGE_NAME_CLI="${DOCKER_ORG}/geospaas_processing_cli"
     - IDF_CONVERTER_VERSION=0.0.124
+    - GEOSPAAS_DB_HOST='db'
+    - GEOSPAAS_DB_USER='test'
 jobs:
   include:
-    - stage: 'Unit tests'
+    - stage: 'database setup and Unit tests for worker'
       if: 'type = push'
-      env:
-        - GEOSPAAS_DB_HOST='db'
-        - GEOSPAAS_DB_USER='test'
       install:
         - docker network create testing
         - >
@@ -33,10 +32,28 @@ jobs:
           'postgis/postgis:12-3.0'
         - >
           docker build .
-          -f Dockerfile_worker
+          -f Dockerfile_cli
           -t "${IMAGE_NAME_WORKER}"
           --build-arg "BASE_IMAGE=${BASE_IMAGE_NAME}"
           --target base
+
+      script:
+        - >
+          docker run --rm
+          --network testing
+          -v "$(pwd):/src"
+          -e "COVERALLS_REPO_TOKEN=$COVERALLS_REPO_TOKEN"
+          -e "TRAVIS=true" -e "TRAVIS_JOB_ID=$TRAVIS_JOB_ID"
+          -e "TRAVIS_BRANCH=$TRAVIS_BRANCH" -e "TRAVIS_PULL_REQUEST=$TRAVIS_PULL_REQUEST"
+          -e "GEOSPAAS_DB_HOST=$GEOSPAAS_DB_HOST"
+          -e "GEOSPAAS_DB_USER=$GEOSPAAS_DB_USER" -e "GEOSPAAS_DB_PASSWORD=$GEOSPAAS_DB_PASSWORD"
+          --entrypoint bash
+          "${IMAGE_NAME_WORKER}"
+          -c "coverage run --source=geospaas_processing /src/runtests.py && coveralls"
+
+    - stage: 'Unit tests for cli'
+      if: 'type = push'
+      install:
         - >
           docker build .
           -f Dockerfile_cli
@@ -54,21 +71,9 @@ jobs:
           -e "GEOSPAAS_DB_HOST=$GEOSPAAS_DB_HOST"
           -e "GEOSPAAS_DB_USER=$GEOSPAAS_DB_USER" -e "GEOSPAAS_DB_PASSWORD=$GEOSPAAS_DB_PASSWORD"
           --entrypoint bash
-          "${IMAGE_NAME_WORKER}"
-          -c "coverage run --source=geospaas_processing /src/runtests.py && coveralls"
-      script:
-        - >
-          docker run --rm
-          --network testing
-          -v "$(pwd):/src"
-          -e "COVERALLS_REPO_TOKEN=$COVERALLS_REPO_TOKEN"
-          -e "TRAVIS=true" -e "TRAVIS_JOB_ID=$TRAVIS_JOB_ID"
-          -e "TRAVIS_BRANCH=$TRAVIS_BRANCH" -e "TRAVIS_PULL_REQUEST=$TRAVIS_PULL_REQUEST"
-          -e "GEOSPAAS_DB_HOST=$GEOSPAAS_DB_HOST"
-          -e "GEOSPAAS_DB_USER=$GEOSPAAS_DB_USER" -e "GEOSPAAS_DB_PASSWORD=$GEOSPAAS_DB_PASSWORD"
-          --entrypoint bash
           "${IMAGE_NAME_CLI}"
           -c "coverage run --source=geospaas_processing /src/runtests.py && coveralls"
+
       after_script:
         - docker stop "$GEOSPAAS_DB_HOST"
 

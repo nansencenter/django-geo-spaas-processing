@@ -99,10 +99,17 @@ jobs:
           -H 'Accept: application/vnd.github.v3.raw'
           "https://api.github.com/repos/nansencenter/idf-converter/contents/idf_converter-${IDF_CONVERTER_VERSION}.tar.gz"
         - docker pull "${IMAGE_NAME_WORKER}" || true
+        - docker pull "${IMAGE_NAME_CLI}" || true
       script:
         - >
           docker build .
           -f Dockerfile_cli
+          --cache-from "${IMAGE_NAME_CLI}"
+          --build-arg "BASE_IMAGE=$BASE_IMAGE_NAME"
+          -t "${IMAGE_NAME_CLI}:${DOCKER_TMP_TAG}"
+          &&
+          docker build .
+          -f Dockerfile_worker
           --cache-from "${IMAGE_NAME_WORKER}"
           --build-arg "BASE_IMAGE=$BASE_IMAGE_NAME"
           -t "${IMAGE_NAME_WORKER}:${DOCKER_TMP_TAG}"

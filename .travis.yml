@@ -13,7 +13,8 @@ services:
 env:
   global:
     - BASE_IMAGE_NAME="${DOCKER_ORG}/geospaas:2.3.3-slim"
-    - IMAGE_NAME="${DOCKER_ORG}/geospaas_processing_worker"
+    - IMAGE_NAME_WORKER="${DOCKER_ORG}/geospaas_processing_worker"
+    - IMAGE_NAME_CLI="${DOCKER_ORG}/geospaas_processing_cli"
     - IDF_CONVERTER_VERSION=0.0.124
 jobs:
   include:
@@ -32,8 +33,14 @@ jobs:
           'postgis/postgis:12-3.0'
         - >
           docker build .
+          -f Dockerfile_worker
+          -t "${IMAGE_NAME_WORKER}"
+          --build-arg "BASE_IMAGE=${BASE_IMAGE_NAME}"
+          --target base
+        - >
+          docker build .
           -f Dockerfile_cli
-          -t "${IMAGE_NAME}"
+          -t "${IMAGE_NAME_CLI}"
           --build-arg "BASE_IMAGE=${BASE_IMAGE_NAME}"
           --target base
       script:
@@ -47,7 +54,19 @@ jobs:
           -e "GEOSPAAS_DB_HOST=$GEOSPAAS_DB_HOST"
           -e "GEOSPAAS_DB_USER=$GEOSPAAS_DB_USER" -e "GEOSPAAS_DB_PASSWORD=$GEOSPAAS_DB_PASSWORD"
           --entrypoint bash
-          "${IMAGE_NAME}"
+          "${IMAGE_NAME_WORKER}"
+          -c "coverage run --source=geospaas_processing /src/runtests.py && coveralls"
+        - >
+          docker run --rm
+          --network testing
+          -v "$(pwd):/src"
+          -e "COVERALLS_REPO_TOKEN=$COVERALLS_REPO_TOKEN"
+          -e "TRAVIS=true" -e "TRAVIS_JOB_ID=$TRAVIS_JOB_ID"
+          -e "TRAVIS_BRANCH=$TRAVIS_BRANCH" -e "TRAVIS_PULL_REQUEST=$TRAVIS_PULL_REQUEST"
+          -e "GEOSPAAS_DB_HOST=$GEOSPAAS_DB_HOST"
+          -e "GEOSPAAS_DB_USER=$GEOSPAAS_DB_USER" -e "GEOSPAAS_DB_PASSWORD=$GEOSPAAS_DB_PASSWORD"
+          --entrypoint bash
+          "${IMAGE_NAME_CLI}"
           -c "coverage run --source=geospaas_processing /src/runtests.py && coveralls"
       after_script:
         - docker stop "$GEOSPAAS_DB_HOST"
@@ -63,14 +82,14 @@ jobs:
           -H "Authorization: token ${GITHUB_API_TOKEN}"
           -H 'Accept: application/vnd.github.v3.raw'
           "https://api.github.com/repos/nansencenter/idf-converter/contents/idf_converter-${IDF_CONVERTER_VERSION}.tar.gz"
-        - docker pull "${IMAGE_NAME}" || true
+        - docker pull "${IMAGE_NAME_WORKER}" || true
       script:
         - >
           docker build .
           -f Dockerfile_cli
-          --cache-from "${IMAGE_NAME}"
+          --cache-from "${IMAGE_NAME_WORKER}"
           --build-arg "BASE_IMAGE=$BASE_IMAGE_NAME"
-          -t "${IMAGE_NAME}:${DOCKER_TMP_TAG}"
+          -t "${IMAGE_NAME_WORKER}:${DOCKER_TMP_TAG}"
       before_deploy:
         - docker login -u "${DOCKER_USER}" -p "${DOCKER_PASS}"
       deploy:

@@ -1,6 +1,6 @@
 #!/bin/bash
-for tag in $*;do
-    for IMAGE in "$IMAGE_NAME_WORKER" "$IMAGE_NAME_WORKER";do
+for IMAGE in "$IMAGE_NAME_WORKER" "$IMAGE_NAME_WORKER";do
+    for tag in $*;do
         echo "Tag ${IMAGE}:${DOCKER_TMP_TAG} as ${IMAGE}:${tag}"
         docker tag "${IMAGE}:${DOCKER_TMP_TAG}" "${IMAGE}:${tag}"
         echo "Push ${IMAGE}:${tag}"

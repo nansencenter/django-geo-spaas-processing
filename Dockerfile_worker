@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=nansencenter/geospaas
+ARG BASE_IMAGE=nansencenter/geospaas:latest-slim
 FROM ${BASE_IMAGE} as base
 
 RUN pip install --no-cache-dir \

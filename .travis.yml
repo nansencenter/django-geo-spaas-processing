@@ -74,7 +74,7 @@ jobs:
           --cache-from "${IMAGE_NAME_CLI}"
           --build-arg "BASE_IMAGE=$BASE_IMAGE_NAME"
           -t "${IMAGE_NAME_CLI}:${DOCKER_TMP_TAG}"
-          &&
+        - >
           docker build .
           -f Dockerfile_worker
           --cache-from "${IMAGE_NAME_WORKER}"

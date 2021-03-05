@@ -20,7 +20,7 @@ env:
     - GEOSPAAS_DB_USER='test'
 jobs:
   include:
-    - stage: 'database setup and Unit tests for worker'
+    - stage: 'Unit tests for worker'
       if: 'type = push'
       install:
         - docker network create testing
@@ -32,7 +32,7 @@ jobs:
           'postgis/postgis:12-3.0'
         - >
           docker build .
-          -f Dockerfile_cli
+          -f Dockerfile_worker
           -t "${IMAGE_NAME_WORKER}"
           --build-arg "BASE_IMAGE=${BASE_IMAGE_NAME}"
           --target base
@@ -51,9 +51,19 @@ jobs:
           "${IMAGE_NAME_WORKER}"
           -c "coverage run --source=geospaas_processing /src/runtests.py && coveralls"
 
+      after_script:
+        - docker stop "$GEOSPAAS_DB_HOST"
+
     - stage: 'Unit tests for cli'
       if: 'type = push'
       install:
+        - docker network create testing
+        - >
+          docker run -d --rm
+          --network testing
+          --name "$GEOSPAAS_DB_HOST"
+          -e "POSTGRES_USER=$GEOSPAAS_DB_USER" -e "POSTGRES_PASSWORD=$GEOSPAAS_DB_PASSWORD"
+          'postgis/postgis:12-3.0'
         - >
           docker build .
           -f Dockerfile_cli

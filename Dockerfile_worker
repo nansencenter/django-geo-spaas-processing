@@ -7,7 +7,8 @@ RUN pip install --no-cache-dir \
     graypy==2.1.0 \
     paramiko==2.7.2 \
     redis==3.5 \
-    scp==0.13.2
+    scp==0.13.2 \
+    freezegun
 
 FROM base as full
 

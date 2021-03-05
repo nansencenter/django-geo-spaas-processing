@@ -1,6 +1,7 @@
 ARG BASE_IMAGE=nansencenter/geospaas:latest-slim
 FROM ${BASE_IMAGE} AS base
-RUN pip install --no-cache-dir django-celery-results==1.2 redis graypy freezegun
+RUN pip install --no-cache-dir django-celery-results==1.2 \
+    redis==3.5.3 graypy==2.1.0 freezegun==1.1.0
 
 WORKDIR /tmp/setup
 COPY setup.py README.md ./

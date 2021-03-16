@@ -84,19 +84,14 @@ class IDFConversionManager():
         # Find out the converter to use
         converter = self.get_converter(dataset_id)
 
-        # Convert the file
-        try:
-            converter.run(file_path, self.working_directory)
-        except subprocess.CalledProcessError as error:
-            raise ConversionError(
-                f"Conversion failed with the following message: {error.stderr}") from error
+        # Convert the file(s)
+        results = converter.run(file_path, self.working_directory)
 
         # Remove intermediate files
         if extract_dir:
             shutil.rmtree(extract_dir)
 
-        # Find results directory
-        return converter.get_results(self.working_directory, os.path.basename(file_path))
+        return results
 
 
 class IDFConverter():
@@ -125,10 +120,14 @@ class IDFConverter():
         for parameter_path in self.parameter_paths:
             LOGGER.debug(
                 "Converting %s to IDF using parameter file %s", in_file, parameter_path)
-            completed_processes.append(subprocess.run(
-                ['idf-converter', f"{parameter_path}@", *input_cli_args, *output_cli_args],
-                cwd=os.path.dirname(__file__), check=True, capture_output=True
-            ))
+            try:
+                completed_processes.append(subprocess.run(
+                    ['idf-converter', f"{parameter_path}@", *input_cli_args, *output_cli_args],
+                    cwd=os.path.dirname(__file__), check=True, capture_output=True
+                ))
+            except subprocess.CalledProcessError as error:
+                raise ConversionError(
+                    f"Conversion failed with the following message: {error.stderr}") from error
 
         for process in completed_processes:
             stderr = str(process.stderr)
@@ -136,7 +135,7 @@ class IDFConverter():
                 raise ConversionError(
                     f"Could not convert {os.path.basename(in_file)}\n{stderr}")
 
-        return completed_processes
+        return self.get_results(in_file, out_dir)
 
     @staticmethod
     def extract_parameter_value(parameter_path, parameter_type, parameter_name):
@@ -154,20 +153,20 @@ class IDFConverter():
                 line = file_handler.readline()
         return parameter_value
 
-    def get_results(self, working_directory, dataset_file_name):
+    def get_results(self, dataset_file_path, output_directory):
         """Look for the resulting files after a conversion.
         This method returns an iterable of paths relative to the
-        working directory.
+        output directory.
         """
         results = []
         for collection in self.collections:
-            collection_dir = os.path.join(working_directory, collection)
-            for directory in os.listdir(collection_dir):
-                if self.matches_result(collection, dataset_file_name, directory):
-                    results.append(os.path.join(collection, directory))
+            collection_dir = os.path.join(output_directory, collection)
+            for result_directory in os.listdir(collection_dir):
+                if self.matches_result(collection, dataset_file_path, result_directory):
+                    results.append(os.path.join(collection, result_directory))
         return results
 
-    def matches_result(self, collection, dataset_file_name, directory):
+    def matches_result(self, collection, dataset_file_path, directory):
         """Checks whether a directory is a result of the current
         conversion. This needs to be overridden in child classes to
         account for the behavior of different conversion configurations
@@ -183,40 +182,52 @@ class Sentinel1IDFConverter(IDFConverter):
         (('sentinel1_l2_rvl',), lambda d: re.match('^S1[AB]_IW_OCN.*$', d.entry_id)),
     )
 
+    @staticmethod
+    def list_measurement_dir(dataset_file_path):
+        """Returns the path to the 'measurement' directory of the
+        dataset
+        """
+        measurement_dir = os.path.join(dataset_file_path, 'measurement')
+        try:
+            return [
+                os.path.join(measurement_dir, path)
+                for path in os.listdir(measurement_dir)
+            ]
+        except (FileNotFoundError, NotADirectoryError) as error:
+            raise ConversionError(
+                f"Could not find a measurement directory inside {dataset_file_path}") from error
+
     def run(self, in_file, out_dir):
         """calls the IDFConverter.run() method on all dataset files
         contained in the "measurement" folder located in the `in_file`
         directory
         """
-        measurement_dir = os.path.join(in_file, 'measurement')
+        subdatasets = self.list_measurement_dir(in_file)
+        if not subdatasets:
+            raise ConversionError(f"The 'measurement' directory of {in_file} is empty")
+
         results = []
-        if os.path.isdir(measurement_dir):
-            for dataset_file in os.listdir(measurement_dir):
-                results.append(super().run(os.path.join(measurement_dir, dataset_file), out_dir))
-        else:
-            raise ConversionError(f"Could not find a measurement directory inside {in_file}")
+        for dataset_file in subdatasets:
+            for result in super().run(dataset_file, out_dir):
+                results.append(result)
+        return results
 
-        if results:
-            return results
-        else:
-            raise ConversionError(f"Could not find a file to convert in {measurement_dir}")
-
-    def matches_result(self, collection, dataset_file_name, directory):
-        """Returns True if the directory name contains the dataset's
-        identifier
+    def matches_result(self, collection, dataset_file_path, directory):
+        """Returns True if the directory name contains one of the
+        subdatasets' identifier
         """
+        dataset_file_name = os.path.basename(dataset_file_path)
         try:
             dataset_file_identifier = re.match(
-                r'^S1.*_(([0-9]{8}T[0-9]{6}_){2}[0-9]{6}_[0-9]{6})_[0-9]{4}\.SAFE$',
+                r'^s1.*-(([0-9]{8}t[0-9]{6}-){2}[0-9]{6}-[0-9A-F]{6}-[0-9]{3})\.nc$',
                 dataset_file_name
             )[1]
         except TypeError as error:
             raise ConversionError(
-                f"Could not extract the dataset's identifier from {dataset_file_name}") from error
+                f"Could not extract the dataset's identifier from {dataset_file_name}"
+            ) from error
 
-        result_identifier = dataset_file_identifier.lower().translate(str.maketrans('_', '-'))
-
-        return result_identifier in directory
+        return dataset_file_identifier in directory
 
 
 @IDFConversionManager.register()
@@ -230,8 +241,11 @@ class Sentinel3IDFConverter(IDFConverter):
         (('sentinel3_slstr_l2_wst',), lambda d: re.match('^S3[AB]_SL_2.*$', d.entry_id)),
     )
 
-    def matches_result(self, collection, dataset_file_name, directory):
-        return dataset_file_name == directory
+    def matches_result(self, collection, dataset_file_path, directory):
+        """Returns True if the directory has the same name as the
+        dataset file
+        """
+        return os.path.basename(dataset_file_path) == directory
 
 
 @IDFConversionManager.register()
@@ -259,11 +273,11 @@ class SingleResultIDFConverter(IDFConverter):
              r'^.*-OSPO-L2P_GHRSST-SSTsubskin-VIIRS_NPP-ACSPO_V2\.61-v02\.0-fv01\.0$', d.entry_id)),
     )
 
-    def matches_result(self, collection, dataset_file_name, directory):
+    def matches_result(self, collection, dataset_file_path, directory):
         """Returns True if the directory has the same name as the file
         to convert minus the extension
         """
-        return os.path.splitext(dataset_file_name)[0] == directory
+        return os.path.splitext(os.path.basename(dataset_file_path))[0] == directory
 
 
 @IDFConversionManager.register()
@@ -294,9 +308,9 @@ class CMEMSMultiResultIDFConverter(IDFConverter):
         except (AttributeError, IndexError, ValueError) as error:
             raise ConversionError(f"Could not extract date from {file_name}") from error
 
-    def matches_result(self, collection, dataset_file_name, directory):
+    def matches_result(self, collection, dataset_file_path, directory):
         file_date = self.extract_date(
-            dataset_file_name,
+            os.path.basename(dataset_file_path),
             r'^.*_(?P<date>[0-9]{8})(T[0-9]+Z)?_.*$',
             '%Y%m%d'
         )

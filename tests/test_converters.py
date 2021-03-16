@@ -189,9 +189,14 @@ class IDFConverterTestCase(unittest.TestCase):
         self.assertListEqual(self.converter.collections, ['some_collection'])
 
     def test_run(self):
-        """Test that the correct command is run"""
-        with mock.patch('subprocess.run') as run_mock:
-            self.converter.run('foo', 'bar')
+        """Test that the correct command is run and the resulting files
+        are returned
+        """
+        expected_results = ['result1']
+        with mock.patch('subprocess.run') as run_mock, \
+             mock.patch.object(self.converter, 'get_results') as mock_get_results:
+            mock_get_results.return_value = expected_results
+            self.assertListEqual(self.converter.run('foo', 'bar'), expected_results)
             run_mock.assert_called_with(
                 [
                     'idf-converter',
@@ -202,6 +207,7 @@ class IDFConverterTestCase(unittest.TestCase):
                 cwd=str(Path(converters.__file__).parent),
                 check=True, capture_output=True
             )
+            mock_get_results.assert_called_once_with('foo', 'bar')
 
     def test_run_skip_file(self):
         """If a file is skipped, a ConversionError should be raised"""
@@ -293,21 +299,33 @@ class Sentinel1IDFConverterTestCase(unittest.TestCase):
         """matches_result() should return True if the result directory
         name contains the dataset's identifier
         """
-        self.assertTrue(
-            self.converter.matches_result(
-                '',
-                'S1A_IW_OCN__2SDV_20210302T052855_20210302T052920_036815_045422_5680.SAFE',
-                's1a-iw-ocn-vv-20210302t052855-20210302t052920-036815-045422-001.nc_2'
-            )
-        )
+        self.assertTrue(self.converter.matches_result(
+            '',
+            os.path.join(
+                'foo', 's1a-iw-ocn-vv-20210302t052855-20210302t052920-036815-045422-001.nc'),
+            's1a-iw-ocn-vv-20210302t052855-20210302t052920-036815-045422-001.nc_2'
+        ))
 
-        self.assertFalse(
-            self.converter.matches_result(
-                '',
-                'S1A_IW_OCN__2SDV_20210302T052855_20210302T052920_036815_045422_5680.SAFE',
-                's1a-iw-ocn-vv-20200302t052855-20210302t052920-036815-045422-001.nc_2'
-            )
-        )
+        self.assertTrue(self.converter.matches_result(
+            '',
+            os.path.join(
+                'foo', 's1a-iw-ocn-vv-20200617t172631-20200617t172650-033060-03D466-001.nc'),
+            's1a-iw-ocn-vv-20200617t172631-20200617t172650-033060-03D466-001.nc_0'
+        ))
+
+        self.assertFalse(self.converter.matches_result(
+            '',
+            os.path.join(
+                'foo', 's1a-iw-ocn-vv-20210302t052855-20210302t052920-036815-045422-001.nc'),
+            's1a-iw-ocn-vv-20200302t052855-20210302t052920-036815-045422-001.nc_2'
+        ))
+
+        self.assertFalse(self.converter.matches_result(
+            '',
+            os.path.join(
+                'foo', 's1a-iw-ocn-vv-20210302t052855-20210302t052920-036815-045422-002.nc'),
+            's1a-iw-ocn-vv-20210302t052855-20210302t052920-036815-045422-001.nc_2'
+        ))
 
     def test_matches_result_wrong_input_file(self):
         """matches_result() should raise a ConversionError when the
@@ -316,7 +334,7 @@ class Sentinel1IDFConverterTestCase(unittest.TestCase):
         with self.assertRaises(converters.ConversionError):
             self.converter.matches_result(
                 '',
-                'mercatorpsy4v3r1_gl12_hrly_20190430_R20190508.nc',
+                os.path.join('foo', 'mercatorpsy4v3r1_gl12_hrly_20190430_R20190508.nc'),
                 's1a-iw-ocn-vv-20200302t052855-20210302t052920-036815-045422-001.nc_2'
             )
 
@@ -329,8 +347,8 @@ class Sentinel3IDFConverterTestCase(unittest.TestCase):
         name is equal to dataset file name
         """
         converter = converters.Sentinel3IDFConverter([])
-        self.assertTrue(converter.matches_result('', 'foo', 'foo'))
-        self.assertFalse(converter.matches_result('', 'foo', 'bar'))
+        self.assertTrue(converter.matches_result('', os.path.join('foo', 'bar'), 'bar'))
+        self.assertFalse(converter.matches_result('', os.path.join('foo', 'foo'), 'bar'))
 
 
 class SingleResultIDFConverterTestCase(unittest.TestCase):
@@ -341,9 +359,9 @@ class SingleResultIDFConverterTestCase(unittest.TestCase):
         name is equal to dataset file name minus the extension
         """
         converter = converters.SingleResultIDFConverter([])
-        self.assertTrue(converter.matches_result('', 'foo.nc', 'foo'))
-        self.assertFalse(converter.matches_result('', 'foo.nc', 'bar'))
-        self.assertFalse(converter.matches_result('', 'foo.nc', 'foo.nc'))
+        self.assertTrue(converter.matches_result('', os.path.join('foo', 'bar.nc'), 'bar'))
+        self.assertFalse(converter.matches_result('', os.path.join('foo', 'bar.nc'), 'baz'))
+        self.assertFalse(converter.matches_result('', os.path.join('foo', 'bar.nc'), 'bar.nc'))
 
 
 class CMEMSMultiResultIDFConverterTestCase(unittest.TestCase):

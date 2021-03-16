@@ -179,7 +179,7 @@ class Sentinel1IDFConverter(IDFConverter):
     """IDF converter for Sentinel-1 datasets"""
 
     PARAMETER_FILES = (
-        (('sentinel1_l2_rvl',), lambda d: re.match('^S1[AB]_IW_OCN.*$', d.entry_id)),
+        (('sentinel1_l2_rvl',), lambda d: re.match('^S1[AB]_[A-Z0-9]{2}_OCN.*$', d.entry_id)),
     )
 
     @staticmethod

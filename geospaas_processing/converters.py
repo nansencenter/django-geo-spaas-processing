@@ -217,17 +217,7 @@ class Sentinel1IDFConverter(IDFConverter):
         subdatasets' identifier
         """
         dataset_file_name = os.path.basename(dataset_file_path)
-        try:
-            dataset_file_identifier = re.match(
-                r'^s1.*-(([0-9]{8}t[0-9]{6}-){2}[0-9]{6}-[0-9A-F]{6}-[0-9]{3})\.nc$',
-                dataset_file_name
-            )[1]
-        except TypeError as error:
-            raise ConversionError(
-                f"Could not extract the dataset's identifier from {dataset_file_name}"
-            ) from error
-
-        return dataset_file_identifier in directory
+        return re.match(rf'^{dataset_file_name}_[0-9]+$', directory)
 
 
 @IDFConversionManager.register()

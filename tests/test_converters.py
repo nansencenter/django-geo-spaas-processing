@@ -327,17 +327,6 @@ class Sentinel1IDFConverterTestCase(unittest.TestCase):
             's1a-iw-ocn-vv-20210302t052855-20210302t052920-036815-045422-001.nc_2'
         ))
 
-    def test_matches_result_wrong_input_file(self):
-        """matches_result() should raise a ConversionError when the
-        dataset file name does not have the expected format
-        """
-        with self.assertRaises(converters.ConversionError):
-            self.converter.matches_result(
-                '',
-                os.path.join('foo', 'mercatorpsy4v3r1_gl12_hrly_20190430_R20190508.nc'),
-                's1a-iw-ocn-vv-20200302t052855-20210302t052920-036815-045422-001.nc_2'
-            )
-
 
 class Sentinel3IDFConverterTestCase(unittest.TestCase):
     """Tests for the base Sentinel3IDFConverter class"""

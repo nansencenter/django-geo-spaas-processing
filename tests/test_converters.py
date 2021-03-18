@@ -266,16 +266,28 @@ class Sentinel1IDFConverterTestCase(unittest.TestCase):
         run() method on all datasets contained in the 'measurement'
         folder
         """
-        with mock.patch('os.path.isdir', return_value=True), \
-             mock.patch('os.listdir', return_value=['dataset1.nc', 'dataset2.nc']), \
-             mock.patch('geospaas_processing.converters.IDFConverter.run',
-                        return_value=[]) as mock_run:
-            self.converter.run('foo', 'bar')
+        subdatasets_names = ('dataset1.nc', 'dataset2.nc')
+        subdatasets_paths = [
+            os.path.join('foo', 'measurement', name)
+            for name in subdatasets_names
+        ]
+        with mock.patch.object(self.converter, 'list_measurement_dir') as mock_list, \
+             mock.patch('geospaas_processing.converters.IDFConverter.run') as mock_run:
+            mock_list.return_value = subdatasets_paths
+            mock_run.side_effect = lambda i, o: [os.path.join(o, os.path.basename(i))]
+
+            results = self.converter.run('foo', 'bar')
+
             calls = [
-                mock.call(os.path.join('foo', 'measurement', 'dataset1.nc'), 'bar'),
-                mock.call(os.path.join('foo', 'measurement','dataset2.nc'), 'bar')
+                mock.call(subdataset_path, 'bar')
+                for subdataset_path in subdatasets_paths
             ]
             mock_run.assert_has_calls(calls)
+
+            self.assertListEqual(
+                results,
+                [os.path.join('bar', d) for d in subdatasets_names]
+            )
 
     def test_run_no_measurement_dir(self):
         """run() should raise a ConversionError when the measurement

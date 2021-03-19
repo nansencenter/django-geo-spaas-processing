@@ -174,8 +174,38 @@ class IDFConverter():
         raise NotImplementedError
 
 
+class MultiFilesIDFConverter(IDFConverter):
+    """Base class for converters which need to run the conversion on
+    multiple files
+    """
+
+    @staticmethod
+    def list_files_to_convert(dataset_file_path):
+        """Returns the list of dataset paths on which the converter
+        needs to be called
+        """
+        raise NotImplementedError
+
+    def matches_result(self, collection, dataset_file_path, directory):
+        raise NotImplementedError()
+
+    def run(self, in_file, out_dir):
+        """calls the IDFConverter.run() method on all dataset files
+        contained returned by list_files_to_convert()
+        """
+        subdatasets = self.list_files_to_convert(in_file)
+        if not subdatasets:
+            raise ConversionError(f"The 'measurement' directory of {in_file} is empty")
+
+        results = []
+        for dataset_file in subdatasets:
+            for result in super().run(dataset_file, out_dir):
+                results.append(result)
+        return results
+
+
 @IDFConversionManager.register()
-class Sentinel1IDFConverter(IDFConverter):
+class Sentinel1IDFConverter(MultiFilesIDFConverter):
     """IDF converter for Sentinel-1 datasets"""
 
     PARAMETER_FILES = (
@@ -183,7 +213,7 @@ class Sentinel1IDFConverter(IDFConverter):
     )
 
     @staticmethod
-    def list_measurement_dir(dataset_file_path):
+    def list_files_to_convert(dataset_file_path):
         """Returns the path to the 'measurement' directory of the
         dataset
         """
@@ -197,27 +227,39 @@ class Sentinel1IDFConverter(IDFConverter):
             raise ConversionError(
                 f"Could not find a measurement directory inside {dataset_file_path}") from error
 
-    def run(self, in_file, out_dir):
-        """calls the IDFConverter.run() method on all dataset files
-        contained in the "measurement" folder located in the `in_file`
-        directory
-        """
-        subdatasets = self.list_measurement_dir(in_file)
-        if not subdatasets:
-            raise ConversionError(f"The 'measurement' directory of {in_file} is empty")
-
-        results = []
-        for dataset_file in subdatasets:
-            for result in super().run(dataset_file, out_dir):
-                results.append(result)
-        return results
-
     def matches_result(self, collection, dataset_file_path, directory):
         """Returns True if the directory name contains one of the
         subdatasets' identifier
         """
         dataset_file_name = os.path.basename(dataset_file_path)
         return re.match(rf'^{dataset_file_name}_[0-9]+$', directory)
+
+
+@IDFConversionManager.register()
+class Sentinel3SLSTRL2WSTIDFConverter(MultiFilesIDFConverter):
+    """IDF converter for Sentinel 3 SLSTR L2 WST datasets"""
+
+    PARAMETER_FILES = (
+        (('sentinel3_slstr_l2_wst',), lambda d: re.match('^S3[AB]_SL_2_WST.*$', d.entry_id)),
+    )
+
+    @staticmethod
+    def list_files_to_convert(dataset_file_path):
+        try:
+            return [
+                os.path.join(dataset_file_path, path)
+                for path in os.listdir(dataset_file_path)
+                if path.endswith('.nc')
+            ]
+        except (FileNotFoundError, NotADirectoryError) as error:
+            raise ConversionError(
+                f"Could not find any dataset files in {dataset_file_path}") from error
+
+    def matches_result(self, collection, dataset_file_path, directory):
+        """Returns True if the directory has the same name as the file
+        to convert minus the extension
+        """
+        return os.path.splitext(os.path.basename(dataset_file_path))[0] == directory
 
 
 @IDFConversionManager.register()
@@ -228,7 +270,6 @@ class Sentinel3IDFConverter(IDFConverter):
         (('sentinel3_olci_l1_efr',), lambda d: re.match('^S3[AB]_OL_1_EFR.*$', d.entry_id)),
         (('sentinel3_olci_l2_wfr',), lambda d: re.match('^S3[AB]_OL_2_WFR.*$', d.entry_id)),
         (('sentinel3_slstr_l1_bt',), lambda d: re.match('^S3[AB]_SL_1_RBT.*$', d.entry_id)),
-        (('sentinel3_slstr_l2_wst',), lambda d: re.match('^S3[AB]_SL_2.*$', d.entry_id)),
     )
 
     def matches_result(self, collection, dataset_file_path, directory):
@@ -273,7 +314,7 @@ class SingleResultIDFConverter(IDFConverter):
 @IDFConversionManager.register()
 class CMEMSMultiResultIDFConverter(IDFConverter):
     """IDF converter for CMEMS readers which produce multiple result
-    folders
+    folders from one dataset file
     """
 
     PARAMETER_FILES = (

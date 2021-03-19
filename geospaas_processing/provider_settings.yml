@@ -7,10 +7,18 @@
 'ftp://nrt.cmems-du.eu':
   username: 'tnersc'
   password_env_var: 'CMEMS_PASSWORD'
+  max_parallel_downloads: 10
 'ftp://anon-ftp.ceda.ac.uk':
   username: 'anonymous'
   password_env_var: ''
 'ftp://ftp.gportal.jaxa.jp':
   username: topvoys
   password_env_var: 'JAXA_PASSWORD'
+'https://zipper.creodias.eu':
+  username: 'nerscci@outlook.com'
+  password_env_var: 'CREODIAS_PASSWORD'
+  authentication_type: 'oauth2'
+  token_url: 'https://auth.creodias.eu/auth/realms/DIAS/protocol/openid-connect/token'
+  client_id: 'CLOUDFERRO_PUBLIC'
+  max_parallel_downloads: 1
 ...

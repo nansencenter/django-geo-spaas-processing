@@ -15,8 +15,10 @@ import os.path
 import shutil
 from urllib.parse import urlparse
 
+import oauthlib.oauth2
 import requests
 import requests.utils
+import requests_oauthlib
 import yaml
 try:
     from redis import Redis
@@ -44,7 +46,21 @@ class Downloader():
     """Base class for downloaders"""
 
     @staticmethod
-    def get_auth(kwargs):
+    def validate_settings(settings, keys):
+        """`settings` is a dictionary, `keys` is a list of strings.
+        Checks that all the strings in `keys` are in `settings`,
+        otherwise raise a DownloadError.
+        """
+        missing_keys = []
+        for key in keys:
+            if not settings.get(key):
+                missing_keys.append(key)
+        if missing_keys:
+            raise DownloadError(
+                f"The following keys are missing from provider_settings.yml: {missing_keys}")
+
+    @classmethod
+    def get_auth(cls, kwargs):
         """Builds the `auth` argument taken by `requests.get()` from
         the keyword arguments. Uses Basic Auth.
         """
@@ -127,6 +143,36 @@ class Downloader():
 class HTTPDownloader(Downloader):
     """Downloader for repositories which work over HTTP, like OpenDAP"""
     CHUNK_SIZE = 1024 * 1024
+
+    @classmethod
+    def build_oauth2_authentication(cls, username, password, token_url, client_id):
+        """Creates an OAuth2 object usable by requests.get()"""
+        client = oauthlib.oauth2.LegacyApplicationClient(client_id=client_id)
+        token = requests_oauthlib.OAuth2Session(client=client).fetch_token(
+            token_url=token_url,
+            username=username,
+            password=password,
+            client_id=client_id,
+        )
+        return requests_oauthlib.OAuth2(client_id=client_id, client=client, token=token)
+
+    @classmethod
+    def get_auth(cls, kwargs):
+        """Builds the `auth` argument taken by `requests.get()` from
+        the keyword arguments. Supports OAuth2 and Basic Auth.
+        """
+        if kwargs.get('authentication_type') == 'oauth2':
+            cls.validate_settings(
+                kwargs, ('username', 'password_env_var', 'token_url', 'client_id'))
+
+            return cls.build_oauth2_authentication(
+                kwargs['username'],
+                os.getenv(kwargs['password_env_var']),
+                kwargs['token_url'],
+                kwargs['client_id']
+            )
+        else:
+            return super().get_auth(kwargs)
 
     @classmethod
     def get_file_name(cls, url, connection):

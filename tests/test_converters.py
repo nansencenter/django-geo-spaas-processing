@@ -255,23 +255,33 @@ class IDFConverterTestCase(unittest.TestCase):
             self.converter.matches_result('', '', '')
 
 
-class Sentinel1IDFConverterTestCase(unittest.TestCase):
-    """Tests for the Sentinel1IDFConverter class"""
+class MultiFilesIDFConverterTestCase(unittest.TestCase):
+    """Tests for the MultiFilesIDFConverter class"""
 
     def setUp(self):
-        self.converter = converters.Sentinel1IDFConverter([])
+        self.converter = converters.MultiFilesIDFConverter([])
+
+    def test_abstract_list_files_to_convert(self):
+        """list_files_to_convert() should raise a NotImplementedError"""
+        with self.assertRaises(NotImplementedError):
+            self.converter.list_files_to_convert('')
+
+    def test_abstract_matches_result(self):
+        """matches_result() should raise a NotImplementedError"""
+        with self.assertRaises(NotImplementedError):
+            self.converter.matches_result('', '', '')
 
     def test_run(self):
-        """Sentinel1IDFConverter.run() should call the parent's class
-        run() method on all datasets contained in the 'measurement'
-        folder
+        """MultiFilesIDFConverter.run() should call the parent's class
+        run() method on all datasets returned by
+        MultiFilesIDFConverter.list_files_to_convert()
         """
         subdatasets_names = ('dataset1.nc', 'dataset2.nc')
         subdatasets_paths = [
             os.path.join('foo', 'measurement', name)
             for name in subdatasets_names
         ]
-        with mock.patch.object(self.converter, 'list_measurement_dir') as mock_list, \
+        with mock.patch.object(self.converter, 'list_files_to_convert') as mock_list, \
              mock.patch('geospaas_processing.converters.IDFConverter.run') as mock_run:
             mock_list.return_value = subdatasets_paths
             mock_run.side_effect = lambda i, o: [os.path.join(o, os.path.basename(i))]
@@ -289,23 +299,45 @@ class Sentinel1IDFConverterTestCase(unittest.TestCase):
                 [os.path.join('bar', d) for d in subdatasets_names]
             )
 
-    def test_run_no_measurement_dir(self):
-        """run() should raise a ConversionError when the measurement
-        directory is not present
+    def test_run_no_files_to_convert(self):
+        """run() should raise a ConversionError when no dataset files
+        to convert are found
         """
-        with mock.patch('os.path.isdir', return_value=False):
+        with mock.patch.object(self.converter, 'list_files_to_convert', return_value=[]):
             with self.assertRaises(converters.ConversionError):
                 self.converter.run('', '')
 
 
-    def test_run_no_files_in_measurement_dir(self):
-        """run() should raise a ConversionError when the measurement
-        directory is empty
+class Sentinel1IDFConverterTestCase(unittest.TestCase):
+    """Tests for the Sentinel1IDFConverter class"""
+
+    def setUp(self):
+        self.converter = converters.Sentinel1IDFConverter([])
+
+    def test_list_files_to_convert(self):
+        """list_files_to_convert() should return all the files
+        contained in the "measurement" subdirectory of the dataset
+        directory
         """
-        with mock.patch('os.path.isdir', return_value=True), \
-             mock.patch('os.listdir', return_value=[]):
+        contents = ['foo.nc', 'bar.nc']
+
+        with mock.patch('os.listdir', return_value=contents):
+            self.assertListEqual(
+                ['dataset_dir/measurement/foo.nc', 'dataset_dir/measurement/bar.nc'],
+                self.converter.list_files_to_convert('dataset_dir')
+            )
+
+    def test_list_files_to_convert_error(self):
+        """list_files_to_convert() should raise a ConversionError when
+        the measurement directory is not present or is not a directory
+        """
+        with mock.patch('os.listdir', side_effect=FileNotFoundError):
             with self.assertRaises(converters.ConversionError):
-                self.converter.run('', '')
+                self.converter.list_files_to_convert('')
+
+        with mock.patch('os.listdir', side_effect=NotADirectoryError):
+            with self.assertRaises(converters.ConversionError):
+                self.converter.list_files_to_convert('')
 
     def test_matches_result(self):
         """matches_result() should return True if the result directory
@@ -338,6 +370,44 @@ class Sentinel1IDFConverterTestCase(unittest.TestCase):
                 'foo', 's1a-iw-ocn-vv-20210302t052855-20210302t052920-036815-045422-002.nc'),
             's1a-iw-ocn-vv-20210302t052855-20210302t052920-036815-045422-001.nc_2'
         ))
+
+
+class Sentinel3SLSTRL2WSTIDFConverterTestCase(unittest.TestCase):
+    """Tests for the Sentinel3SLSTRL2WSTIDFConverter class"""
+
+    def setUp(self):
+        self.converter = converters.Sentinel3SLSTRL2WSTIDFConverter([])
+
+    def test_list_files_to_convert(self):
+        """list_files_to_convert() should return all the files
+        contained in the dataset directory
+        """
+        contents = ['foo.nc', 'bar.nc', 'baz.xml']
+        with mock.patch('os.listdir', return_value=contents):
+            self.assertListEqual(
+                ['dataset_dir/foo.nc', 'dataset_dir/bar.nc'],
+                self.converter.list_files_to_convert('dataset_dir')
+            )
+
+    def test_list_files_to_convert_error(self):
+        """list_files_to_convert() should raise a ConversionError when
+        the dataset directory is not present or is not a directory
+        """
+        with mock.patch('os.listdir', side_effect=FileNotFoundError):
+            with self.assertRaises(converters.ConversionError):
+                self.converter.list_files_to_convert('')
+
+        with mock.patch('os.listdir', side_effect=NotADirectoryError):
+            with self.assertRaises(converters.ConversionError):
+                self.converter.list_files_to_convert('')
+
+    def test_matches_result(self):
+        """matches_result() should return True if the result directory
+        name is equal to dataset file name minus the extension
+        """
+        self.assertTrue(self.converter.matches_result('', os.path.join('foo', 'bar.nc'), 'bar'))
+        self.assertFalse(self.converter.matches_result('', os.path.join('foo', 'bar.nc'), 'baz'))
+        self.assertFalse(self.converter.matches_result('', os.path.join('foo', 'bar.nc'), 'bar.nc'))
 
 
 class Sentinel3IDFConverterTestCase(unittest.TestCase):

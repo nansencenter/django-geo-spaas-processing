@@ -11,12 +11,13 @@ import unittest.mock as mock
 from pathlib import Path
 
 import django.test
+import requests
+from geospaas.catalog.managers import LOCAL_FILE_SERVICE
+from geospaas.catalog.models import Dataset
+from redis import Redis
+
 import geospaas_processing.downloaders as downloaders
 import geospaas_processing.utils as utils
-import requests
-from geospaas.catalog.models import Dataset
-from geospaas.catalog.managers import LOCAL_FILE_SERVICE
-from redis import Redis
 
 
 class DownloaderTestCase(unittest.TestCase):

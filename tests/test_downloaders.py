@@ -11,7 +11,9 @@ import unittest.mock as mock
 from pathlib import Path
 
 import django.test
+import oauthlib.oauth2
 import requests
+import requests_oauthlib
 from geospaas.catalog.managers import LOCAL_FILE_SERVICE
 from geospaas.catalog.models import Dataset
 from redis import Redis
@@ -52,6 +54,14 @@ class DownloaderTestCase(unittest.TestCase):
 
     def tearDown(self):
         self.temp_directory.cleanup()
+
+    def test_validate_settings(self):
+        """Test settings validation"""
+        settings = {'foo': 'bar', 'baz': 'quz'}
+        self.assertIsNone(downloaders.Downloader.validate_settings(settings, ['foo', 'baz']))
+
+        with self.assertRaises(downloaders.DownloadError):
+            downloaders.Downloader.validate_settings(settings, ['foo', 'baz', 'hello'])
 
     def test_get_auth(self):
         """Test getting the username and password from the keyword
@@ -159,6 +169,62 @@ class DownloaderTestCase(unittest.TestCase):
 
 class HTTPDownloaderTestCase(unittest.TestCase):
     """Tests for the HTTPDownloader"""
+
+    def test_build_oauth2_authentication(self):
+        """Test the creation of an OAuth2 object"""
+        fake_token = {
+            'access_token': 'foo',
+            'expires_in': 36000,
+            'refresh_expires_in': 28800,
+            'refresh_token': 'foo',
+            'token_type': 'bearer',
+            'not-before-policy': 0,
+            'session_state': 'd82c2e20-f690-474f-9d4f-51d68d2d042e',
+            'expires_at': 1616444581.1169086
+        }
+        with mock.patch('requests_oauthlib.OAuth2Session.fetch_token', return_value=fake_token):
+            oauth2 = downloaders.HTTPDownloader.build_oauth2_authentication(
+                'username', 'password', 'token_url', 'client_id')
+
+        self.assertIsInstance(oauth2, requests_oauthlib.OAuth2)
+        self.assertIsInstance(oauth2._client, oauthlib.oauth2.LegacyApplicationClient)
+        self.assertEqual(oauth2._client.client_id, 'client_id')
+        for k, v in fake_token.items():
+            try:
+                property_value = getattr(oauth2._client, k)
+            except AttributeError:
+                self.fail(f"oauth2._client does not have the attribute: '{k}'")
+            self.assertEqual(property_value, v, f"oauth2._client.{k} should have the value: '{v}'")
+
+    def test_get_oauth2_auth(self):
+        """Test getting an OAuth2 authentication from get_auth()"""
+        mock_auth = mock.Mock()
+        with mock.patch('os.getenv', return_value='password'), \
+             mock.patch(
+                 'geospaas_processing.downloaders.HTTPDownloader.build_oauth2_authentication',
+                 return_value=mock_auth) as mock_build_auth:
+            self.assertEqual(
+                downloaders.HTTPDownloader.get_auth({
+                    'authentication_type': 'oauth2',
+                    'username': 'username',
+                    'password_env_var': 'password_env_var',
+                    'token_url': 'token_url',
+                    'client_id': 'client_id'
+                }),
+                mock_auth
+            )
+        mock_build_auth.assert_called_with('username', 'password', 'token_url', 'client_id')
+
+    def test_get_basic_auth(self):
+        """Test getting a basic authentication from get_auth()"""
+        with mock.patch('os.getenv', return_value='password'):
+            self.assertEqual(
+                downloaders.HTTPDownloader.get_auth({
+                    'username': 'username',
+                    'password_env_var': 'password_env_var',
+                }),
+                ('username', 'password')
+            )
 
     def test_get_file_name(self):
         """Test the correct extraction of a file name from a standard

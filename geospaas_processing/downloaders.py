@@ -19,7 +19,6 @@ import oauthlib.oauth2
 import requests
 import requests.utils
 import requests_oauthlib
-import yaml
 try:
     from redis import Redis
 except ImportError:
@@ -64,8 +63,8 @@ class Downloader():
         """Builds the `auth` argument taken by `requests.get()` from
         the keyword arguments. Uses Basic Auth.
         """
-        if ('username' in kwargs) and ('password_env_var') in kwargs:
-            return (kwargs['username'], os.getenv(kwargs['password_env_var']))
+        if ('username' in kwargs) and ('password') in kwargs:
+            return (kwargs['username'], kwargs['password'])
         return (None, None)
 
     @classmethod
@@ -102,9 +101,10 @@ class Downloader():
     @classmethod
     def check_and_download_url(cls, url, download_dir, **kwargs):
         """
-        Downloads the file from the requested URL. To be implemented in child classes.
-        Must call utils.free_space() before downloading, and manage the case where there
-        is no space left to write the downloaded file.
+        Downloads the file from the requested URL. To be implemented
+        in child classes. Must call utils.LocalStorage.free_space()
+        before downloading, and manage the case where there is no space
+        left to write the downloaded file.
         """
         auth = cls.get_auth(kwargs)
         connection = cls.connect(url, auth)
@@ -163,11 +163,11 @@ class HTTPDownloader(Downloader):
         """
         if kwargs.get('authentication_type') == 'oauth2':
             cls.validate_settings(
-                kwargs, ('username', 'password_env_var', 'token_url', 'client_id'))
+                kwargs, ('username', 'password', 'token_url', 'client_id'))
 
             return cls.build_oauth2_authentication(
                 kwargs['username'],
-                os.getenv(kwargs['password_env_var']),
+                kwargs['password'],
                 kwargs['token_url'],
                 kwargs['client_id']
             )
@@ -405,7 +405,7 @@ class DownloadManager():
         provider_settings_path = provider_settings_path or os.path.join(
             os.path.dirname(__file__), 'provider_settings.yml')
         with open(provider_settings_path, 'rb') as file_handler:
-            self.provider_settings = yaml.safe_load(file_handler)
+            self.provider_settings = utils.yaml_env_safe_load(file_handler)
 
     def get_provider_settings(self, url_prefix):
         """Finds and returns the settings for the provider matching the `url_prefix`"""

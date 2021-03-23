@@ -7,6 +7,7 @@ import shutil
 import stat
 import tarfile
 import time
+import yaml
 import zipfile
 from contextlib import contextmanager
 
@@ -320,3 +321,12 @@ def tar_gzip(file_path):
         with tarfile.open(archive_path, 'w:gz') as archive:
             archive.add(file_path, arcname=os.path.basename(file_path))
     return archive_path
+
+
+def yaml_env_safe_load(stream):
+    """Parses a YAML string with support for the !ENV tag.
+    A string tagged with !ENV is replaced by the value of the
+    environment variable whose name is that string.
+    """
+    yaml.SafeLoader.add_constructor('!ENV', lambda loader, node: os.getenv(node.value))
+    return yaml.safe_load(stream)

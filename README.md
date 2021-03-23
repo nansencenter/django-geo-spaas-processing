@@ -102,19 +102,24 @@ It is a YAML file with the following structure:
 ```yaml
 ---
 '<provider_url_prefix>':
-  username: '<username>'
-  password_env_var: '<password_env_var>'
+  property1: 'value1'
+  property2: 'value2'
 '<provider2_url_prefix>':
-  username2: '<username2>'
-  password_env_var2: '<password_env_var2>'
+  property1: 'value1'
+  property3: 'value3'
 ...
 ```
 
-Where:
-  - `<provider_url_prefix>` is the prefix of the URL for a given provider. Download URLs are matched
-    against it to find the provider for a given URL.
-  - `<username>`: is the user name to use as a string
-  - `<password_env_var>`: is the name of an environment variable containing the password
+The provider prefixes will be matched against the URI of the dataset to determine which settings
+apply. The available settings are the following:
+  - `username`: the user name
+  - `password`: the password
+  - `max_parallel_downloads`: the maximum number of downloads which can run simultaneously
+    for a provider
+  - `authentication_type`: for providers which do not use basic authentication, it is possible to
+    specify an alternative authentication type. For now, only OAuth2 is supported.
+  - `token_url`: for OAuth2, the URL where tokens can be retrieved
+  - `client_id`: for OAuth2, the client ID to use
 
 #### Enabling limits on the number of parallel downloads
 

@@ -100,6 +100,21 @@ class UtilsTestCase(unittest.TestCase):
             self.assertEqual(result, archive_file_path)
             mock_add.assert_not_called()
 
+    def test_yaml_env_safe_load(self):
+        """yaml_env_safe_load() should return the same as result of
+        yaml.safe_load(), except !ENV tagged values are replaced with
+        the contents of the corresponding environment variable.
+        """
+        yaml_string = '''---
+        var1: !ENV foo
+        var2: baz
+        '''
+        with mock.patch('os.environ', {'foo': 'bar'}):
+            self.assertDictEqual(
+                utils.yaml_env_safe_load(yaml_string),
+                {'var1': 'bar', 'var2': 'baz'}
+            )
+
 
 class AbstractStorageMethodsTestCase(unittest.TestCase):
     """Tests for the abstract methods of the base Storage class"""

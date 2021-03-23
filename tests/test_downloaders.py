@@ -67,10 +67,9 @@ class DownloaderTestCase(unittest.TestCase):
         """Test getting the username and password from the keyword
         arguments
         """
-        os.environ['TEST_PASSWORD'] = 'test123'
         self.assertEqual(
             downloaders.Downloader.get_auth(
-                {'username': 'test', 'password_env_var': 'TEST_PASSWORD'}),
+                {'username': 'test', 'password': 'test123'}),
             ('test', 'test123')
         )
 
@@ -199,15 +198,14 @@ class HTTPDownloaderTestCase(unittest.TestCase):
     def test_get_oauth2_auth(self):
         """Test getting an OAuth2 authentication from get_auth()"""
         mock_auth = mock.Mock()
-        with mock.patch('os.getenv', return_value='password'), \
-             mock.patch(
-                 'geospaas_processing.downloaders.HTTPDownloader.build_oauth2_authentication',
-                 return_value=mock_auth) as mock_build_auth:
+        with mock.patch(
+                'geospaas_processing.downloaders.HTTPDownloader.build_oauth2_authentication',
+                return_value=mock_auth) as mock_build_auth:
             self.assertEqual(
                 downloaders.HTTPDownloader.get_auth({
                     'authentication_type': 'oauth2',
                     'username': 'username',
-                    'password_env_var': 'password_env_var',
+                    'password': 'password',
                     'token_url': 'token_url',
                     'client_id': 'client_id'
                 }),
@@ -217,14 +215,13 @@ class HTTPDownloaderTestCase(unittest.TestCase):
 
     def test_get_basic_auth(self):
         """Test getting a basic authentication from get_auth()"""
-        with mock.patch('os.getenv', return_value='password'):
-            self.assertEqual(
-                downloaders.HTTPDownloader.get_auth({
-                    'username': 'username',
-                    'password_env_var': 'password_env_var',
-                }),
-                ('username', 'password')
-            )
+        self.assertEqual(
+            downloaders.HTTPDownloader.get_auth({
+                'username': 'username',
+                'password': 'password',
+            }),
+            ('username', 'password')
+        )
 
     def test_get_file_name(self):
         """Test the correct extraction of a file name from a standard
@@ -506,6 +503,12 @@ class DownloadManagerTestCase(django.test.TestCase):
     fixtures = [os.path.join(os.path.dirname(__file__), 'data/test_data.json')]
 
     def setUp(self):
+        environment = {
+            **os.environ,
+            'COPERNICUS_OPEN_HUB_USERNAME': 'topvoys',
+            'COPERNICUS_OPEN_HUB_PASSWORD': 'password'
+        }
+        mock.patch('os.environ', environment).start()
         mock.patch('geospaas_processing.utils.REDIS_HOST', None).start()
         mock.patch('geospaas_processing.utils.REDIS_PORT', None).start()
         self.addCleanup(mock.patch.stopall)
@@ -542,7 +545,7 @@ class DownloadManagerTestCase(django.test.TestCase):
             {
                 'https://scihub.copernicus.eu': {
                     'username': 'topvoys',
-                    'password_env_var': 'COPERNICUS_OPEN_HUB_PASSWORD',
+                    'password': 'password',
                     'max_parallel_downloads': 2
                 },
                 'https://random.url': {
@@ -560,7 +563,7 @@ class DownloadManagerTestCase(django.test.TestCase):
             download_manager.get_provider_settings('https://scihub.copernicus.eu'),
             {
                 'username': 'topvoys',
-                'password_env_var': 'COPERNICUS_OPEN_HUB_PASSWORD',
+                'password': 'password',
                 'max_parallel_downloads': 2
             }
         )
@@ -627,7 +630,7 @@ class DownloadManagerTestCase(django.test.TestCase):
                 url=dataset_url,
                 download_dir='',
                 username='topvoys',
-                password_env_var='COPERNICUS_OPEN_HUB_PASSWORD',
+                password='password',
                 max_parallel_downloads=2
             )
             self.assertEqual(result, 'dataset_1_file.h5')

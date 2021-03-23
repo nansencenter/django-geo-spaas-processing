@@ -419,7 +419,10 @@ class RemoteStorageTestCase(unittest.TestCase):
         mock.patch('paramiko.SSHClient').start()
         with mock.patch.object(utils.RemoteStorage, 'get_block_size', return_value=4096):
             self.storage = utils.RemoteStorage(host='server', path='/foo/bar/')
-        self.addCleanup(mock.patch.stopall)
+
+    def tearDown(self):
+        self.storage = None
+        mock.patch.stopall()
 
     def test_remote_storage_destructor(self):
         """The SSH connection should be closed when a RemoteStorage object is destroyed"""

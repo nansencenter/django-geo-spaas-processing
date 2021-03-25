@@ -12,6 +12,7 @@ import ftplib
 import logging
 import os
 import os.path
+import shutil
 from urllib.parse import urlparse
 
 import requests
@@ -230,6 +231,36 @@ class FTPDownloader(Downloader):
         connection.retrbinary(f"RETR {urlparse(url).path}", file.write)
 
 
+class LocalDownloader(Downloader):
+    """Downloader for locally hosted files, so basically a file copier
+    """
+
+    @staticmethod
+    def get_auth(kwargs):
+        return (None, None)
+
+    @classmethod
+    def connect(cls, url, auth=(None, None)):
+        return None
+
+    @classmethod
+    def close_connection(cls, connection):
+        return None
+
+    @classmethod
+    def get_file_name(cls, url, connection):
+        return os.path.basename(url)
+
+    @classmethod
+    def get_file_size(cls, url, connection, auth=(None, None)):
+        return os.path.getsize(url)
+
+    @classmethod
+    def download_file(cls, file, url, connection):
+        with open(url, 'rb') as source:
+            shutil.copyfileobj(source, file)
+
+
 class DownloadLock():
     """Context manager used to prevent too many simultaneous downloads"""
 
@@ -304,7 +335,8 @@ class DownloadManager():
     DOWNLOADERS = {
         geospaas.catalog.managers.OPENDAP_SERVICE: HTTPDownloader,
         geospaas.catalog.managers.HTTP_SERVICE: HTTPDownloader,
-        'ftp': FTPDownloader
+        'ftp': FTPDownloader,
+        geospaas.catalog.managers.LOCAL_FILE_SERVICE: LocalDownloader,
     }
 
     def __init__(self, download_directory='.', provider_settings_path=None, max_downloads=100,
@@ -344,8 +376,6 @@ class DownloadManager():
         Returns the downloaded file path if the download succeeds, an empty string otherwise.
         """
         for dataset_uri in dataset.dataseturi_set.all():
-            if dataset_uri.service == geospaas.catalog.managers.LOCAL_FILE_SERVICE:
-                continue
             # Get the extra settings for the provider
             dataset_uri_prefix = "://".join(requests.utils.urlparse(dataset_uri.uri)[0:2])
             # Find provider settings

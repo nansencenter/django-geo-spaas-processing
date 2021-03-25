@@ -324,6 +324,47 @@ class FTPDownloaderTestCase(unittest.TestCase):
         mock_connection.retrbinary.assert_called_with('RETR /path/file.nc', mock_file.write)
 
 
+class LocalDownloaderTestCase(unittest.TestCase):
+    """Tests for the LocalDownloader class"""
+
+    def test_get_auth(self):
+        """get_auth() should do nothing and always return (None, None)
+        """
+        self.assertEqual(downloaders.LocalDownloader.get_auth({}), (None, None))
+
+    def test_connect(self):
+        """connect() should do nothing and always return None
+        """
+        self.assertEqual(downloaders.LocalDownloader.connect({}), None)
+
+    def test_close_connection(self):
+        """close_connection() should do nothing and always return None"""
+        self.assertEqual(downloaders.LocalDownloader.close_connection({}), None)
+
+    def test_get_file_name(self):
+        """get_file_name() should return the base name of the file"""
+        self.assertEqual(
+            downloaders.LocalDownloader.get_file_name('/foo/bar/baz.nc', None),
+            'baz.nc'
+        )
+
+    def test_get_file_size(self):
+        """get_file_size() should return the size of the file in bytes"""
+        with mock.patch('os.path.getsize', return_value=10):
+            self.assertEqual(downloaders.LocalDownloader.get_file_size('/foo/bar.nc', None), 10)
+
+    def test_download_file(self):
+        """download_file() should write the file at `url` to the `file`
+        descriptor
+        """
+        contents = 'foo'
+        source_buffer = io.StringIO(contents)
+        target_buffer = io.StringIO()
+        with mock.patch('geospaas_processing.downloaders.open', return_value=source_buffer):
+            downloaders.LocalDownloader.download_file(target_buffer, 'path', None)
+            self.assertEqual(target_buffer.getvalue(), contents)
+
+
 class DownloadLockTestCase(unittest.TestCase):
     """Tests for the DownloadLock context manager"""
 
@@ -529,7 +570,8 @@ class DownloadManagerTestCase(django.test.TestCase):
         download_manager = downloaders.DownloadManager()
         dataset = Dataset.objects.get(pk=1)
         with mock.patch.object(downloaders.DownloadLock, '__enter__') as mock_lock:
-            with mock.patch.object(downloaders.HTTPDownloader, 'check_and_download_url') as mock_dl_url:
+            with mock.patch.object(
+                    downloaders.HTTPDownloader, 'check_and_download_url') as mock_dl_url:
                 mock_lock.return_value = False
                 with self.assertRaises(downloaders.TooManyDownloadsError):
                     download_manager.download_dataset(dataset, '')
@@ -573,18 +615,6 @@ class DownloadManagerTestCase(django.test.TestCase):
             with self.assertRaises(downloaders.DownloadError):
                 with self.assertLogs(downloaders.LOGGER, logging.WARNING):
                     download_manager.download_dataset(dataset, '')
-
-    def test_no_attempt_for_download_for_local_file_address(self):
-        """
-        no attempt for download should happen when there is no other uri than the local address
-        """
-        download_manager = downloaders.DownloadManager()
-        dataset = Dataset.objects.get(pk=2)
-        dataset.dataseturi_set.exclude(dataset=dataset, service=LOCAL_FILE_SERVICE).delete()
-        with mock.patch.object(downloaders.HTTPDownloader, 'check_and_download_url') as mock_dl_url:
-            with self.assertRaises(downloaders.DownloadError):
-                download_manager.download_dataset(dataset, '')
-        mock_dl_url.assert_not_called()
 
     def test_download_no_downloader_found(self):
         """Test that `download_dataset` raises an exception when no downloader is found"""

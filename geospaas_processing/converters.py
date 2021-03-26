@@ -301,7 +301,7 @@ class SingleResultIDFConverter(IDFConverter):
          lambda d: re.match(r'^.*-NAVO-L2P_GHRSST-SST1m-VIIRS_NPP-v02\.0-fv0[13]\.0$', d.entry_id)),
         (('ghrsst_l2p_viirs_ospo',),
          lambda d: re.match(
-             r'^.*-OSPO-L2P_GHRSST-SSTsubskin-VIIRS_NPP-ACSPO_V2\.61-v02\.0-fv01\.0$', d.entry_id)),
+             r'^.*-OSPO-L2P_GHRSST-SSTsubskin-VIIRS_N(PP|20)-ACSPO_V2\.61-v02\.0-fv01\.0$', d.entry_id)),
     )
 
     def matches_result(self, collection, dataset_file_path, directory):

@@ -471,6 +471,7 @@ class RemoteStorageTestCase(unittest.TestCase):
         local_path = 'foo/bar'
         storage_path = 'baz/'
         remote_path = os.path.join(self.storage.path, storage_path)
+        self.storage.ssh_client.exec_command.return_value = (None, mock.Mock(), None)
         with mock.patch('scp.SCPClient.put') as mock_put:
             self.storage.put(local_path, storage_path)
         self.storage.ssh_client.exec_command.assert_called_with(  # pylint: disable=no-member

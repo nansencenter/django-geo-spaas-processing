@@ -20,6 +20,6 @@ setuptools.setup(
         "Operating System :: POSIX :: Linux",
     ],
     python_requires='>=3.7',
-    install_requires=['django-geo-spaas', 'paramiko', 'scp'],
+    install_requires=['django-geo-spaas', 'paramiko', 'scp', 'requests', 'requests_oauthlib'],
     package_data={'': ['*.yml', 'auxiliary/*', 'auxiliary/*/*', 'parameters/*']},
 )

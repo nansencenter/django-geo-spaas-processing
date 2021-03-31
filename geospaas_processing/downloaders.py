@@ -384,12 +384,12 @@ class DownloadManager():
                     raise DownloadError(
                         f"Could not write the dowloaded file to {error.filename}") from error
                 else:
+                    if self.save_path:
+                        dataset.dataseturi_set.get_or_create(
+                            dataset=dataset,
+                            uri = os.path.join(os.path.realpath(download_directory), file_name),
+                            )
                     if downloaded:
-                        if self.save_path:
-                            dataset.dataseturi_set.get_or_create(
-                                dataset=dataset,
-                                uri = os.path.join(os.path.realpath(download_directory), file_name),
-                                )
                         LOGGER.info("Successfully downloaded dataset %d to %s",
                                     dataset.pk, file_name)
                     else:

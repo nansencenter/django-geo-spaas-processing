@@ -477,14 +477,29 @@ class DownloadManagerTestCase(django.test.TestCase):
                 download_manager.download_dataset(Dataset.objects.get(pk=1), '')
                 mock_dl_url.assert_called()
 
-    def test_the_storing_ability_of_file_local_address(self):
+    def test_the_storing_ability_of_file_local_address_in_the_case_of_downloading_file(self):
         """
-        Test that address of downloaded file is added to the dataseturi model.
+        Test that address of downloaded file is added to the dataseturi model
+         in the case of downloading file.
         """
         download_manager = downloaders.DownloadManager(save_path=True)
         dataset = Dataset.objects.get(pk=3)
         with mock.patch.object(downloaders.HTTPDownloader, 'check_and_download_url') as mock_dl_url:
             mock_dl_url.return_value = ('test.nc', True)
+            download_manager.download_dataset(dataset, '/testing_value')
+            self.assertEqual(dataset.dataseturi_set.filter(
+                                dataset=dataset,service=LOCAL_FILE_SERVICE)[0].uri,
+                            '/testing_value/test.nc')
+
+    def test_the_storing_ability_of_file_local_address_if_previously_downloaded_file_exists(self):
+        """
+        Test that address of previously downloaded file is added to the dataseturi model. in the
+        case of lack of downloading action.
+        """
+        download_manager = downloaders.DownloadManager(save_path=True)
+        dataset = Dataset.objects.get(pk=3)
+        with mock.patch.object(downloaders.HTTPDownloader, 'check_and_download_url') as mock_dl_url:
+            mock_dl_url.return_value = ('test.nc', False)
             download_manager.download_dataset(dataset, '/testing_value')
             self.assertEqual(dataset.dataseturi_set.filter(
                                 dataset=dataset,service=LOCAL_FILE_SERVICE)[0].uri,

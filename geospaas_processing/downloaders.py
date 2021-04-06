@@ -388,7 +388,7 @@ class DownloadManager():
                         dataset.dataseturi_set.get_or_create(
                             dataset=dataset,
                             uri = os.path.join(os.path.realpath(download_directory), file_name),
-                            )
+                        )
                     if downloaded:
                         LOGGER.info("Successfully downloaded dataset %d to %s",
                                     dataset.pk, file_name)

@@ -262,7 +262,8 @@ class RemoteStorage(Storage):
     def put(self, local_path, storage_path):
         remote_path = os.path.join(self.path, storage_path)
         # Create the directory where the files will be copied on the remote server
-        self.ssh_client.exec_command(f"mkdir -p {os.path.dirname(remote_path)}")
+        _, stdout, _ = self.ssh_client.exec_command(f"mkdir -p {os.path.dirname(remote_path)}")
+        stdout.channel.recv_exit_status() # wait for the command to finish executing
         #Copy the files
         with scp.SCPClient(self.ssh_client.get_transport()) as scp_client:
             scp_client.put(local_path, recursive=True, remote_path=remote_path)

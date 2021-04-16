@@ -12,8 +12,8 @@
   username: 'anonymous'
   password_env_var: ''
 'ftp://ftp.gportal.jaxa.jp':
-  username: topvoys
-  password_env_var: 'JAXA_PASSWORD'
+  username: !ENV 'JAXA_USERNAME'
+  password: !ENV 'JAXA_PASSWORD'
 'https://zipper.creodias.eu':
   username: !ENV 'CREODIAS_USERNAME'
   password: !ENV 'CREODIAS_PASSWORD'

@@ -100,6 +100,21 @@ class UtilsTestCase(unittest.TestCase):
             self.assertEqual(result, archive_file_path)
             mock_add.assert_not_called()
 
+    def test_yaml_env_safe_load(self):
+        """yaml_env_safe_load() should return the same as result of
+        yaml.safe_load(), except !ENV tagged values are replaced with
+        the contents of the corresponding environment variable.
+        """
+        yaml_string = '''---
+        var1: !ENV foo
+        var2: baz
+        '''
+        with mock.patch('os.environ', {'foo': 'bar'}):
+            self.assertDictEqual(
+                utils.yaml_env_safe_load(yaml_string),
+                {'var1': 'bar', 'var2': 'baz'}
+            )
+
 
 class AbstractStorageMethodsTestCase(unittest.TestCase):
     """Tests for the abstract methods of the base Storage class"""
@@ -404,7 +419,10 @@ class RemoteStorageTestCase(unittest.TestCase):
         mock.patch('paramiko.SSHClient').start()
         with mock.patch.object(utils.RemoteStorage, 'get_block_size', return_value=4096):
             self.storage = utils.RemoteStorage(host='server', path='/foo/bar/')
-        self.addCleanup(mock.patch.stopall)
+
+    def tearDown(self):
+        self.storage = None
+        mock.patch.stopall()
 
     def test_remote_storage_destructor(self):
         """The SSH connection should be closed when a RemoteStorage object is destroyed"""

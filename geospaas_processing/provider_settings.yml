@@ -1,16 +1,25 @@
 ---
 # Dictionary associating URLs to settings to pass to the downloaders
 'https://scihub.copernicus.eu':
-  username: 'topvoys'
-  password_env_var: 'COPERNICUS_OPEN_HUB_PASSWORD'
+  username: !ENV 'COPERNICUS_OPEN_HUB_USERNAME'
+  password: !ENV 'COPERNICUS_OPEN_HUB_PASSWORD'
   max_parallel_downloads: 2
 'ftp://nrt.cmems-du.eu':
-  username: 'tnersc'
-  password_env_var: 'CMEMS_PASSWORD'
+  username: !ENV 'CMEMS_USERNAME'
+  password: !ENV 'CMEMS_PASSWORD'
+  max_parallel_downloads: 10
 'ftp://anon-ftp.ceda.ac.uk':
   username: 'anonymous'
-  password_env_var: ''
+  password: ''
+  max_parallel_downloads: 12
 'ftp://ftp.gportal.jaxa.jp':
-  username: topvoys
-  password_env_var: 'JAXA_PASSWORD'
+  username: !ENV 'JAXA_USERNAME'
+  password: !ENV 'JAXA_PASSWORD'
+'https://zipper.creodias.eu':
+  username: !ENV 'CREODIAS_USERNAME'
+  password: !ENV 'CREODIAS_PASSWORD'
+  authentication_type: 'oauth2'
+  token_url: 'https://auth.creodias.eu/auth/realms/DIAS/protocol/openid-connect/token'
+  client_id: 'CLOUDFERRO_PUBLIC'
+  max_parallel_downloads: 1
 ...

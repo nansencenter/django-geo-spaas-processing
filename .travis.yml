@@ -15,7 +15,7 @@ env:
     - BASE_IMAGE_NAME="${DOCKER_ORG}/geospaas:2.3.3-slim"
     - IMAGE_NAME_WORKER="${DOCKER_ORG}/geospaas_processing_worker"
     - IMAGE_NAME_CLI="${DOCKER_ORG}/geospaas_processing_cli"
-    - IDF_CONVERTER_VERSION=0.0.124
+    - IDF_CONVERTER_VERSION=0.0.158
 
 jobs:
   include:

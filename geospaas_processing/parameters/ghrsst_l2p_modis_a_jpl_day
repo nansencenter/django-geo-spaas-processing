@@ -1,0 +1,6 @@
+-t ghrsst/l2p
+-o path = seascope/data
+   collection=ghrsst_l2p_modis_a_jpl_day
+   gcp_spacing = 32
+-i geoloc_spacing = 64
+   variables = sea_surface_temperature,sses_bias,sses_standard_deviation,wind_speed,chlorophyll_a,K_490

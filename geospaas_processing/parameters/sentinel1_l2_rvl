@@ -1,0 +1,3 @@
+-t sentinel1/L2/rvl
+-o path = seacope/data
+   collection = sentinel1_l2_rvl

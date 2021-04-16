@@ -21,7 +21,7 @@ import scp
 from django.db import connection
 
 import geospaas_processing.utils as utils
-from .converters import IDFConverter
+from .converters import IDFConversionManager
 from .downloaders import DownloadManager, TooManyDownloadsError
 
 
@@ -98,7 +98,7 @@ def download(self, args):
             self.retry((args,), countdown=90, max_retries=5)
         else:
             raise
-    return (dataset_id, downloaded_file)
+    return (dataset_id, (downloaded_file,))
 
 
 @app.task(base=FaultTolerantTask, bind=True, track_started=True)
@@ -108,16 +108,17 @@ def convert_to_idf(self, args):  # pylint: disable=unused-argument
     Takes a tuple.
     The first element is the dataset's ID (mandatory).
     The second element is the file to convert (optional: can be None).
+    For compatibility with other tasks, the second element should be a one-element list.
     If the file path is `None`, an attempt is made to find a file based on the dataset ID.
     """
     dataset_id = args[0]
-    dataset_file_path = args[1] or None
-    LOGGER.debug("Converting dataset file '%s' to IDF", dataset_file_path)
-    converted_file = IDFConverter(WORKING_DIRECTORY).convert(
-        dataset_id, dataset_file_path)
-    LOGGER.info("Successfully converted '%s' to IDF. The results directory is '%s'",
-                dataset_file_path, converted_file)
-    return (dataset_id, converted_file)
+    dataset_files_paths = args[1][0]
+    LOGGER.debug("Converting dataset file '%s' to IDF", dataset_files_paths)
+    converted_files = IDFConversionManager(WORKING_DIRECTORY).convert(
+        dataset_id, dataset_files_paths)
+    LOGGER.info("Successfully converted '%s' to IDF. The results directores are '%s'",
+                dataset_files_paths, converted_files)
+    return (dataset_id, converted_files)
 
 
 @app.task(base=FaultTolerantTask, bind=True, track_started=True)
@@ -125,18 +126,20 @@ def convert_to_idf(self, args):  # pylint: disable=unused-argument
 def archive(self, args):  # pylint: disable=unused-argument
     """Compress the dataset file(s) into a tar.gz archive"""
     dataset_id = args[0]
-    dataset_file_path = args[1] or None
-    local_path = os.path.join(WORKING_DIRECTORY, dataset_file_path)
-    LOGGER.info("Compressing %s", local_path)
-    compressed_file = utils.tar_gzip(local_path)
-    if compressed_file != local_path:
-        LOGGER.info("Removing %s", local_path)
-        try:
-            os.remove(local_path)
-        except IsADirectoryError:
-            shutil.rmtree(local_path)
-    return (dataset_id, os.path.join(os.path.dirname(dataset_file_path),
-                                     os.path.basename(compressed_file)))
+    dataset_files_paths = args[1] or []
+    results = []
+    for file in dataset_files_paths:
+        local_path = os.path.join(WORKING_DIRECTORY, file)
+        LOGGER.info("Compressing %s", local_path)
+        compressed_file = utils.tar_gzip(local_path)
+        if compressed_file != local_path:
+            LOGGER.info("Removing %s", local_path)
+            try:
+                os.remove(local_path)
+            except IsADirectoryError:
+                shutil.rmtree(local_path)
+        results.append(os.path.join(os.path.dirname(file), os.path.basename(compressed_file)))
+    return (dataset_id, results)
 
 
 @app.task(base=FaultTolerantTask, bind=True, track_started=True)
@@ -144,7 +147,7 @@ def archive(self, args):  # pylint: disable=unused-argument
 def publish(self, args):  # pylint: disable=unused-argument
     """Copy the file (tree) located at `args[1]` to the FTP server (using SCP)"""
     dataset_id = args[0]
-    dataset_file_path = args[1] or None
+    dataset_files_paths = args[1] or []
 
     ftp_host = os.getenv('GEOSPAAS_PROCESSING_FTP_HOST', None)
     ftp_root = os.getenv('GEOSPAAS_PROCESSING_FTP_ROOT', None)
@@ -158,22 +161,25 @@ def publish(self, args):  # pylint: disable=unused-argument
             'GEOSPAAS_PROCESSING_FTP_PATH.'
         )
 
-    dataset_local_path = os.path.join(WORKING_DIRECTORY, dataset_file_path)
-    # It is assumed that the remote server uses "/"" as path separator
-    remote_storage_path = posixpath.join(ftp_root, ftp_path)
+    results = []
+    for file in dataset_files_paths:
+        dataset_local_path = os.path.join(WORKING_DIRECTORY, file)
+        # It is assumed that the remote server uses "/"" as path separator
+        remote_storage_path = posixpath.join(ftp_root, ftp_path)
 
-    ftp_storage = utils.RemoteStorage(host=ftp_host, path=remote_storage_path)
-    ftp_storage.free_space(os.path.getsize(dataset_local_path))
+        ftp_storage = utils.RemoteStorage(host=ftp_host, path=remote_storage_path)
+        ftp_storage.free_space(os.path.getsize(dataset_local_path))
 
-    LOGGER.info("Copying %s to %s:%s", dataset_local_path, ftp_host,
-                os.path.join(remote_storage_path, dataset_file_path))
-    try:
-        ftp_storage.put(dataset_local_path, dataset_file_path)
-    except scp.SCPException as error:
-        if 'No space left on device' in str(error):
-            ftp_storage.remove(dataset_file_path)
-            self.retry((args,), countdown=90, max_retries=5)
-        else:
-            raise
+        LOGGER.info("Copying %s to %s:%s", dataset_local_path, ftp_host,
+                    os.path.join(remote_storage_path, file))
+        try:
+            ftp_storage.put(dataset_local_path, file)
+        except scp.SCPException as error:
+            if 'No space left on device' in str(error):
+                ftp_storage.remove(file)
+                self.retry((args,), countdown=90, max_retries=5)
+            else:
+                raise
+        results.append(f"ftp://{ftp_host}/{ftp_path}/{file}")
 
-    return (dataset_id, f"ftp://{ftp_host}/{ftp_path}/{dataset_file_path}")
+    return (dataset_id, results)

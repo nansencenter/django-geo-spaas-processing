@@ -1,0 +1,9 @@
+-t netcdf/grid/latlon
+-o path = seascope/data
+   collection = esa_cci_sst
+-i variables = analysed_sst,sea_ice_fraction
+   time_variable = time
+   lon_variable = lon
+   lat_variable = lat
+   variable_overrides_analysed_sst = valid_min:270.15,valid_max:315.15
+   variable_overrides_sea_ice_fraction = valid_min:0.0,valid_max:1.0

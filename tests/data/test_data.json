@@ -213,7 +213,7 @@
         "model": "catalog.dataset",
         "pk": 1,
         "fields": {
-            "entry_id": "e85b95d7-785a-4830-b193-96cfb77f1828",
+            "entry_id": "S3A_OL_1_EFR____20181213T024322_20181213T024622_20181214T065355_0179_039_089_2340_LN1_O_NT_002",
             "entry_title": "S3A_OL_1_EFR____20181213T024322_20181213T024622_20181214T065355_0179_039_089_2340_LN1_O_NT_002",
             "ISO_topic_category": 1,
             "data_center": 1,
@@ -230,7 +230,7 @@
         "model": "catalog.dataset",
         "pk": 2,
         "fields": {
-            "entry_id": "a35858cc-e18c-4dfe-9bce-5756138b5125",
+            "entry_id": "S3A_SL_1_RBT____20180405T004306_20180405T004606_20180406T060255_0179_029_344_5220_LN2_O_NT_003",
             "entry_title": "S3A_SL_1_RBT____20180405T004306_20180405T004606_20180406T060255_0179_029_344_5220_LN2_O_NT_003",
             "ISO_topic_category": 1,
             "data_center": 1,
@@ -247,7 +247,7 @@
         "model": "catalog.dataset",
         "pk": 3,
         "fields": {
-            "entry_id": "91b4db0a-b275-4917-9c71-a4183d5a21b4",
+            "entry_id": "S3B_SL_1_RBT____20181117T145455_20181117T145755_20181118T222757_0179_017_111_1440_LN2_O_NT_003",
             "entry_title": "S3B_SL_1_RBT____20181117T145455_20181117T145755_20181118T222757_0179_017_111_1440_LN2_O_NT_003",
             "ISO_topic_category": 1,
             "data_center": 1,

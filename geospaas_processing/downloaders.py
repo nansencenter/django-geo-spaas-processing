@@ -262,7 +262,7 @@ class FTPDownloader(Downloader):
         try:
             return ftplib.FTP(host=urlparse(url).netloc, user=auth[0], passwd=auth[1])
         except ftplib.all_errors as error:
-            raise DownloadError(f"Could not download from '{url}'") from error
+            raise DownloadError(f"Could not download from '{url}': {error.args}") from error
 
     @classmethod
     def get_file_name(cls, url, connection):

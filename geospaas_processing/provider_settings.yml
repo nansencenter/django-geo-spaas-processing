@@ -12,6 +12,10 @@
   username: 'anonymous'
   password: ''
   max_parallel_downloads: 12
+'ftp://ftp.ceda.ac.uk':
+  username: !ENV 'CEDA_USERNAME'
+  password: !ENV 'CEDA_PASSWORD'
+  max_parallel_downloads: 10
 'ftp://ftp.gportal.jaxa.jp':
   username: !ENV 'JAXA_USERNAME'
   password: !ENV 'JAXA_PASSWORD'

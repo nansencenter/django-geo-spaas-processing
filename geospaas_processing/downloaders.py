@@ -109,35 +109,35 @@ class Downloader():
         auth = cls.get_auth(kwargs)
         connection = cls.connect(url, auth)
 
-        file_name = cls.get_file_name(url, connection)
-        if not file_name:
-            raise DownloadError(f"Could not find file name for '{url}'")
-        file_path = os.path.join(download_dir, file_name)
-
-        if os.path.exists(file_path) and os.path.isfile(file_path):
-            return file_name, False
-
-        file_size = cls.get_file_size(url, connection)
-        if file_size:
-            LOGGER.debug("Checking there is enough free space to download %s bytes", file_size)
-            utils.LocalStorage(path=download_dir).free_space(file_size)
-
         try:
-            with open(file_path, 'wb') as target_file:
-                cls.download_file(target_file, url, connection)
-        except OSError as error:
-            if error.errno == errno.ENOSPC:
-                # In case of "No space left on device" error,
-                # try to remove the partially downloaded file
-                try:
-                    os.remove(file_path)
-                except FileNotFoundError:
-                    pass
-            raise
+            file_name = cls.get_file_name(url, connection)
+            if not file_name:
+                raise DownloadError(f"Could not find file name for '{url}'")
+            file_path = os.path.join(download_dir, file_name)
+
+            if os.path.exists(file_path) and os.path.isfile(file_path):
+                return file_name, False
+
+            file_size = cls.get_file_size(url, connection)
+            if file_size:
+                LOGGER.debug("Checking there is enough free space to download %s bytes", file_size)
+                utils.LocalStorage(path=download_dir).free_space(file_size)
+
+            try:
+                with open(file_path, 'wb') as target_file:
+                    cls.download_file(target_file, url, connection)
+            except OSError as error:
+                if error.errno == errno.ENOSPC:
+                    # In case of "No space left on device" error,
+                    # try to remove the partially downloaded file
+                    try:
+                        os.remove(file_path)
+                    except FileNotFoundError:
+                        pass
+                raise
+            return file_name, True
         finally:
             cls.close_connection(connection)
-
-        return file_name, True
 
 
 class HTTPDownloader(Downloader):

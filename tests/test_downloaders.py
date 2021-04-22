@@ -273,10 +273,20 @@ class HTTPDownloaderTestCase(unittest.TestCase):
         self.assertIsInstance(error.exception.__cause__, requests.HTTPError)
 
     def test_connect_request_exception(self):
-        """An exception must be raised if an error happens during the
-        request (it can be a wrong HTTP response code)
+        """An exception must be raised if an error prevents the
+        connection from happening
         """
-        with mock.patch('requests.get', side_effect=requests.HTTPError):
+        with mock.patch('requests.get', side_effect=requests.ConnectionError):
+            with self.assertRaises(downloaders.DownloadError):
+                downloaders.HTTPDownloader.connect('url')
+
+    def test_connect_request_http_exception(self):
+        """An exception must be raised if an HTTP error is returned by
+        the remote server
+        """
+        mock_response = mock.Mock()
+        with mock.patch('requests.get', return_value=mock_response):
+            mock_response.raise_for_status.side_effect = requests.HTTPError
             with self.assertRaises(downloaders.DownloadError):
                 downloaders.HTTPDownloader.connect('url')
 

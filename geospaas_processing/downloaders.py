@@ -206,8 +206,16 @@ class HTTPDownloader(Downloader):
             response = requests.get(url, stream=True, auth=auth)
             response.raise_for_status()
         # Raising DownloadError enables to display a clear message in the API response
+        except requests.HTTPError as error:
+            details = f"{response.status_code} {response.text}"
+            response.close()
+            raise DownloadError(
+                f"Could not download from '{url}'; response: {details}"
+            ) from error
         except requests.RequestException as error:
-            raise DownloadError(f"Could not download from '{url}'") from error
+            raise DownloadError(
+                f"Could not download from '{url}'"
+            ) from error
 
         return response
 

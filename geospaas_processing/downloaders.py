@@ -83,7 +83,7 @@ class Downloader():
         connection.close()
 
     @classmethod
-    def get_file_name(cls, url, connection):
+    def get_file_name(cls, url, auth):
         """Returns the name of the file"""
         raise NotImplementedError()
 
@@ -107,17 +107,16 @@ class Downloader():
         left to write the downloaded file.
         """
         auth = cls.get_auth(kwargs)
+
+        file_name = cls.get_file_name(url, auth)
+        if not file_name:
+            raise DownloadError(f"Could not find file name for '{url}'")
+        file_path = os.path.join(download_dir, file_name)
+        if os.path.exists(file_path) and os.path.isfile(file_path):
+            return file_name, False
+
         connection = cls.connect(url, auth)
-
         try:
-            file_name = cls.get_file_name(url, connection)
-            if not file_name:
-                raise DownloadError(f"Could not find file name for '{url}'")
-            file_path = os.path.join(download_dir, file_name)
-
-            if os.path.exists(file_path) and os.path.isfile(file_path):
-                return file_name, False
-
             file_size = cls.get_file_size(url, connection)
             if file_size:
                 LOGGER.debug("Checking there is enough free space to download %s bytes", file_size)
@@ -175,15 +174,21 @@ class HTTPDownloader(Downloader):
             return super().get_auth(kwargs)
 
     @classmethod
-    def get_file_name(cls, url, connection):
+    def get_file_name(cls, url, auth):
         """Extracts the file name from the Content-Disposition header
         of an HTTP response
         """
-        filename_key = 'filename='
+        try:
+            response = requests.head(url, auth=auth)
+            response.raise_for_status()
+        except requests.RequestException:
+            LOGGER.error("Error during HEAD request to '%s'", url, exc_info=True)
+            return ''
 
+        filename_key = 'filename='
         try:
             content_disposition = [
-                i.strip() for i in connection.headers['Content-Disposition'].split(';')
+                i.strip() for i in response.headers['Content-Disposition'].split(';')
             ]
             filename_attributes = [a for a in content_disposition if a.startswith(filename_key)]
         except KeyError:
@@ -265,7 +270,7 @@ class FTPDownloader(Downloader):
             raise DownloadError(f"Could not download from '{url}': {error.args}") from error
 
     @classmethod
-    def get_file_name(cls, url, connection):
+    def get_file_name(cls, url, auth):
         """Extracts the file name from the URL"""
         return urlparse(url).path.split('/')[-1] or None
 
@@ -301,7 +306,7 @@ class LocalDownloader(Downloader):
         return None
 
     @classmethod
-    def get_file_name(cls, url, connection):
+    def get_file_name(cls, url, auth):
         return os.path.basename(url)
 
     @classmethod

@@ -229,30 +229,52 @@ class HTTPDownloaderTestCase(unittest.TestCase):
         """
         file_name = "test_file.txt"
         response = requests.Response()
+        response.status_code = 200
         response.headers['Content-Disposition'] = f'inline;filename="{file_name}"'
-        self.assertEqual(downloaders.HTTPDownloader.get_file_name('url', response), file_name)
+        with mock.patch('requests.head', return_value=response):
+            self.assertEqual(downloaders.HTTPDownloader.get_file_name('url', None), file_name)
 
     def test_get_file_name_no_header(self):
         """`get_file_name()` must return an empty string if the
         Content-Disposition header is not present
         """
         response = requests.Response()
-        self.assertEqual(downloaders.HTTPDownloader.get_file_name('url', response), '')
+        response.status_code = 200
+        with mock.patch('requests.head', return_value=response):
+            self.assertEqual(downloaders.HTTPDownloader.get_file_name('url', None), '')
 
     def test_get_file_name_no_filename_in_header(self):
         """`get_file_name()` must return an empty string if the
         filename is not contained in the Content-Disposition header
         """
         response = requests.Response()
+        response.status_code = 202
         response.headers['Content-Disposition'] = ''
-        self.assertEqual(downloaders.HTTPDownloader.get_file_name('url', response), '')
+        with mock.patch('requests.head', return_value=response):
+            self.assertEqual(downloaders.HTTPDownloader.get_file_name('url', None), '')
 
     def test_get_file_name_multiple_possibilities(self):
         """An error must be raised if several file names are found in the header"""
         response = requests.Response()
+        response.status_code = 200
         response.headers['Content-Disposition'] = 'inline;filename="f1";filename="f2"'
-        with self.assertRaises(ValueError):
-            downloaders.HTTPDownloader.get_file_name('url', response)
+        with mock.patch('requests.head', return_value=response):
+            with self.assertRaises(ValueError):
+                downloaders.HTTPDownloader.get_file_name('url', None)
+
+    def test_get_file_name_head_error(self):
+        """`get_file_name()` must return an empty string if an error
+        occurs when sending the HEAD request
+        """
+        with mock.patch('requests.head', side_effect=requests.ConnectionError):
+            with self.assertLogs(downloaders.LOGGER, level=logging.ERROR):
+                self.assertEqual(downloaders.HTTPDownloader.get_file_name('url', None), '')
+
+        response = mock.Mock()
+        response.raise_for_status.side_effect = requests.HTTPError
+        with mock.patch('requests.head', return_value=response):
+            with self.assertLogs(downloaders.LOGGER, level=logging.ERROR):
+                self.assertEqual(downloaders.HTTPDownloader.get_file_name('url', None), '')
 
     def test_connect(self):
         """Connect should return a Response object"""

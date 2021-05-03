@@ -60,7 +60,7 @@ class Downloader():
 
     @classmethod
     def get_auth(cls, kwargs):
-        """Builds the `auth` argument taken by `requests.get()` from
+        """Builds the `auth` argument taken by `requests` methods from
         the keyword arguments. Uses Basic Auth.
         """
         if ('username' in kwargs) and ('password') in kwargs:
@@ -145,7 +145,7 @@ class HTTPDownloader(Downloader):
 
     @classmethod
     def build_oauth2_authentication(cls, username, password, token_url, client_id):
-        """Creates an OAuth2 object usable by requests.get()"""
+        """Creates an OAuth2 object usable by `requests` methods"""
         client = oauthlib.oauth2.LegacyApplicationClient(client_id=client_id)
         token = requests_oauthlib.OAuth2Session(client=client).fetch_token(
             token_url=token_url,
@@ -157,7 +157,7 @@ class HTTPDownloader(Downloader):
 
     @classmethod
     def get_auth(cls, kwargs):
-        """Builds the `auth` argument taken by `requests.get()` from
+        """Builds the `auth` argument taken by `requests` methods from
         the keyword arguments. Supports OAuth2 and Basic Auth.
         """
         if kwargs.get('authentication_type') == 'oauth2':
@@ -179,7 +179,7 @@ class HTTPDownloader(Downloader):
         of an HTTP response
         """
         try:
-            response = requests.head(url, auth=auth)
+            response = utils.http_request('HEAD', url, auth=auth)
             response.raise_for_status()
         except requests.RequestException:
             LOGGER.error("Error during HEAD request to '%s'", url, exc_info=True)
@@ -208,7 +208,7 @@ class HTTPDownloader(Downloader):
         corresponding Response object
         """
         try:
-            response = requests.get(url, stream=True, auth=auth)
+            response = utils.http_request('GET', url, stream=True, auth=auth)
             response.raise_for_status()
         # Raising DownloadError enables to display a clear message in the API response
         except requests.HTTPError as error:
@@ -235,7 +235,8 @@ class HTTPDownloader(Downloader):
             file_size = int(connection.headers['Content-Length'])
         except KeyError:
             try:
-                file_size = int(requests.head(connection.url, auth=auth).headers['Content-Length'])
+                file_size = int(
+                    utils.http_request('HEAD', connection.url, auth=auth).headers['Content-Length'])
             except KeyError:
                 pass
         return file_size

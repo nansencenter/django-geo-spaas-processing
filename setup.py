@@ -24,7 +24,6 @@ setuptools.setup(
         'django-geo-spaas',
         'django',
         'freezegun',
-        'graypy',
         'oauthlib',
         'paramiko',
         'PyYAML',
@@ -33,6 +32,7 @@ setuptools.setup(
         'scp',
     ],
     extras_require={
+        'graylog': ['graypy'],
         'parallel_download': ['redis'],
         'worker': ['celery==4.4.*', 'django-celery-results==1.2.*'],
     },

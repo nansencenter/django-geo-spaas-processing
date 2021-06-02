@@ -20,6 +20,21 @@ setuptools.setup(
         "Operating System :: POSIX :: Linux",
     ],
     python_requires='>=3.7',
-    install_requires=['django-geo-spaas', 'paramiko', 'scp', 'requests', 'requests_oauthlib'],
+    install_requires=[
+        'django-geo-spaas',
+        'django',
+        'freezegun',
+        'graypy',
+        'oauthlib',
+        'paramiko',
+        'PyYAML',
+        'requests_oauthlib',
+        'requests',
+        'scp',
+    ],
+    extras_require={
+        'parallel_download': ['redis'],
+        'worker': ['celery==4.4.*', 'django-celery-results==1.2.*'],
+    },
     package_data={'': ['*.yml', 'auxiliary/*', 'auxiliary/*/*', 'parameters/*']},
 )

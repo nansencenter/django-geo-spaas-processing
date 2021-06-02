@@ -4,13 +4,16 @@ so that django.settings.configure() can be easily used.
 Also contains Celery settings.
 """
 import os
+try:
+    import django_celery_results
+except ImportError:
+    django_celery_results = None
 
 django_settings = {
     'SECRET_KEY': os.getenv('SECRET_KEY', 'fake-key'),
     'INSTALLED_APPS': [
         'geospaas.catalog',
         'geospaas.vocabularies',
-        'django_celery_results'
     ],
     'DATABASES': {
         'default': {
@@ -35,3 +38,6 @@ django_settings = {
         'GEOSPAAS_PROCESSING_BROKER', 'amqp://guest:guest@localhost:5672'),
     'CELERY_RESULT_BACKEND': 'django-db'
 }
+
+if django_celery_results:
+    django_settings['INSTALLED_APPS'].append('django_celery_results')

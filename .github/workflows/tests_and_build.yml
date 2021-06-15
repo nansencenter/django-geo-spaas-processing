@@ -1,5 +1,5 @@
 ---
-name: "Unit tests and docker image build"
+name: "Unit tests and builds"
 on: push
 env:
   BASE_IMAGE_NAME: "${{ secrets.DOCKER_ORG }}/geospaas:2.4.0-slim"
@@ -213,4 +213,29 @@ jobs:
         run: |
           rm -rf /tmp/.buildx-cache
           mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+
+
+  publish_python_package:
+    runs-on: 'ubuntu-20.04'
+    needs: 'tests'
+    if: ${{ github.event_name == 'release' }}
+    steps:
+      - name: 'Checkout repository'
+        uses: actions/checkout@v2
+
+      - name: 'Build Python package'
+        run: >
+             docker run --rm
+             -v "$(pwd):/src"
+             -e "GEOSPAAS_PROCESSING_RELEASE=${{ github.event.tag_name }}"
+             "${BASE_IMAGE_NAME}"
+             python setup.py sdist bdist_wheel
+
+      - name: 'Deploy package to the Github release'
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: 'dist/*'
+          file_glob: true
+          tag: ${{ github.event.tag_name }}
 ...

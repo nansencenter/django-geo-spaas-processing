@@ -222,7 +222,7 @@ jobs:
     name: Build Python package and publish it as a release artifact
     runs-on: 'ubuntu-20.04'
     needs: 'tests'
-    if: ${{ github.event_name == 'release' }}
+    if: github.event_name == 'release'
     env:
       TAG_REF: ${{ github.event.tag_name }}
     steps:

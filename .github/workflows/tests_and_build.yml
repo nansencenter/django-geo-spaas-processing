@@ -219,6 +219,8 @@ jobs:
     runs-on: 'ubuntu-20.04'
     needs: 'tests'
     if: ${{ github.event_name == 'release' }}
+    env:
+      TAG_REF: ${{ github.event.tag_name }}
     steps:
       - name: 'Checkout repository'
         uses: actions/checkout@v2
@@ -227,7 +229,7 @@ jobs:
         run: >
              docker run --rm
              -v "$(pwd):/src"
-             -e "GEOSPAAS_PROCESSING_RELEASE=${{ github.event.tag_name }}"
+             -e "GEOSPAAS_PROCESSING_RELEASE=${TAG_REF#refs/tags/}"
              "${BASE_IMAGE_NAME}"
              python setup.py sdist bdist_wheel
 

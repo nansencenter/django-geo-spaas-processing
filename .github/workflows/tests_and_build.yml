@@ -8,6 +8,7 @@ env:
   IDF_CONVERTER_VERSION: '0.0.158'
 jobs:
   tests:
+    name: Run unit tests
     runs-on: 'ubuntu-20.04'
     env:
       GEOSPAAS_DB_HOST: 'db'
@@ -93,6 +94,7 @@ jobs:
 
 
   build_worker_image:
+    name: Build worker Docker image
     runs-on: 'ubuntu-20.04'
     needs: 'tests'
     steps:
@@ -160,6 +162,7 @@ jobs:
 
 
   build_cli_image:
+    name: Build CLI Docker image
     runs-on: 'ubuntu-20.04'
     needs: 'tests'
     steps:
@@ -216,6 +219,7 @@ jobs:
 
 
   publish_python_package:
+    name: Build Python package and publish it as a release artifact
     runs-on: 'ubuntu-20.04'
     needs: 'tests'
     if: ${{ github.event_name == 'release' }}

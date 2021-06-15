@@ -238,6 +238,9 @@ jobs:
              python setup.py sdist bdist_wheel
 
       - name: 'Deploy package to the Github release'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}

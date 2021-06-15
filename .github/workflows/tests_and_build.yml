@@ -228,7 +228,7 @@ jobs:
     needs: 'tests'
     if: github.event_name == 'release'
     env:
-      TAG_REF: ${{ github.event.tag_name }}
+      TAG_REF: ${{ github.ref }}
     steps:
       - name: 'Checkout repository'
         uses: actions/checkout@v2
@@ -250,5 +250,5 @@ jobs:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: 'dist/*'
           file_glob: true
-          tag: ${{ github.event.tag_name }}
+          tag: ${{ github.ref }}
 ...

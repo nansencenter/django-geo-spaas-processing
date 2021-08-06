@@ -1,3 +1,7 @@
+
+[![Unit tests and builds](https://github.com/nansencenter/django-geo-spaas-processing/actions/workflows/tests_and_build.yml/badge.svg)](https://github.com/nansencenter/django-geo-spaas-processing/actions/workflows/tests_and_build.yml)
+[![Coverage Status](https://coveralls.io/repos/github/nansencenter/django-geo-spaas-processing/badge.svg?branch=master)](https://coveralls.io/github/nansencenter/django-geo-spaas-processing?branch=master)
+
 # GeoSPaaS processing tools
 
 This package brings processing capabilities to GeoSPaaS.

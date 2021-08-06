@@ -68,7 +68,7 @@ class Downloader():
         return (None, None)
 
     @classmethod
-    def connect(cls, url, auth=(None, None)):
+    def connect(cls, url, auth=(None, None), **kwargs):
         """Connect to the remote repository. This should return an
         object from which the file to download can be read.
         """
@@ -83,7 +83,7 @@ class Downloader():
         connection.close()
 
     @classmethod
-    def get_file_name(cls, url, auth):
+    def get_file_name(cls, url, auth, **kwargs):
         """Returns the name of the file"""
         raise NotImplementedError()
 
@@ -108,14 +108,14 @@ class Downloader():
         """
         auth = cls.get_auth(kwargs)
 
-        file_name = cls.get_file_name(url, auth)
+        file_name = cls.get_file_name(url, auth, **kwargs)
         if not file_name:
             raise DownloadError(f"Could not find file name for '{url}'")
         file_path = os.path.join(download_dir, file_name)
         if os.path.exists(file_path) and os.path.isfile(file_path):
             return file_name, False
 
-        connection = cls.connect(url, auth)
+        connection = cls.connect(url, auth, **kwargs)
         try:
             file_size = cls.get_file_size(url, connection)
             if file_size:
@@ -174,12 +174,22 @@ class HTTPDownloader(Downloader):
             return super().get_auth(kwargs)
 
     @classmethod
-    def get_file_name(cls, url, auth):
+    def get_request_parameters(cls, kwargs):
+        parameters = kwargs.get('request_parameters', {})
+        if isinstance(parameters, dict):
+            return parameters
+        else:
+            raise ValueError(
+                "The 'request_parameters' configuration key should contain a dictionary")
+
+    @classmethod
+    def get_file_name(cls, url, auth, **kwargs):
         """Extracts the file name from the Content-Disposition header
         of an HTTP response
         """
         try:
-            response = utils.http_request('HEAD', url, auth=auth)
+            response = utils.http_request(
+                'HEAD', url, auth=auth, params=cls.get_request_parameters(kwargs))
             response.raise_for_status()
         except requests.RequestException:
             try:
@@ -213,13 +223,14 @@ class HTTPDownloader(Downloader):
         return ''
 
     @classmethod
-    def connect(cls, url, auth=(None, None)):
+    def connect(cls, url, auth=(None, None), **kwargs):
         """For HTTP downloads, the "connection" actually just consists
         of sending a GET request to the download URL and return the
         corresponding Response object
         """
         try:
-            response = utils.http_request('GET', url, stream=True, auth=auth)
+            response = utils.http_request(
+                'GET', url, stream=True, auth=auth, params=cls.get_request_parameters(kwargs))
             response.raise_for_status()
         # Raising DownloadError enables to display a clear message in the API response
         except requests.HTTPError as error:
@@ -272,7 +283,7 @@ class FTPDownloader(Downloader):
     """Downloader for FTP repositories"""
 
     @classmethod
-    def connect(cls, url, auth=(None, None)):
+    def connect(cls, url, auth=(None, None), **kwargs):
         """Connects to the remote FTP repository.
         Returns a ftplib.FTP object.
         """
@@ -284,7 +295,7 @@ class FTPDownloader(Downloader):
             raise DownloadError(f"Could not download from '{url}': {error.args}") from error
 
     @classmethod
-    def get_file_name(cls, url, auth):
+    def get_file_name(cls, url, auth, **kwargs):
         """Extracts the file name from the URL"""
         return urlparse(url).path.split('/')[-1] or None
 
@@ -312,7 +323,7 @@ class LocalDownloader(Downloader):
         return (None, None)
 
     @classmethod
-    def connect(cls, url, auth=(None, None)):
+    def connect(cls, url, auth=(None, None), **kwargs):
         return None
 
     @classmethod
@@ -320,7 +331,7 @@ class LocalDownloader(Downloader):
         return None
 
     @classmethod
-    def get_file_name(cls, url, auth):
+    def get_file_name(cls, url, auth, **kwargs):
         return os.path.basename(url)
 
     @classmethod

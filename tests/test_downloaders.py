@@ -31,11 +31,11 @@ class DownloaderTestCase(unittest.TestCase):
         """
 
         @classmethod
-        def connect(cls, url, auth=(None, None)):
+        def connect(cls, url, auth=(None, None), **kwargs):
             return mock.Mock()
 
         @classmethod
-        def get_file_name(cls, url, connection):
+        def get_file_name(cls, url, auth, **kwargs):
             return 'test_file.txt'
 
         @classmethod

@@ -356,12 +356,14 @@ class FTPDownloaderTestCase(unittest.TestCase):
 
     def test_connect(self):
         """connect() should return an FTP connection"""
-        with mock.patch('ftplib.FTP', return_value='placeholder') as mock_ftp:
+        mock_ftp = mock.Mock()
+        with mock.patch('ftplib.FTP', return_value=mock_ftp) as mock_ftp_constructor:
             self.assertEqual(
                 downloaders.FTPDownloader.connect('ftp://host/path', ('user', 'password')),
-                'placeholder'
+                mock_ftp
             )
-        mock_ftp.assert_called_with(host='host', user='user', passwd='password')
+        mock_ftp_constructor.assert_called_once_with(host='host')
+        mock_ftp.login.assert_called_once_with(user='user', passwd='password')
 
     def test_connect_error(self):
         """A DownloadError should be raised if an error happens during

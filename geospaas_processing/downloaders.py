@@ -266,7 +266,9 @@ class FTPDownloader(Downloader):
         Returns a ftplib.FTP object.
         """
         try:
-            return ftplib.FTP(host=urlparse(url).netloc, user=auth[0], passwd=auth[1])
+            ftp = ftplib.FTP(host=urlparse(url).netloc)
+            ftp.login(user=auth[0], passwd=auth[1])
+            return ftp
         except ftplib.all_errors as error:
             raise DownloadError(f"Could not download from '{url}': {error.args}") from error
 

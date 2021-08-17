@@ -1,10 +1,6 @@
 ---
 name: "Unit tests and builds"
-on:
-  push:
-    branches: ['**']
-  release:
-    types: [released]
+on: push
 env:
   BASE_IMAGE_NAME: "${{ secrets.DOCKER_ORG }}/geospaas:2.4.0-slim"
   IMAGE_NAME_WORKER: "${{ secrets.DOCKER_ORG }}/geospaas_processing_worker"

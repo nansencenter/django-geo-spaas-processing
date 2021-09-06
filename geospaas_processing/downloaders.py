@@ -182,8 +182,14 @@ class HTTPDownloader(Downloader):
             response = utils.http_request('HEAD', url, auth=auth)
             response.raise_for_status()
         except requests.RequestException:
-            LOGGER.error("Error during HEAD request to '%s'", url, exc_info=True)
-            return ''
+            LOGGER.warning("Error during HEAD request to '%s'", url, exc_info=True)
+            try:
+                response = utils.http_request('GET', url, auth=auth, stream=True)
+                response.close()
+                response.raise_for_status()
+            except requests.RequestException:
+                LOGGER.error("Error during GET request to '%s'", url, exc_info=True)
+                return ''
 
         filename_key = 'filename='
         try:

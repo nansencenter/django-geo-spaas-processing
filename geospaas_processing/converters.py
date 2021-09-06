@@ -326,6 +326,8 @@ class CMEMSMultiResultIDFConverter(IDFConverter):
          lambda d: d.entry_id.startswith('SMOC_')),
         (('cmems_015_003_0m', 'cmems_015_003_15m'),
          lambda d: d.entry_id.startswith('dataset-uv-nrt-hourly_')),
+        (('cmems_013_048_radar_total',),
+         lambda d: d.entry_id.startswith('GL_TV_HF_')),
     )
 
     @staticmethod
@@ -344,7 +346,7 @@ class CMEMSMultiResultIDFConverter(IDFConverter):
     def matches_result(self, collection, dataset_file_path, directory):
         file_date = self.extract_date(
             os.path.basename(dataset_file_path),
-            r'^.*_(?P<date>[0-9]{8})(T[0-9]+Z)?_.*$',
+            r'^.*_(?P<date>[0-9]{8})(T[0-9]+Z)?[_\.].*$',
             '%Y%m%d'
         )
         file_time_range = (file_date, file_date + timedelta(days=1))

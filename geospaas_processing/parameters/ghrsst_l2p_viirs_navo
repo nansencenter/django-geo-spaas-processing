@@ -1,6 +1,0 @@
--t ghrsst/l2p
--o path = seascope/data
-   collection=ghrsst_l2p_viirs_navo
-   gcp_spacing = 32
--i geoloc_spacing = 64
-   variables = sea_surface_temperature,sses_bias,sses_standard_deviation,wind_speed,brightness_temperature_11um,brightness_temperature_12um,brightness_temperature_4um

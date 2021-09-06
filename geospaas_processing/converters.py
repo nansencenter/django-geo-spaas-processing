@@ -296,14 +296,10 @@ class SingleResultIDFConverter(IDFConverter):
          lambda d: d.entry_id.endswith('-JPL-L2P_GHRSST-SSTskin-MODIS_A-D-v02.0-fv01.0')),
         (('ghrsst_l2p_modis_a_night',),
          lambda d: d.entry_id.endswith('-JPL-L2P_GHRSST-SSTskin-MODIS_A-N-v02.0-fv01.0')),
-        (('ghrsst_l2p_viirs_jpl',),
-         lambda d: re.match(
-             r'^.*-JPL-L2P_GHRSST-SSTskin-VIIRS_NPP-[DN]-v02\.0-fv01\.0$', d.entry_id)),
-        (('ghrsst_l2p_viirs_navo',),
-         lambda d: re.match(r'^.*-NAVO-L2P_GHRSST-SST1m-VIIRS_NPP-v02\.0-fv0[13]\.0$', d.entry_id)),
-        (('ghrsst_l2p_viirs_ospo',),
-         lambda d: re.match(
-             r'^.*-OSPO-L2P_GHRSST-SSTsubskin-VIIRS_N(PP|20)-ACSPO_V2\.61-v02\.0-fv01\.0$', d.entry_id)),
+        (('ghrsst_l2p_viirs_jpl_sst',), lambda d: '-JPL-L2P_GHRSST-SSTskin-VIIRS' in d.entry_id),
+        (('ghrsst_l2p_viirs_navo_sst',), lambda d: '-NAVO-L2P_GHRSST-SST1m-VIIRS' in d.entry_id),
+        (('ghrsst_l2p_viirs_ospo_sst',),
+         lambda d: 'OSPO-L2P_GHRSST-SSTsubskin-VIIRS' in d.entry_id),
     )
 
     def matches_result(self, collection, dataset_file_path, directory):

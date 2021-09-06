@@ -292,10 +292,10 @@ class SingleResultIDFConverter(IDFConverter):
          lambda d: re.match(
              '^D[0-9]{3}-ESACCI-L4_GHRSST-SSTdepth-OSTIA-GLOB_CDR2\.1-v02\.0-fv01\.0$',
              d.entry_id)),
-        (('ghrsst_l2p_modis_a_jpl_day',),
-         lambda d: re.match(r'^.*-JPL-L2P_GHRSST-SSTskin-MODIS_A-D-v02\.0-fv01\.0$', d.entry_id)),
-        (('ghrsst_l2p_modis_a_jpl_night',),
-         lambda d: re.match(r'^.*-JPL-L2P_GHRSST-SSTskin-MODIS_A-N-v02\.0-fv01\.0$', d.entry_id)),
+        (('ghrsst_l2p_modis_a_day',),
+         lambda d: d.entry_id.endswith('-JPL-L2P_GHRSST-SSTskin-MODIS_A-D-v02.0-fv01.0')),
+        (('ghrsst_l2p_modis_a_night',),
+         lambda d: d.entry_id.endswith('-JPL-L2P_GHRSST-SSTskin-MODIS_A-N-v02.0-fv01.0')),
         (('ghrsst_l2p_viirs_jpl',),
          lambda d: re.match(
              r'^.*-JPL-L2P_GHRSST-SSTskin-VIIRS_NPP-[DN]-v02\.0-fv01\.0$', d.entry_id)),

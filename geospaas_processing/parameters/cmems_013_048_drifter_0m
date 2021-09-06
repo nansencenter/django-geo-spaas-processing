@@ -1,0 +1,4 @@
+-t cmems/drifter
+-o collection = cmems_013_048_drifter_0m
+-i depth_value = 0
+   with-day = yes

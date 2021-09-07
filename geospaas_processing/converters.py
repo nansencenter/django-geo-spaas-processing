@@ -335,6 +335,8 @@ class MultiResultFoldersIDFConverter(IDFConverter):
          lambda d: '-REMSS-L3U_GHRSST-SSTsubskin-AMSR2-' in d.entry_id),
         (('ghrsst_l3u_gmi_sst',),
          lambda d: '-REMSS-L3U_GHRSST-SSTsubskin-GMI-' in d.entry_id),
+        (('ibi_hourly_mean_surface',),
+         lambda d: 'CMEMS_v5r1_IBI_PHY_NRT_PdE_01hav_' in d.entry_id),
     )
 
     @staticmethod

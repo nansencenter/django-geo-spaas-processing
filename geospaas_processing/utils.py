@@ -309,25 +309,26 @@ def unarchive(in_file):
     are those supported by shutil's unpack_archive(), plus gzip.
     The files are extracted in a folder name like the archive, minus
     the extension.
+    Returns None if the given file is not an archive (or in an
+    unsupported archive format)
     """
-    try:
-        extract_dir = re.match(
-            (r'(.*)\.('
-             r'tar'
-             r'|tar\.gz|tgz'
-             r'|tar\.bz2|tbz2'
-             r'|tar\.xz|txz'
-             r'|zip'
-             r'|gz)$'),
-            in_file
-        ).group(1)
-    except AttributeError as error:
-        raise ValueError(f"Cannot unpack {in_file}: unknown format") from error
+    extract_dir = None
 
-    os.makedirs(extract_dir, exist_ok=True)
+    match = re.match(
+        (r'(.*)\.('
+         r'tar'
+         r'|tar\.gz|tgz'
+         r'|tar\.bz2|tbz2'
+         r'|tar\.xz|txz'
+         r'|zip'
+         r'|gz)$'),
+        in_file)
+    if match:
+        extract_dir = match.group(1)
+        os.makedirs(extract_dir, exist_ok=True)
 
-    shutil.register_unpack_format('gz', ['.gz'], gunzip)
-    shutil.unpack_archive(in_file, extract_dir)
+        shutil.register_unpack_format('gz', ['.gz'], gunzip)
+        shutil.unpack_archive(in_file, extract_dir)
 
     return extract_dir
 

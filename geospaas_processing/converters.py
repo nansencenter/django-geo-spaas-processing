@@ -331,6 +331,8 @@ class MultiResultFoldersIDFConverter(IDFConverter):
          lambda d: d.entry_id.startswith('GL_TV_HF_')),
         (('ghrsst_l3u_amsr2_sst',),
          lambda d: '-REMSS-L3U_GHRSST-SSTsubskin-AMSR2-' in d.entry_id),
+        (('ghrsst_l3u_gmi_sst',),
+         lambda d: '-REMSS-L3U_GHRSST-SSTsubskin-GMI-' in d.entry_id),
     )
 
     @staticmethod

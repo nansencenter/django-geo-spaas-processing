@@ -1,8 +1,10 @@
 """Utility functions for geospaas_processing"""
+import gzip
 import logging
 import math
 import os
 import os.path
+import re
 import shutil
 import stat
 import tarfile
@@ -294,21 +296,39 @@ def redis_lock(lock_key, lock_value):
         yield True
 
 
-def unzip(archive_path, out_dir=None):
-    """Extracts the archive contents to `out_dir`"""
-    if not out_dir:
-        out_dir = os.path.dirname(archive_path)
-    with zipfile.ZipFile(archive_path, 'r') as zip_ref:
-        zip_ref.extractall(out_dir)
+def gunzip(archive_path, out_dir):
+    """Extracts the gzip archive contents to `out_dir`"""
+    file_name = re.sub(r'\.gz$', '', os.path.basename(archive_path))
+    with gzip.open(archive_path, 'rb') as archive_file:
+        with open(os.path.join(out_dir, file_name), 'wb') as output_file:
+            shutil.copyfileobj(archive_file, output_file)
 
 
 def unarchive(in_file):
-    """Extract contents if `in_file` is an archive"""
-    extract_dir = None
-    if zipfile.is_zipfile(in_file):
-        extract_dir = in_file.replace('.zip', '')
-        LOGGER.debug("Unzipping %s to %s", in_file, extract_dir)
-        unzip(in_file, extract_dir)
+    """Extract contents if `in_file` is an archive. Supported format
+    are those supported by shutil's unpack_archive(), plus gzip.
+    The files are extracted in a folder name like the archive, minus
+    the extension.
+    """
+    try:
+        extract_dir = re.match(
+            (r'(.*)\.('
+             r'tar'
+             r'|tar\.gz|tgz'
+             r'|tar\.bz2|tbz2'
+             r'|tar\.xz|txz'
+             r'|zip'
+             r'|gz)$'),
+            in_file
+        ).group(1)
+    except AttributeError as error:
+        raise ValueError(f"Cannot unpack {in_file}: unknown format") from error
+
+    os.makedirs(extract_dir, exist_ok=True)
+
+    shutil.register_unpack_format('gz', ['.gz'], gunzip)
+    shutil.unpack_archive(in_file, extract_dir)
+
     return extract_dir
 
 

@@ -302,6 +302,8 @@ class SingleResultIDFConverter(IDFConverter):
          lambda d: 'OSPO-L2P_GHRSST-SSTsubskin-VIIRS' in d.entry_id),
         (('ghrsst_l3c_avhrr_metop_b_sst',),
          lambda d: '-OSISAF-L3C_GHRSST-SSTsubskin-AVHRR_SST_METOP_B_GLB-' in d.entry_id),
+        (('ghrsst_l3c_seviri_atlantic_sst',),
+         lambda d: '-OSISAF-L3C_GHRSST-SSTsubskin-SEVIRI_SST-' in d.entry_id),
     )
 
     def matches_result(self, collection, dataset_file_path, directory):

@@ -162,7 +162,8 @@ class IDFConverter():
         for collection in self.collections:
             collection_dir = os.path.join(output_directory, collection)
             for result_directory in os.listdir(collection_dir):
-                if self.matches_result(collection, dataset_file_path, result_directory):
+                if (os.path.isdir(os.path.join(collection_dir, result_directory))
+                    and self.matches_result(collection, dataset_file_path, result_directory)):
                     results.append(os.path.join(collection, result_directory))
         return results
 
@@ -314,7 +315,7 @@ class SingleResultIDFConverter(IDFConverter):
 
 
 @IDFConversionManager.register()
-class CMEMSMultiResultIDFConverter(IDFConverter):
+class MultiResultFoldersIDFConverter(IDFConverter):
     """IDF converter for CMEMS readers which produce multiple result
     folders from one dataset file
     """
@@ -328,6 +329,8 @@ class CMEMSMultiResultIDFConverter(IDFConverter):
          lambda d: d.entry_id.startswith('dataset-uv-nrt-hourly_')),
         (('cmems_013_048_radar_total',),
          lambda d: d.entry_id.startswith('GL_TV_HF_')),
+        (('ghrsst_l3u_amsr2_sst',),
+         lambda d: '-REMSS-L3U_GHRSST-SSTsubskin-AMSR2-' in d.entry_id),
     )
 
     @staticmethod
@@ -346,7 +349,7 @@ class CMEMSMultiResultIDFConverter(IDFConverter):
     def matches_result(self, collection, dataset_file_path, directory):
         file_date = self.extract_date(
             os.path.basename(dataset_file_path),
-            r'^.*_(?P<date>[0-9]{8})(T[0-9]+Z)?[_\.].*$',
+            r'^.*_(?P<date>[0-9]{8})(T[0-9]+Z)?[^0-9].*$',
             '%Y%m%d'
         )
         file_time_range = (file_date, file_date + timedelta(days=1))
@@ -357,4 +360,4 @@ class CMEMSMultiResultIDFConverter(IDFConverter):
             '%Y%m%d%H%M%S'
         )
 
-        return directory_date >= file_time_range[0] and directory_date < file_time_range[1]
+        return directory_date >= file_time_range[0] and directory_date <= file_time_range[1]

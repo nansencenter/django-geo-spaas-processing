@@ -304,6 +304,9 @@ def gunzip(archive_path, out_dir):
             shutil.copyfileobj(archive_file, output_file)
 
 
+shutil.register_unpack_format('gz', ['.gz'], gunzip)
+
+
 def unarchive(in_file):
     """Extract contents if `in_file` is an archive. Supported format
     are those supported by shutil's unpack_archive(), plus gzip.
@@ -327,7 +330,6 @@ def unarchive(in_file):
         extract_dir = match.group(1)
         os.makedirs(extract_dir, exist_ok=True)
 
-        shutil.register_unpack_format('gz', ['.gz'], gunzip)
         shutil.unpack_archive(in_file, extract_dir)
 
     return extract_dir

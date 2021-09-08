@@ -2,5 +2,5 @@
 -o collection = sentinel3_olci_l1_efr
    downscale = yes
    gcp_spacing = 128
--i atmospheric_correction_LUT_path = auxiliary/LUT_Rayleigh_OLCI.txt
+-i atmospheric_correction_LUT_path = auxiliary/lookup_tables/LUT_Rayleigh_OLCI.txt
    geoloc_spacing = 128

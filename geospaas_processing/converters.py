@@ -289,6 +289,10 @@ class SingleResultIDFConverter(IDFConverter):
          lambda d: '-OSISAF-L3C_GHRSST-SSTsubskin-SEVIRI_IO_SST-' in d.entry_id),
         (('hycom_osu',),
          lambda d: d.entry_id.startswith('hycom_glb_sfc_u_')),
+        (('rtofs_diagnostic',),
+         lambda d: '/rtofs_glo_2ds_' in d.entry_id and d.entry_id.endswith('_diag')),
+        (('rtofs_prognostic',),
+         lambda d: '/rtofs_glo_2ds_' in d.entry_id and d.entry_id.endswith('_prog')),
     )
 
 

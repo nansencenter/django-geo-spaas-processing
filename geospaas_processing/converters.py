@@ -257,7 +257,7 @@ class Sentinel3IDFConverter(IDFConverter):
 
     PARAMETER_FILES = (
         (('sentinel3_olci_l1_efr',), lambda d: re.match('^S3[AB]_OL_1_EFR.*$', d.entry_id)),
-        (('sentinel3_olci_l2_wfr',), lambda d: re.match('^S3[AB]_OL_2_WFR.*$', d.entry_id)),
+        (('sentinel3_olci_chl',), lambda d: re.match('^S3[AB]_OL_2_WFR.*$', d.entry_id)),
         (('sentinel3_slstr_l1_bt',), lambda d: re.match('^S3[AB]_SL_1_RBT.*$', d.entry_id)),
     )
 

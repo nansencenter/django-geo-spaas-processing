@@ -1,0 +1,7 @@
+-t rtofs
+-o collection = rtofs_prognostic
+   gcp_row_spacing = 48
+   gcp_cell_spacing = 64
+-i variables = u_velocity,v_velocity,sst
+   geoloc_row_spacing = 48
+   geoloc_cell_spacing = 64

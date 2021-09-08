@@ -311,4 +311,10 @@ class MultiResultFoldersIDFConverter(IDFConverter):
          lambda d: '-REMSS-L3U_GHRSST-SSTsubskin-GMI-' in d.entry_id),
         (('ibi_hourly_mean_surface',),
          lambda d: 'CMEMS_v5r1_IBI_PHY_NRT_PdE_01hav_' in d.entry_id),
+        (('mfs_med-cmcc-cur',),
+         lambda d: '_hts-CMCC--RFVL-MFSeas6-MEDATL-' in d.entry_id),
+        (('mfs_med-cmcc-ssh',),
+         lambda d: '_hts-CMCC--ASLV-MFSeas6-MEDATL-' in d.entry_id),
+        (('mfs_med-cmcc-temp',),
+         lambda d: '_hts-CMCC--TEMP-MFSeas6-MEDATL-' in d.entry_id),
     )

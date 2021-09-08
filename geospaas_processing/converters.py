@@ -305,6 +305,8 @@ class SingleResultIDFConverter(IDFConverter):
          lambda d: '-OSISAF-L3C_GHRSST-SSTsubskin-AVHRR_SST_METOP_B_GLB-' in d.entry_id),
         (('ghrsst_l3c_seviri_atlantic_sst',),
          lambda d: '-OSISAF-L3C_GHRSST-SSTsubskin-SEVIRI_SST-' in d.entry_id),
+        (('ghrsst_l3c_seviri_indian_sst',),
+         lambda d: '-OSISAF-L3C_GHRSST-SSTsubskin-SEVIRI_IO_SST-' in d.entry_id),
         (('hycom_osu',),
          lambda d: d.entry_id.startswith('hycom_glb_sfc_u_')),
     )

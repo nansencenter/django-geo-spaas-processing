@@ -163,10 +163,12 @@ class IDFConverter():
                 except shutil.Error as error:
                     # if the directory already exists, we don't copy it again
                     if 'already exists' in str(error):
+                        LOGGER.info("%s already exists, removing it", existing_dir)
                         existing_dir = os.path.join(permanent_collection_dir, result_dir)
-                        if (os.path.isdir(existing_dir)
-                                and os.listdir(existing_dir) == os.listdir(tmp_result_path)):
-                            LOGGER.info("%s already exists, not copying", existing_dir)
+                        if os.path.isdir(existing_dir):
+                            shutil.rmtree(existing_dir)
+                        elif os.path.isfile(existing_dir):
+                            os.remove(existing_dir)
                         else:
                             raise
                     else:

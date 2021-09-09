@@ -37,40 +37,8 @@ class RedisLockTestCase(unittest.TestCase):
         self.redis_mock.return_value.delete.assert_not_called()
 
 
-class UnzipTestCase(unittest.TestCase):
-    """Test for the unzip() method of IDFConverter"""
-
-    def setUp(self):
-        self.zipfile_patcher = mock.patch('zipfile.ZipFile')
-        zipfile_mock = self.zipfile_patcher.start()
-        self.extractall_mock = mock.Mock()
-        zipfile_mock.return_value.__enter__.return_value.extractall = self.extractall_mock
-
-    def tearDown(self):
-        self.zipfile_patcher.stop()
-
-    def test_unzip_with_out_dir(self):
-        """When out_dir is provided, `unzip()` should extract the archive contents there"""
-        utils.unzip('/foo/bar.zip', '/output_dir')
-        self.extractall_mock.assert_called_with('/output_dir')
-
-    def test_unzip_without_out_dir(self):
-        """When out_dir is provided, `unzip()` should extract the archive contents there"""
-        utils.unzip('/foo/bar.zip')
-        self.extractall_mock.assert_called_with('/foo')
-
-
 class UtilsTestCase(unittest.TestCase):
     """Tests for the utility functions"""
-
-    def test_unarchive_zip_file(self):
-        """
-        Test that a zip file is recognized and extracted to a directory named like the archive file
-        """
-        with mock.patch('geospaas_processing.utils.unzip') as unzip_mock:
-            with mock.patch('zipfile.is_zipfile', return_value=True):
-                utils.unarchive('/foo/bar.zip')
-                unzip_mock.assert_called_with('/foo/bar.zip', '/foo/bar')
 
     def test_tar_gzip_file(self):
         """`utils.tar_gzip()` must archive the given file in the tar.gz format"""

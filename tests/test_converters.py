@@ -1,15 +1,18 @@
 """Unit tests for converters"""
+import os
 import os.path
 import unittest
 import unittest.mock as mock
 import subprocess
 import tempfile
 import zipfile
-from datetime import datetime
 from pathlib import Path
 
 import django.test
 
+import geospaas_processing
+# avoid downloading auxiliary files when testing
+os.makedirs(os.path.join(os.path.dirname(geospaas_processing.__file__), 'auxiliary'))
 import geospaas_processing.converters as converters
 
 

@@ -36,5 +36,5 @@ setuptools.setup(
         'parallel_download': ['redis'],
         'worker': ['celery==4.4.*', 'django-celery-results==1.2.*'],
     },
-    package_data={'': ['*.yml', 'auxiliary/*', 'auxiliary/*/*', 'parameters/*']},
+    package_data={'': ['*.yml', 'parameters/*']},
 )

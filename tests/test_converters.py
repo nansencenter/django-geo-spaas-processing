@@ -12,7 +12,7 @@ import django.test
 
 import geospaas_processing
 # avoid downloading auxiliary files when testing
-os.makedirs(os.path.join(os.path.dirname(geospaas_processing.__file__), 'auxiliary'))
+os.makedirs(os.path.join(os.path.dirname(geospaas_processing.__file__), 'auxiliary'), exist_ok=True)
 import geospaas_processing.converters as converters
 
 

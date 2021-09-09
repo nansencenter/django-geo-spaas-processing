@@ -192,20 +192,27 @@ class HTTPDownloader(Downloader):
                 return ''
 
         filename_key = 'filename='
-        try:
+        if 'Content-Disposition' in response.headers:
             content_disposition = [
                 i.strip() for i in response.headers['Content-Disposition'].split(';')
             ]
-            filename_attributes = [a for a in content_disposition if a.startswith(filename_key)]
-        except KeyError:
-            filename_attributes = []
 
-        filename_attributes_length = len(filename_attributes)
-        if filename_attributes_length > 1:
-            raise ValueError("Multiple file names found in response Content-Disposition header")
-        elif filename_attributes_length == 1:
-            return filename_attributes[0].replace(filename_key, '').strip('"')
+            filename_attributes = [a for a in content_disposition if a.startswith(filename_key)]
+            filename_attributes_length = len(filename_attributes)
+            if filename_attributes_length > 1:
+                raise ValueError("Multiple file names found in response Content-Disposition header")
+            elif filename_attributes_length == 1:
+                return filename_attributes[0].replace(filename_key, '').strip('"')
+
+        elif 'Content-Type' in response.headers:
+            url_file_name = url.split('/')[-1]
+            if (response.headers['Content-Type'].lower() == 'application/x-netcdf'
+                    and url_file_name.endswith('.nc')):
+                return url_file_name
+
         return ''
+
+
 
     @classmethod
     def connect(cls, url, auth=(None, None)):

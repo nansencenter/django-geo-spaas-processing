@@ -5,7 +5,7 @@ env:
   BASE_IMAGE_NAME: "${{ secrets.DOCKER_ORG }}/geospaas:2.4.0-slim"
   IMAGE_NAME_WORKER: "${{ secrets.DOCKER_ORG }}/geospaas_processing_worker"
   IMAGE_NAME_CLI: "${{ secrets.DOCKER_ORG }}/geospaas_processing_cli"
-  IDF_CONVERTER_VERSION: '0.0.196'
+  IDF_CONVERTER_VERSION: '0.0.200'
 jobs:
   tests:
     name: Run unit tests

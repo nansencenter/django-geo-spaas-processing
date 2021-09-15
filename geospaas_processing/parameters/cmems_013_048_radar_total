@@ -1,5 +1,6 @@
 -t netcdf/grid/latlon
 -o collection = cmems_013_048_radar_total
+   id_prefix = INPUT_FILENAME
 -i time_variable = TIME
    lon_variable = LONGITUDE
    lat_variable = LATITUDE

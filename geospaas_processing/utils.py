@@ -4,6 +4,7 @@ import logging
 import math
 import os
 import os.path
+import posixpath
 import re
 import shutil
 import stat
@@ -41,6 +42,14 @@ class Storage():
         """"""
         self.path = kwargs['path']
         self.block_size = self.get_block_size()
+
+    def get_files_size(self, files):
+        """Returns the total size of several files in bytes"""
+        return sum(self.get_file_size(file) for file in files)
+
+    def get_file_size(self, file):
+        """Get the size of one file in bytes"""
+        raise NotImplementedError
 
     def get_block_size(self):
         """Get the block size of the file system"""
@@ -188,6 +197,9 @@ class Storage():
 class LocalStorage(Storage):
     """Represents a storage location on a local disk"""
 
+    def get_file_size(self, file):
+        return os.path.getsize(os.path.join(self.path, file))
+
     def get_block_size(self):
         return self.stat('').st_blksize
 
@@ -237,6 +249,11 @@ class RemoteStorage(Storage):
         config = paramiko.SSHConfig.from_path(
             os.path.join(os.path.expanduser('~'), '.ssh', 'config'))
         return config.lookup(self.host)
+
+    def get_file_size(self, file):
+        absolute_path = posixpath.join(self.path, file)
+        _, stdout, _ = self.ssh_client.exec_command(f"du --bytes '{absolute_path}' | cut -f1")
+        return int(stdout.read())
 
     def get_block_size(self):
         _, stdout, _ = self.ssh_client.exec_command(f"stat -f --printf '%S' '{self.path}'")

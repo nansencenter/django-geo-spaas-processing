@@ -157,8 +157,8 @@ class Storage():
         Removes files from `self.path` until `new_file_size` bytes have been freed,
         starting with the oldest files.
         """
-        max_retries = 10
-        countdown = 5
+        max_retries = 30
+        countdown = 20
         retries = 0
         while retries < max_retries:
             with redis_lock(f"lock_cleanup_{self.path}", '') as acquired:

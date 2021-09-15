@@ -161,7 +161,7 @@ class Storage():
         countdown = 5
         retries = 0
         while retries < max_retries:
-            with redis_lock('lock_cleanup', self.path) as acquired:
+            with redis_lock(f"lock_cleanup_{self.path}", '') as acquired:
                 if acquired:
                     current_free_space = self.get_free_space()
                     removable_files = self._sort_by_mtime(self._get_removable_files())

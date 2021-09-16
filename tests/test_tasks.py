@@ -176,7 +176,8 @@ class PublishTestCase(unittest.TestCase):
         file_name = 'dataset.nc.tar.gz'
         with mock.patch.object(utils.RemoteStorage, 'free_space') as mock_free_space, \
                 mock.patch.object(utils.RemoteStorage, 'put') as mock_put:
-            with mock.patch('os.path.getsize', return_value=1), \
+            with mock.patch.object(utils.LocalStorage, 'get_file_size', return_value=1), \
+                    mock.patch.object(utils.LocalStorage, 'get_block_size', return_value=4096), \
                     mock.patch.object(utils.RemoteStorage, '__init__', return_value=None), \
                     mock.patch.object(utils.RemoteStorage, '__del__', return_value=None):
                 tasks.publish((1, [file_name]))  # pylint: disable=no-value-for-parameter
@@ -201,7 +202,8 @@ class PublishTestCase(unittest.TestCase):
         with mock.patch.object(utils.RemoteStorage, 'put') as mock_put, \
                 mock.patch.object(utils.RemoteStorage, 'remove') as mock_remove:
             mock_put.side_effect = scp.SCPException('No space left on device')
-            with mock.patch('os.path.getsize', return_value=1), \
+            with mock.patch.object(utils.LocalStorage, 'get_file_size', return_value=1), \
+                    mock.patch.object(utils.LocalStorage, 'get_block_size', return_value=4096), \
                     mock.patch.object(utils.RemoteStorage, 'free_space'), \
                     mock.patch.object(utils.RemoteStorage, '__init__', return_value=None), \
                     mock.patch.object(utils.RemoteStorage, '__del__', return_value=None):
@@ -216,7 +218,8 @@ class PublishTestCase(unittest.TestCase):
         file_name = 'dataset.nc.tar.gz'
         with mock.patch.object(utils.RemoteStorage, 'put') as mock_put:
             mock_put.side_effect = scp.SCPException()
-            with mock.patch('os.path.getsize', return_value=1), \
+            with mock.patch.object(utils.LocalStorage, 'get_file_size', return_value=1), \
+                    mock.patch.object(utils.LocalStorage, 'get_block_size', return_value=4096), \
                     mock.patch.object(utils.RemoteStorage, 'free_space'), \
                     mock.patch.object(utils.RemoteStorage, '__init__', return_value=None), \
                     mock.patch.object(utils.RemoteStorage, '__del__', return_value=None):

@@ -76,22 +76,24 @@ jobs:
              docker run --rm
              --network testing
              -v "$(pwd):/src"
-             -e "GITHUB_ACTIONS=$GITHUB_ACTIONS"
-             -e "GITHUB_REF=$GITHUB_REF"
-             -e "GITHUB_SHA=$GITHUB_SHA"
-             -e "GITHUB_HEAD_REF=$GITHUB_HEAD_REF"
-             -e "GITHUB_REPOSITORY=$GITHUB_REPOSITORY"
-             -e "GITHUB_RUN_ID=$GITHUB_RUN_ID"
-             -e "GITHUB_TOKEN=$GITHUB_TOKEN"
              -e "GEOSPAAS_DB_HOST=$GEOSPAAS_DB_HOST"
              -e "GEOSPAAS_DB_USER=$GEOSPAAS_DB_USER"
              -e "GEOSPAAS_DB_PASSWORD=$GEOSPAAS_DB_PASSWORD"
              "${IMAGE_NAME_WORKER}"
-             bash -c "coverage run --source=geospaas_processing /src/runtests.py && coveralls"
+             bash -c "coverage run --source=geospaas_processing /src/runtests.py"
 
       - name: 'Stop testing database'
         run: docker stop "$GEOSPAAS_DB_HOST"
 
+      - name: 'Install Python 3.7'
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.7'
+
+      - name: 'Upload coverage to coveralls.io'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: pip install coveralls && coveralls --service=github
 
   build_worker_image:
     name: Build worker Docker image

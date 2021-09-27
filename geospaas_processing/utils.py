@@ -341,7 +341,7 @@ def unarchive(in_file):
          r'|tar\.bz2|tbz2'
          r'|tar\.xz|txz'
          r'|zip'
-         r'|gz)$'),
+         r'|(?<!tar\.)gz)$'),
         in_file)
     if match:
         extract_dir = match.group(1)

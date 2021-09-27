@@ -234,6 +234,17 @@ class HTTPDownloaderTestCase(unittest.TestCase):
         with mock.patch('geospaas_processing.utils.http_request', return_value=response):
             self.assertEqual(downloaders.HTTPDownloader.get_file_name('url', None), file_name)
 
+    def test_get_file_name_from_netcdf_url(self):
+        """Test extracting a netcdf file name from the URL
+        """
+        response = requests.Response()
+        response.status_code = 200
+        response.headers['Content-Type'] = 'application/x-netcdf'
+        with mock.patch('geospaas_processing.utils.http_request', return_value=response):
+            self.assertEqual(
+                downloaders.HTTPDownloader.get_file_name('https://foo/bar.nc', None),
+                'bar.nc')
+
     def test_get_file_name_no_header(self):
         """`get_file_name()` must return an empty string if the
         Content-Disposition header is not present

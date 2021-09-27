@@ -266,7 +266,8 @@ class HTTPDownloaderTestCase(unittest.TestCase):
         """`get_file_name()` must return an empty string if an error
         occurs when sending the HEAD request
         """
-        with mock.patch('geospaas_processing.utils.http_request', side_effect=requests.ConnectionError):
+        with mock.patch('geospaas_processing.utils.http_request',
+                        side_effect=requests.ConnectionError):
             with self.assertLogs(downloaders.LOGGER, level=logging.ERROR):
                 self.assertEqual(downloaders.HTTPDownloader.get_file_name('url', None), '')
 
@@ -298,7 +299,8 @@ class HTTPDownloaderTestCase(unittest.TestCase):
         """An exception must be raised if an error prevents the
         connection from happening
         """
-        with mock.patch('geospaas_processing.utils.http_request', side_effect=requests.ConnectionError):
+        with mock.patch('geospaas_processing.utils.http_request',
+                        side_effect=requests.ConnectionError):
             with self.assertRaises(downloaders.DownloadError):
                 downloaders.HTTPDownloader.connect('url')
 

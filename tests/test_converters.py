@@ -312,7 +312,7 @@ class IDFConverterTestCase(unittest.TestCase):
 
             # check that the files are present in the permanent
             # results folder
-            self.assertListEqual(os.listdir(permanent_results_dir), ['collection1', 'collection2'])
+            self.assertCountEqual(os.listdir(permanent_results_dir), ['collection1', 'collection2'])
             self.assertCountEqual(
                 os.listdir(os.path.join(permanent_results_dir, 'collection1')),
                 ['file1'])

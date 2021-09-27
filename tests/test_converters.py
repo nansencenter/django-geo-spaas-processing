@@ -1,6 +1,7 @@
 """Unit tests for converters"""
 import os
 import os.path
+import tarfile
 import unittest
 import unittest.mock as mock
 import subprocess
@@ -14,6 +15,45 @@ import geospaas_processing
 # avoid downloading auxiliary files when testing
 os.makedirs(os.path.join(os.path.dirname(geospaas_processing.__file__), 'auxiliary'), exist_ok=True)
 import geospaas_processing.converters as converters
+
+
+class AuxiliaryFilesDownloadTestCase(unittest.TestCase):
+    """Test auxiliary files downloading"""
+
+    def test_do_not_download_auxiliary_files_if_folder_present(self):
+        """Test that auxiliary files are not downloaded if the folder
+        is present
+        """
+        with mock.patch('os.path.isdir', return_value=True), \
+                mock.patch('ftplib.FTP') as mock_ftp:
+            converters.download_auxiliary_files('/foo')
+        mock_ftp.assert_not_called()
+
+    def test_download_auxiliary_files_if_folder_not_present(self):
+        """Test that auxiliary files are downloaded if the folder is
+        not present
+        """
+        with mock.patch('os.path.isdir', return_value=False), \
+                mock.patch('os.makedirs'), \
+                mock.patch('ftplib.FTP') as mock_ftp, \
+                mock.patch('tempfile.TemporaryFile'):
+            converters.download_auxiliary_files('/foo')
+        mock_ftp.assert_called()
+        mock_ftp.return_value.retrbinary.assert_called()
+
+    def test_download_auxiliary_error(self):
+        """Test that partly extracted auxiliary files are removed in
+        case of error
+        """
+        with mock.patch('os.path.isdir', return_value=False), \
+                mock.patch('os.makedirs'), \
+                mock.patch('ftplib.FTP') as mock_ftp, \
+                mock.patch('tempfile.TemporaryFile'), \
+                mock.patch('tarfile.TarFile', side_effect=tarfile.ExtractError), \
+                mock.patch('shutil.rmtree') as mock_rmtree:
+            with self.assertRaises(tarfile.ExtractError):
+                converters.download_auxiliary_files('/foo')
+            mock_rmtree.assert_called_once_with('/foo')
 
 
 class IDFConversionManagerTestCase(django.test.TestCase):

@@ -212,8 +212,6 @@ class HTTPDownloader(Downloader):
 
         return ''
 
-
-
     @classmethod
     def connect(cls, url, auth=(None, None)):
         """For HTTP downloads, the "connection" actually just consists

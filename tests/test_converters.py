@@ -265,6 +265,47 @@ class IDFConverterTestCase(unittest.TestCase):
             with self.assertRaises(converters.ConversionError):
                 self.converter.run('foo', 'bar')
 
+    def test_move_results(self):
+        """Test moving result files from the temporary directory to the
+        result directory
+        """
+        with tempfile.TemporaryDirectory() as tmp_root:
+            # create testing file structure
+            tmp_results_dir = os.path.join(tmp_root, 'tmp_results')
+            permanent_results_dir = os.path.join(tmp_root, 'results')
+            os.makedirs(tmp_results_dir)
+            os.makedirs(permanent_results_dir)
+
+            collections = {
+                'collection1': ('file1', 'file2'),
+                'collection2': ('file3',)
+            }
+
+            for collection, files in collections.items():
+                tmp_collection_dir = os.path.join(tmp_results_dir, collection)
+                os.makedirs(tmp_collection_dir)
+                # create empty files
+                for file_name in files:
+                    with open(os.path.join(tmp_collection_dir, file_name), 'wb'):
+                        pass
+
+            self.converter.move_results(tmp_results_dir, permanent_results_dir)
+
+            # check that the files are present in the permanent
+            # results folder
+            self.assertListEqual(os.listdir(permanent_results_dir), ['collection1', 'collection2'])
+            self.assertCountEqual(
+                os.listdir(os.path.join(permanent_results_dir, 'collection1')),
+                ['file2', 'file1'])
+            self.assertCountEqual(
+                os.listdir(os.path.join(permanent_results_dir, 'collection2')),
+                ['file3'])
+
+            # check that the files are no longer present in the
+            # temporary results folder
+            for collection_dir in collections:
+                self.assertFalse(os.listdir(os.path.join(tmp_results_dir, collection_dir)))
+
     def test_move_results_nothing_found(self):
         """move_results() should return an empty list
         when no result file is found

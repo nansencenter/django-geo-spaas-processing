@@ -1,6 +1,8 @@
 """Tests for the utils module"""
 import os
 import os.path
+import posixpath
+import shutil
 import tarfile
 import tempfile
 import unittest
@@ -41,6 +43,31 @@ class RedisLockTestCase(unittest.TestCase):
 class UtilsTestCase(unittest.TestCase):
     """Tests for the utility functions"""
 
+    def test_yaml_env_safe_load(self):
+        """yaml_env_safe_load() should return the same as result of
+        yaml.safe_load(), except !ENV tagged values are replaced with
+        the contents of the corresponding environment variable.
+        """
+        yaml_string = '''---
+        var1: !ENV foo
+        var2: baz
+        '''
+        with mock.patch('os.environ', {'foo': 'bar'}):
+            self.assertDictEqual(
+                utils.yaml_env_safe_load(yaml_string),
+                {'var1': 'bar', 'var2': 'baz'}
+            )
+
+
+class ArchiveUtilsTestCase(unittest.TestCase):
+    """Tests for utility function related to archiving"""
+
+    test_data_dir = os.path.join(
+                        os.path.dirname(__file__),
+                        'data',
+                        'utils',
+                        'archives')
+
     def test_tar_gzip_file(self):
         """`utils.tar_gzip()` must archive the given file in the tar.gz format"""
         with tempfile.TemporaryDirectory() as temp_dir_name:
@@ -69,20 +96,36 @@ class UtilsTestCase(unittest.TestCase):
             self.assertEqual(result, archive_file_path)
             mock_add.assert_not_called()
 
-    def test_yaml_env_safe_load(self):
-        """yaml_env_safe_load() should return the same as result of
-        yaml.safe_load(), except !ENV tagged values are replaced with
-        the contents of the corresponding environment variable.
-        """
-        yaml_string = '''---
-        var1: !ENV foo
-        var2: baz
-        '''
-        with mock.patch('os.environ', {'foo': 'bar'}):
-            self.assertDictEqual(
-                utils.yaml_env_safe_load(yaml_string),
-                {'var1': 'bar', 'var2': 'baz'}
-            )
+    def test_gunzip(self):
+        """Should unpack a gzipped file in the target directory"""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            utils.gunzip(
+                os.path.join(self.test_data_dir, 'archived_file.txt.gz'),
+                tmp_dir)
+
+            unpacked_file_path = os.path.join(tmp_dir, 'archived_file.txt')
+            self.assertTrue(os.path.isfile(unpacked_file_path))
+            with open(unpacked_file_path, 'r') as f_h:
+                self.assertEqual(f_h.read(), 'hello\n')
+
+    def test_unarchive(self):
+        """Test in-place archive unpacking"""
+        # go through the prepared archived files and test unpacking
+        for file in os.listdir(self.test_data_dir):
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                shutil.copy(os.path.join(self.test_data_dir, file), tmp_dir)
+                utils.unarchive(os.path.join(tmp_dir, file))
+
+                unpacked_dir = os.path.join(tmp_dir, 'archived_file.txt')
+                unpacked_file = os.path.join(unpacked_dir, 'archived_file.txt')
+                self.assertTrue(
+                    os.path.isdir(unpacked_dir),
+                    f"{unpacked_dir} is not a directory (unpacking {file})")
+                self.assertTrue(
+                    os.path.isfile(unpacked_file),
+                    f"{unpacked_file} is not a file (unpacking {file})")
+                with open(unpacked_file, 'r') as f_h:
+                    self.assertEqual(f_h.read(), 'hello\n')
 
 
 class AbstractStorageMethodsTestCase(unittest.TestCase):
@@ -90,6 +133,11 @@ class AbstractStorageMethodsTestCase(unittest.TestCase):
     def setUp(self):
         with mock.patch.object(utils.Storage, 'get_block_size'):
             self.storage = utils.Storage(path='')
+
+    def test_get_file_size_is_abstract(self):
+        """get_file_size() must be abstract"""
+        with self.assertRaises(NotImplementedError):
+            self.storage.get_file_size('foo')
 
     def test_get_block_size_is_abstract(self):
         """get_block_size() must be abstract"""
@@ -143,6 +191,9 @@ class NonAbstractStorageMethodsTestCase(unittest.TestCase):
         def __init__(self, **kwargs):
             super().__init__(**kwargs)
             self.free_disk_space = 500
+
+        def get_file_size(self, file):
+            return 1
 
         def get_block_size(self):
             return 32
@@ -215,6 +266,12 @@ class NonAbstractStorageMethodsTestCase(unittest.TestCase):
 
     def setUp(self):
         self.storage = self.StubStorage(path='/foo/bar')
+
+    def test_get_files_size(self):
+        """Must return the sum of the files' sizes"""
+        # the stub Storage class' get_file_size() method always
+        # returns 1
+        self.assertEqual(self.storage.get_files_size(('file1', 'file2', 'file3')), 3)
 
     def test_get_file_disk_usage(self):
         """Must return the space occupied by a file's blocks"""
@@ -324,6 +381,12 @@ class LocalStorageTestCase(unittest.TestCase):
         with mock.patch.object(utils.LocalStorage, 'get_block_size', return_value=4096):
             self.storage = utils.LocalStorage(path='/foo/bar/')
 
+    def test_get_file_size(self):
+        """Must get the size of the file"""
+        with mock.patch('os.path.getsize', return_value=42) as mock_getsize:
+            self.assertEqual(self.storage.get_file_size('foo'), 42)
+        mock_getsize.assert_called_with(os.path.join(self.storage.path, 'foo'))
+
     def test_get_block_size(self):
         """Must get the block size of the filesystem on which the storage is located"""
         with mock.patch('os.stat') as mock_stat:
@@ -397,6 +460,16 @@ class RemoteStorageTestCase(unittest.TestCase):
         """The SSH connection should be closed when a RemoteStorage object is destroyed"""
         self.storage.__del__()
         self.storage.ssh_client.close.assert_called_once()  # pylint: disable=no-member
+
+    def test_get_file_size(self):
+        """Must get the size of the file"""
+        stdout_mock = mock.MagicMock()
+        stdout_mock.read.return_value = '42'
+        self.storage.ssh_client.exec_command.return_value = (stdout_mock, stdout_mock, stdout_mock)
+
+        self.assertEqual(self.storage.get_file_size('foo'), 42)
+        self.storage.ssh_client.exec_command.assert_called_with(  # pylint: disable=no-member
+            f"du --bytes '{posixpath.join(self.storage.path, 'foo')}' | cut -f1")
 
     def test_get_block_size(self):
         """Must get the block size of the filesystem on which the storage is located"""

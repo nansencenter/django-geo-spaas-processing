@@ -20,7 +20,7 @@ import requests
 import scp
 try:
     from redis import Redis
-except ImportError:
+except ImportError:  # pragma: no cover
     Redis = None
 
 

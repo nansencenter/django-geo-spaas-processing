@@ -21,7 +21,7 @@ import requests.utils
 import requests_oauthlib
 try:
     from redis import Redis
-except ImportError:
+except ImportError:  # pragma: no cover
     Redis = None
 
 import geospaas.catalog.managers

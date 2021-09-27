@@ -9,6 +9,7 @@ from contextlib import contextmanager
 
 import geospaas_processing.utils as utils
 
+
 class RedisLockTestCase(unittest.TestCase):
     """Tests for the redis_lock context manager"""
 

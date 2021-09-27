@@ -1,6 +1,8 @@
 """Unit tests for converters"""
+import logging
 import os
 import os.path
+import shutil
 import tarfile
 import unittest
 import unittest.mock as mock
@@ -47,13 +49,13 @@ class AuxiliaryFilesDownloadTestCase(unittest.TestCase):
         """
         with mock.patch('os.path.isdir', return_value=False), \
                 mock.patch('os.makedirs'), \
-                mock.patch('ftplib.FTP') as mock_ftp, \
+                mock.patch('ftplib.FTP'), \
                 mock.patch('tempfile.TemporaryFile'), \
                 mock.patch('tarfile.TarFile', side_effect=tarfile.ExtractError), \
                 mock.patch('shutil.rmtree') as mock_rmtree:
             with self.assertRaises(tarfile.ExtractError):
                 converters.download_auxiliary_files('/foo')
-            mock_rmtree.assert_called_once_with('/foo')
+            mock_rmtree.assert_called_with('/foo')
 
 
 class IDFConversionManagerTestCase(django.test.TestCase):
@@ -276,35 +278,68 @@ class IDFConverterTestCase(unittest.TestCase):
             os.makedirs(tmp_results_dir)
             os.makedirs(permanent_results_dir)
 
-            collections = {
-                'collection1': ('file1', 'file2'),
-                'collection2': ('file3',)
-            }
+            # create existing files in collection2 in the permanent
+            # result directory
+            collection2_results_dir = os.path.join(permanent_results_dir, 'collection2')
+            collection2_file_path = os.path.join(collection2_results_dir, 'file2')
+            collection2_existing_dir_path = os.path.join(collection2_results_dir, 'file3')
+            os.makedirs(collection2_results_dir)
+            # create an existing file
+            with open(collection2_file_path, 'w') as f_h:
+                f_h.write('old')
+            # create an existing directory
+            os.makedirs(collection2_existing_dir_path)
 
-            for collection, files in collections.items():
-                tmp_collection_dir = os.path.join(tmp_results_dir, collection)
-                os.makedirs(tmp_collection_dir)
-                # create empty files
-                for file_name in files:
-                    with open(os.path.join(tmp_collection_dir, file_name), 'wb'):
-                        pass
+            # create a "collection1" directory containing a file
+            tmp_collection1_dir = os.path.join(tmp_results_dir, 'collection1')
+            os.makedirs(tmp_collection1_dir)
+            with open(os.path.join(tmp_collection1_dir, 'file1'), 'wb'):
+                pass
 
-            self.converter.move_results(tmp_results_dir, permanent_results_dir)
+            # create a "collection2" directory containing files
+            tmp_collection2_dir = os.path.join(tmp_results_dir, 'collection2')
+            os.makedirs(tmp_collection2_dir)
+            # this file needs to contain something to check that the
+            # existing file in the results folder gets replaced
+            with open(os.path.join(tmp_collection2_dir, 'file2'), 'w') as f_h:
+                f_h.write('new')
+            # this file can be empty as it will replace a directory
+            with open(os.path.join(tmp_collection2_dir, 'file3'), 'wb') as f_h:
+                pass
+
+            with self.assertLogs(converters.LOGGER, level=logging.INFO):
+                self.converter.move_results(tmp_results_dir, permanent_results_dir)
 
             # check that the files are present in the permanent
             # results folder
             self.assertListEqual(os.listdir(permanent_results_dir), ['collection1', 'collection2'])
             self.assertCountEqual(
                 os.listdir(os.path.join(permanent_results_dir, 'collection1')),
-                ['file2', 'file1'])
+                ['file1'])
             self.assertCountEqual(
                 os.listdir(os.path.join(permanent_results_dir, 'collection2')),
-                ['file3'])
+                ['file2', 'file3'])
+
+            # check that the file in collection2 has been replaced
+            with open(collection2_file_path, 'r') as f_h:
+                self.assertEqual(f_h.read(), 'new')
+            # check that the directory in collection2 has been replaced
+            self.assertTrue(os.path.isfile(collection2_existing_dir_path))
 
             # check that the files are no longer present in the
             # temporary results folder
-            for collection_dir in collections:
-                self.assertFalse(os.listdir(os.path.join(tmp_results_dir, collection_dir)))
+            self.assertFalse(os.listdir(tmp_collection1_dir))
+            self.assertFalse(os.listdir(tmp_collection2_dir))
+
+    def test_move_results_error(self):
+        """Test that errors during the move other than the file being
+        already present are raised
+        """
+        with mock.patch('os.listdir', side_effect=[['collection'], ['file']]), \
+                mock.patch('os.makedirs'), \
+                mock.patch('shutil.move', side_effect=shutil.Error('some error')):
+            with self.assertRaises(shutil.Error):
+                self.converter.move_results('foo', 'bar')
 
     def test_move_results_nothing_found(self):
         """move_results() should return an empty list

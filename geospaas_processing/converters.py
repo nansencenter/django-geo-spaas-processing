@@ -202,8 +202,6 @@ class IDFConverter():
                             shutil.rmtree(existing_dir)
                         elif os.path.isfile(existing_dir):
                             os.remove(existing_dir)
-                        else:
-                            raise
                         shutil.move(tmp_result_path, permanent_collection_dir)
                     else:
                         raise

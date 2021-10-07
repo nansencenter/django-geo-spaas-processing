@@ -224,7 +224,7 @@ jobs:
     name: Build Python package and publish it as a release artifact
     runs-on: 'ubuntu-20.04'
     needs: 'tests'
-    if: github.event_name == 'release'
+    if: startsWith(github.event.ref, 'refs/tags/')
     env:
       TAG_REF: ${{ github.ref }}
     steps:

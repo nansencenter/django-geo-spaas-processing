@@ -143,6 +143,7 @@ class IDFConverter():
         """Run the IDF converter"""
         input_cli_args = ['-i', 'path', '=', in_file]
 
+        results = []
         for parameter_path in self.parameter_paths:
             LOGGER.debug(
                 "Converting %s to IDF using parameter file %s", in_file, parameter_path)
@@ -170,7 +171,8 @@ class IDFConverter():
                 # at this point it is safe to assume that the
                 # conversion went well. We move the results to
                 # the permanent output directory
-                return self.move_results(tmp_dir, out_dir)
+                results.extend(self.move_results(tmp_dir, out_dir))
+        return results
 
     def move_results(self, tmp_output_directory, permanent_output_directory):
         """Move the collection folders from the temporary directory to

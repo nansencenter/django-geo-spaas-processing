@@ -303,6 +303,8 @@ class SingleResultIDFConverter(IDFConverter):
          lambda d: d.entry_id.startswith('nrt_global_allsat_phy_l4_')),
         (('cmems_013_048_drifter_0m', 'cmems_013_048_drifter_15m'),
          lambda d: d.entry_id.startswith('GL_TS_DC_')),
+        (('cmems_013_030_drifter_0m', 'cmems_013_030_drifter_15m'),
+         lambda d: d.entry_id.startswith('GL_TS_DB_')),
         (('esa_cci_sst',),
          lambda d: re.match(
              '^D[0-9]{3}-ESACCI-L4_GHRSST-SSTdepth-OSTIA-GLOB_CDR2\.1-v02\.0-fv01\.0$',

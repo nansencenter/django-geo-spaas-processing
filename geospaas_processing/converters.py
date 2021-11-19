@@ -108,7 +108,17 @@ class IDFConversionManager():
         file_path = os.path.join(self.working_directory, file_name)
 
         # Unzip the file if necessary
-        extract_dir = utils.unarchive(file_path)
+        try:
+            extract_dir = utils.unarchive(file_path)
+        except shutil.ReadError as error:
+            try:
+                os.remove(file_path)
+            except IsADirectoryError:
+                shutil.rmtree(file_path)
+            raise ConversionError(
+                "The input archive was corrupted." +
+                " It has been removed, you can try to download the file again") from error
+
         if extract_dir:
             # Set the extracted file as the path to convert
             file_path = os.path.join(extract_dir, os.listdir(extract_dir)[0])

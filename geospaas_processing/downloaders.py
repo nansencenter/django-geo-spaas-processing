@@ -537,7 +537,7 @@ class DownloadManager():
                     errors.append(error)
                 except (FileNotFoundError, IsADirectoryError) as error:
                     raise DownloadError(
-                        f"Could not write the dowloaded file to {error.filename}") from error
+                        f"Could not write the downloaded file to {error.filename}") from error
                 else:
                     if file_name and self.save_path:
                         dataset.dataseturi_set.get_or_create(

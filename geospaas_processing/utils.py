@@ -117,9 +117,21 @@ class Storage():
             for file_name in self.listdir(current_dir):
                 path = os.path.join(current_dir, file_name)
                 if self.isfile(path):
-                    file_stat = self.stat(path)
-                    removable_files.append(
-                        (path, self._get_file_disk_usage(file_stat.st_size), file_stat.st_mtime))
+                    try:
+                        file_stat = self.stat(path)
+                    except FileNotFoundError:
+                        LOGGER.warning(
+                            "%s has been removed while a cleanup was in progress", path)
+                    except IsADirectoryError:
+                        LOGGER.warning("%s has somehow been transformed into a directory while a" +
+                                       " cleanup was in progress",
+                                       path)
+                    else:
+                        removable_files.append((
+                            path,
+                            self._get_file_disk_usage(file_stat.st_size),
+                            file_stat.st_mtime
+                        ))
                 elif self.isdir(path):
                     dirs_to_process.append(path)
                     depth += 1

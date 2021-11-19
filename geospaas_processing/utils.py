@@ -359,7 +359,11 @@ def unarchive(in_file):
         extract_dir = match.group(1)
         os.makedirs(extract_dir, exist_ok=True)
 
-        shutil.unpack_archive(in_file, extract_dir)
+        try:
+            shutil.unpack_archive(in_file, extract_dir)
+        except shutil.ReadError:
+            shutil.rmtree(extract_dir)
+            raise
 
     return extract_dir
 

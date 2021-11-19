@@ -90,7 +90,8 @@ def download(self, args):
         LOGGER.error("Nothing was downloaded for dataset %s", dataset_id, exc_info=True)
         raise
     except TooManyDownloadsError:
-        self.retry((args,), countdown=15, max_retries=60)
+        # Stop retrying after 24 hours
+        self.retry((args,), countdown=90, max_retries=960)
     except OSError as error:
         # Retry if a "No space left" error happens.
         # It can be necessary in case of a race condition while cleaning up some space.

@@ -1,4 +1,5 @@
 """Tests for the utils module"""
+import logging
 import os
 import os.path
 import posixpath
@@ -228,32 +229,21 @@ class NonAbstractStorageMethodsTestCase(unittest.TestCase):
                     16877, 3146999, 66306, 1, 10000, 10000,
                     100, 1599210909, 1599210910, 1599210909
                 ))
+            elif path == 'file98':  # the file has been transformed into a directory
+                raise IsADirectoryError()
             else:
                 raise FileNotFoundError()
 
         def isfile(self, path):
-            if path == self.path:
-                return False
-            elif path == 'dir1':
-                return False
-            elif path == 'file1':
+            if path in ('file1', 'dir1/file2', 'file98', 'file99'):
                 return True
-            elif path == 'dir1/file2':
-                return True
+            elif path in ('dir1', self.path):
+                return False
             else:
                 raise FileNotFoundError()
 
         def isdir(self, path):
-            if path == self.path:
-                return True
-            elif path == 'dir1':
-                return True
-            elif path == 'file1':
-                return False
-            elif path == 'dir1/file2':
-                return False
-            else:
-                raise FileNotFoundError()
+            return not self.isfile(path)
 
         def remove(self, path):
             if path == 'file1':
@@ -287,6 +277,27 @@ class NonAbstractStorageMethodsTestCase(unittest.TestCase):
             [('file1', 224, 1599210908),
              ('dir1/file2', 128, 1599210910)]
         )
+
+    def test_get_removable_file_not_found_error(self):
+        """If a file is removed before we can get its stats, a warning
+        must be logged then the file can be ignored
+        """
+        with mock.patch.object(self.storage, "path_contents", ['file99', 'file1']):
+            with self.assertLogs(logger=utils.LOGGER, level=logging.WARNING):
+                self.assertListEqual(
+                    self.storage._get_removable_files(),
+                    [('file1', 224, 1599210908)])
+
+    def test_get_removable_file_is_a_directory_error(self):
+        """If a file is transformed into a directory before we can get
+        its stats, a warning must be logged then the file can be
+        ignored
+        """
+        with mock.patch.object(self.storage, "path_contents", ['file98', 'file1']):
+            with self.assertLogs(logger=utils.LOGGER, level=logging.WARNING):
+                self.assertListEqual(
+                    self.storage._get_removable_files(),
+                    [('file1', 224, 1599210908)])
 
     def test_sort_by_mtime(self):
         """

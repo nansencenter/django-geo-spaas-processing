@@ -4,10 +4,14 @@
   username: !ENV 'COPERNICUS_OPEN_HUB_USERNAME'
   password: !ENV 'COPERNICUS_OPEN_HUB_PASSWORD'
   max_parallel_downloads: 2
+  invalid_status_codes:
+    202: 'This dataset is offline'
 'https://apihub.copernicus.eu':
   username: !ENV 'COPERNICUS_OPEN_HUB_USERNAME'
   password: !ENV 'COPERNICUS_OPEN_HUB_PASSWORD'
   max_parallel_downloads: 2
+  invalid_status_codes:
+    202: 'This dataset is offline'
 'ftp://nrt.cmems-du.eu':
   username: !ENV 'CMEMS_USERNAME'
   password: !ENV 'CMEMS_PASSWORD'
@@ -30,4 +34,10 @@
   token_url: 'https://auth.creodias.eu/auth/realms/DIAS/protocol/openid-connect/token'
   client_id: 'CLOUDFERRO_PUBLIC'
   max_parallel_downloads: 1
+'https://podaac-tools.jpl.nasa.gov/drive/files':
+  username: !ENV 'PODAAC_DRIVE_USERNAME'
+  password: !ENV 'PODAAC_DRIVE_PASSWORD'
+'https://oceandata.sci.gsfc.nasa.gov':
+  request_parameters:
+    appkey: !ENV EARTHDATA_APPKEY
 ...

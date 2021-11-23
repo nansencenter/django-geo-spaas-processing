@@ -6,7 +6,7 @@ Also contains Celery settings.
 import os
 try:
     import django_celery_results
-except ImportError:
+except ImportError:  # pragma: no cover
     django_celery_results = None
 
 django_settings = {

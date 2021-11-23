@@ -1,16 +1,61 @@
 """Unit tests for converters"""
+import logging
+import os
 import os.path
+import shutil
+import tarfile
 import unittest
 import unittest.mock as mock
 import subprocess
 import tempfile
 import zipfile
-from datetime import datetime
 from pathlib import Path
 
 import django.test
 
+import geospaas_processing
+# avoid downloading auxiliary files when testing
+os.makedirs(os.path.join(os.path.dirname(geospaas_processing.__file__), 'auxiliary'), exist_ok=True)
 import geospaas_processing.converters as converters
+
+
+class AuxiliaryFilesDownloadTestCase(unittest.TestCase):
+    """Test auxiliary files downloading"""
+
+    def test_do_not_download_auxiliary_files_if_folder_present(self):
+        """Test that auxiliary files are not downloaded if the folder
+        is present
+        """
+        with mock.patch('os.path.isdir', return_value=True), \
+                mock.patch('ftplib.FTP') as mock_ftp:
+            converters.download_auxiliary_files('/foo')
+        mock_ftp.assert_not_called()
+
+    def test_download_auxiliary_files_if_folder_not_present(self):
+        """Test that auxiliary files are downloaded if the folder is
+        not present
+        """
+        with mock.patch('os.path.isdir', return_value=False), \
+                mock.patch('os.makedirs'), \
+                mock.patch('ftplib.FTP') as mock_ftp, \
+                mock.patch('tempfile.TemporaryFile'):
+            converters.download_auxiliary_files('/foo')
+        mock_ftp.assert_called()
+        mock_ftp.return_value.retrbinary.assert_called()
+
+    def test_download_auxiliary_error(self):
+        """Test that partly extracted auxiliary files are removed in
+        case of error
+        """
+        with mock.patch('os.path.isdir', return_value=False), \
+                mock.patch('os.makedirs'), \
+                mock.patch('ftplib.FTP'), \
+                mock.patch('tempfile.TemporaryFile'), \
+                mock.patch('tarfile.TarFile', side_effect=tarfile.ExtractError), \
+                mock.patch('shutil.rmtree') as mock_rmtree:
+            with self.assertRaises(tarfile.ExtractError):
+                converters.download_auxiliary_files('/foo')
+            mock_rmtree.assert_called_with('/foo')
 
 
 class IDFConversionManagerTestCase(django.test.TestCase):
@@ -81,7 +126,6 @@ class IDFConversionManagerTestCase(django.test.TestCase):
             [os.path.join(os.path.dirname(converters.__file__),
                           'parameters', 'sentinel3_olci_l1_efr')]
         )
-        self.assertEqual(converter.collections, ['sentinel3_olci_l1_efr'])
 
     def test_get_converter_error(self):
         """get_converter() should raise a ConversionError if no
@@ -99,15 +143,18 @@ class IDFConversionManagerTestCase(django.test.TestCase):
 
     def test_convert(self):
         """Test a simple conversion"""
-        with mock.patch('subprocess.run') as run_mock:
+        with mock.patch('subprocess.run') as run_mock, \
+                mock.patch('tempfile.TemporaryDirectory') as mock_tmp_dir, \
+                mock.patch('geospaas_processing.converters.IDFConverter.move_results'):
             run_mock.side_effect = self.create_result_dir
+            mock_tmp_dir.return_value.__enter__.return_value = 'tmp_dir'
             self.conversion_manager.convert(1, 'dataset_1.nc')
             run_mock.assert_called_with(
                 [
                     'idf-converter',
                     str(Path(converters.__file__).parent / 'parameters' / 'sentinel3_olci_l1_efr@'),
                     '-i', 'path', '=', str(self.test_file_path),
-                    '-o', 'path', '=', str(self.temp_dir_path)
+                    '-o', 'path', '=', 'tmp_dir'
                 ],
                 cwd=str(Path(converters.__file__).parent),
                 check=True, capture_output=True
@@ -124,7 +171,10 @@ class IDFConversionManagerTestCase(django.test.TestCase):
 
         unzipped_path = self.temp_dir_path / 'dataset_1' / 'dataset_1.nc'
 
-        with mock.patch('subprocess.run') as run_mock:
+        with mock.patch('subprocess.run') as run_mock, \
+                mock.patch('tempfile.TemporaryDirectory') as mock_tmp_dir, \
+                mock.patch('geospaas_processing.converters.IDFConverter.move_results'):
+            mock_tmp_dir.return_value.__enter__.return_value = 'tmp_dir'
             run_mock.side_effect = self.create_result_dir
             self.conversion_manager.convert(1, 'dataset_1.zip')
             run_mock.assert_called_with(
@@ -132,7 +182,7 @@ class IDFConversionManagerTestCase(django.test.TestCase):
                     'idf-converter',
                     str(Path(converters.__file__).parent / 'parameters' / 'sentinel3_olci_l1_efr@'),
                     '-i', 'path', '=', str(unzipped_path),
-                    '-o', 'path', '=', str(self.temp_dir_path)
+                    '-o', 'path', '=', 'tmp_dir'
                 ],
                 cwd=str(Path(converters.__file__).parent),
                 check=True, capture_output=True
@@ -186,7 +236,6 @@ class IDFConverterTestCase(unittest.TestCase):
             self.converter.parameter_paths,
             [str(Path(__file__).parent / 'data' / 'parameters_file')]
         )
-        self.assertListEqual(self.converter.collections, ['some_collection'])
 
     def test_run(self):
         """Test that the correct command is run and the resulting files
@@ -194,20 +243,22 @@ class IDFConverterTestCase(unittest.TestCase):
         """
         expected_results = ['result1']
         with mock.patch('subprocess.run') as run_mock, \
-             mock.patch.object(self.converter, 'get_results') as mock_get_results:
-            mock_get_results.return_value = expected_results
+             mock.patch('tempfile.TemporaryDirectory') as mock_tmp_dir, \
+             mock.patch.object(self.converter, 'move_results') as mock_move_results:
+            mock_tmp_dir.return_value.__enter__.return_value = 'tmp_dir'
+            mock_move_results.return_value = expected_results
             self.assertListEqual(self.converter.run('foo', 'bar'), expected_results)
             run_mock.assert_called_with(
                 [
                     'idf-converter',
                     self.converter.parameter_paths[0] + '@',
                     '-i', 'path', '=', 'foo',
-                    '-o', 'path', '=', 'bar'
+                    '-o', 'path', '=', 'tmp_dir'
                 ],
                 cwd=str(Path(converters.__file__).parent),
                 check=True, capture_output=True
             )
-            mock_get_results.assert_called_once_with('foo', 'bar')
+            mock_move_results.assert_called_once_with('tmp_dir', 'bar')
 
     def test_run_skip_file(self):
         """If a file is skipped, a ConversionError should be raised"""
@@ -216,43 +267,86 @@ class IDFConverterTestCase(unittest.TestCase):
             with self.assertRaises(converters.ConversionError):
                 self.converter.run('foo', 'bar')
 
-    def test_extract_parameter_value(self):
-        """Extract the right value from an idf-converter parameter file"""
-        self.assertEqual(
-            'some_collection',
-            self.converter.extract_parameter_value(
-                self.converter.parameter_paths[0],
-                converters.ParameterType.OUTPUT,
-                'collection'
-            )
-        )
-
-    def test_get_results(self):
-        """get_results() should return the file in the collection
-        folders for which matches_result() returns True
+    def test_move_results(self):
+        """Test moving result files from the temporary directory to the
+        result directory
         """
-        collection_folders_contents = [['dir1'], ['dir2', 'dir3']]
-        with mock.patch.object(self.converter, 'collections', ['collection1', 'collection2']), \
-             mock.patch.object(self.converter, 'matches_result', side_effect=[True, False, True]), \
-             mock.patch('os.listdir', side_effect=collection_folders_contents):
-            self.assertListEqual(
-                self.converter.get_results('', 'dataset2'),
-                ['collection1/dir1', 'collection2/dir3']
-            )
+        with tempfile.TemporaryDirectory() as tmp_root:
+            # create testing file structure
+            tmp_results_dir = os.path.join(tmp_root, 'tmp_results')
+            permanent_results_dir = os.path.join(tmp_root, 'results')
+            os.makedirs(tmp_results_dir)
+            os.makedirs(permanent_results_dir)
 
-    def test_get_results_nothing_found(self):
-        """get_results() should return an empty list
+            # create existing files in collection2 in the permanent
+            # result directory
+            collection2_results_dir = os.path.join(permanent_results_dir, 'collection2')
+            collection2_file_path = os.path.join(collection2_results_dir, 'file2')
+            collection2_existing_dir_path = os.path.join(collection2_results_dir, 'file3')
+            os.makedirs(collection2_results_dir)
+            # create an existing file
+            with open(collection2_file_path, 'w') as f_h:
+                f_h.write('old')
+            # create an existing directory
+            os.makedirs(collection2_existing_dir_path)
+
+            # create a "collection1" directory containing a file
+            tmp_collection1_dir = os.path.join(tmp_results_dir, 'collection1')
+            os.makedirs(tmp_collection1_dir)
+            with open(os.path.join(tmp_collection1_dir, 'file1'), 'wb'):
+                pass
+
+            # create a "collection2" directory containing files
+            tmp_collection2_dir = os.path.join(tmp_results_dir, 'collection2')
+            os.makedirs(tmp_collection2_dir)
+            # this file needs to contain something to check that the
+            # existing file in the results folder gets replaced
+            with open(os.path.join(tmp_collection2_dir, 'file2'), 'w') as f_h:
+                f_h.write('new')
+            # this file can be empty as it will replace a directory
+            with open(os.path.join(tmp_collection2_dir, 'file3'), 'wb') as f_h:
+                pass
+
+            with self.assertLogs(converters.LOGGER, level=logging.INFO):
+                self.converter.move_results(tmp_results_dir, permanent_results_dir)
+
+            # check that the files are present in the permanent
+            # results folder
+            self.assertCountEqual(os.listdir(permanent_results_dir), ['collection1', 'collection2'])
+            self.assertCountEqual(
+                os.listdir(os.path.join(permanent_results_dir, 'collection1')),
+                ['file1'])
+            self.assertCountEqual(
+                os.listdir(os.path.join(permanent_results_dir, 'collection2')),
+                ['file2', 'file3'])
+
+            # check that the file in collection2 has been replaced
+            with open(collection2_file_path, 'r') as f_h:
+                self.assertEqual(f_h.read(), 'new')
+            # check that the directory in collection2 has been replaced
+            self.assertTrue(os.path.isfile(collection2_existing_dir_path))
+
+            # check that the files are no longer present in the
+            # temporary results folder
+            self.assertFalse(os.listdir(tmp_collection1_dir))
+            self.assertFalse(os.listdir(tmp_collection2_dir))
+
+    def test_move_results_error(self):
+        """Test that errors during the move other than the file being
+        already present are raised
+        """
+        with mock.patch('os.listdir', side_effect=[['collection'], ['file']]), \
+                mock.patch('os.makedirs'), \
+                mock.patch('shutil.move', side_effect=shutil.Error('some error')):
+            with self.assertRaises(shutil.Error):
+                self.converter.move_results('foo', 'bar')
+
+    def test_move_results_nothing_found(self):
+        """move_results() should return an empty list
         when no result file is found
         """
-        with mock.patch.object(self.converter, 'collections', ['collection1']), \
-                mock.patch.object(self.converter, 'matches_result', return_value=False), \
-                mock.patch('os.listdir', return_value='dir'):
-            self.assertListEqual(self.converter.get_results('', 'dataset2'), [])
-
-    def test_abstract_matches_result(self):
-        """matches_result() should raise a NotImplementedError"""
-        with self.assertRaises(NotImplementedError):
-            self.converter.matches_result('', '', '')
+        with mock.patch('os.listdir', return_value=[]):
+            self.assertListEqual(self.converter.move_results('/tmp/dir', '/output/dir'), [])
 
 
 class MultiFilesIDFConverterTestCase(unittest.TestCase):
@@ -265,11 +359,6 @@ class MultiFilesIDFConverterTestCase(unittest.TestCase):
         """list_files_to_convert() should raise a NotImplementedError"""
         with self.assertRaises(NotImplementedError):
             self.converter.list_files_to_convert('')
-
-    def test_abstract_matches_result(self):
-        """matches_result() should raise a NotImplementedError"""
-        with self.assertRaises(NotImplementedError):
-            self.converter.matches_result('', '', '')
 
     def test_run(self):
         """MultiFilesIDFConverter.run() should call the parent's class
@@ -339,38 +428,6 @@ class Sentinel1IDFConverterTestCase(unittest.TestCase):
             with self.assertRaises(converters.ConversionError):
                 self.converter.list_files_to_convert('')
 
-    def test_matches_result(self):
-        """matches_result() should return True if the result directory
-        name contains the dataset's identifier
-        """
-        self.assertTrue(self.converter.matches_result(
-            '',
-            os.path.join(
-                'foo', 's1a-iw-ocn-vv-20210302t052855-20210302t052920-036815-045422-001.nc'),
-            's1a-iw-ocn-vv-20210302t052855-20210302t052920-036815-045422-001.nc_2'
-        ))
-
-        self.assertTrue(self.converter.matches_result(
-            '',
-            os.path.join(
-                'foo', 's1a-iw-ocn-vv-20200617t172631-20200617t172650-033060-03D466-001.nc'),
-            's1a-iw-ocn-vv-20200617t172631-20200617t172650-033060-03D466-001.nc_0'
-        ))
-
-        self.assertFalse(self.converter.matches_result(
-            '',
-            os.path.join(
-                'foo', 's1a-iw-ocn-vv-20210302t052855-20210302t052920-036815-045422-001.nc'),
-            's1a-iw-ocn-vv-20200302t052855-20210302t052920-036815-045422-001.nc_2'
-        ))
-
-        self.assertFalse(self.converter.matches_result(
-            '',
-            os.path.join(
-                'foo', 's1a-iw-ocn-vv-20210302t052855-20210302t052920-036815-045422-002.nc'),
-            's1a-iw-ocn-vv-20210302t052855-20210302t052920-036815-045422-001.nc_2'
-        ))
-
 
 class Sentinel3SLSTRL2WSTIDFConverterTestCase(unittest.TestCase):
     """Tests for the Sentinel3SLSTRL2WSTIDFConverter class"""
@@ -400,125 +457,3 @@ class Sentinel3SLSTRL2WSTIDFConverterTestCase(unittest.TestCase):
         with mock.patch('os.listdir', side_effect=NotADirectoryError):
             with self.assertRaises(converters.ConversionError):
                 self.converter.list_files_to_convert('')
-
-    def test_matches_result(self):
-        """matches_result() should return True if the result directory
-        name is equal to dataset file name minus the extension
-        """
-        self.assertTrue(self.converter.matches_result('', os.path.join('foo', 'bar.nc'), 'bar'))
-        self.assertFalse(self.converter.matches_result('', os.path.join('foo', 'bar.nc'), 'baz'))
-        self.assertFalse(self.converter.matches_result('', os.path.join('foo', 'bar.nc'), 'bar.nc'))
-
-
-class Sentinel3IDFConverterTestCase(unittest.TestCase):
-    """Tests for the base Sentinel3IDFConverter class"""
-
-    def test_matches_result(self):
-        """matches_result() should return True if the result directory
-        name is equal to dataset file name
-        """
-        converter = converters.Sentinel3IDFConverter([])
-        self.assertTrue(converter.matches_result('', os.path.join('foo', 'bar'), 'bar'))
-        self.assertFalse(converter.matches_result('', os.path.join('foo', 'foo'), 'bar'))
-
-
-class SingleResultIDFConverterTestCase(unittest.TestCase):
-    """Tests for the SingleResultIDFConverter class"""
-
-    def test_matches_result(self):
-        """matches_result() should return True if the result directory
-        name is equal to dataset file name minus the extension
-        """
-        converter = converters.SingleResultIDFConverter([])
-        self.assertTrue(converter.matches_result('', os.path.join('foo', 'bar.nc'), 'bar'))
-        self.assertFalse(converter.matches_result('', os.path.join('foo', 'bar.nc'), 'baz'))
-        self.assertFalse(converter.matches_result('', os.path.join('foo', 'bar.nc'), 'bar.nc'))
-
-
-class CMEMSMultiResultIDFConverterTestCase(unittest.TestCase):
-    """Tests for the CMEMSMultiResultIDFConverter class"""
-
-    def test_extract_date(self):
-        """Test the extraction of the date from a file name"""
-        converter = converters.CMEMSMultiResultIDFConverter([])
-        self.assertEqual(
-            converter.extract_date(
-                'prefix_20201130_suffix.nc',
-                r'^prefix_(?P<date>20201130)_suffix.nc$',
-                '%Y%m%d'
-            ),
-            datetime(2020, 11, 30)
-        )
-
-    def test_extract_date_error(self):
-        """extract_date() should raise a ConversionError if the date is
-        not found
-        """
-        converter = converters.CMEMSMultiResultIDFConverter([])
-
-        # no date group
-        with self.assertRaises(converters.ConversionError):
-            self.assertEqual(
-                converter.extract_date(
-                    'prefix_20201130_suffix.nc',
-                    r'^prefix_(?P<dat>20201130)_suffix.nc$',
-                    '%Y%m%d'
-                ),
-                datetime(2020, 11, 30)
-            )
-
-        # the regex does not match
-        with self.assertRaises(converters.ConversionError):
-            self.assertEqual(
-                converter.extract_date(
-                    'prefix_20201130_suffix.nc',
-                    r'^prefi_(?P<date>20201130)_suffix.nc$',
-                    '%Y%m%d'
-                ),
-                datetime(2020, 11, 30)
-            )
-
-        #wrong parse pattern
-        with self.assertRaises(converters.ConversionError):
-            self.assertEqual(
-                converter.extract_date(
-                    'prefix_20201130_suffix.nc',
-                    r'^prefix_(?P<date>20201130)_suffix.nc$',
-                    '%d%Y%m'
-                ),
-                datetime(2020, 11, 30)
-            )
-
-    def test_matches_result(self):
-        """matches_result() should return True if the timestamp of the
-        file is within the time range of the dataset
-        """
-        converter = converters.CMEMSMultiResultIDFConverter([])
-
-        # timestamp == lower time range limit
-        self.assertTrue(converter.matches_result(
-            'cmems_001_024_hourly_mean_surface',
-            'mercatorpsy4v3r1_gl12_hrly_20190430_R20190508.nc',
-            'cmems_001_024_hourly_mean_surface_20190430000000_L4_v1.0_fv1.0'
-        ))
-
-        # upper time range limit > timestamp > lower time range limit
-        self.assertTrue(converter.matches_result(
-            'cmems_001_024_hourly_mean_surface',
-            'mercatorpsy4v3r1_gl12_hrly_20190430_R20190508.nc',
-            'cmems_001_024_hourly_mean_surface_20190430013000_L4_v1.0_fv1.0'
-        ))
-
-        # upper time range limit == timestamp
-        self.assertFalse(converter.matches_result(
-            'cmems_001_024_hourly_mean_surface',
-            'mercatorpsy4v3r1_gl12_hrly_20190430_R20190508.nc',
-            'cmems_001_024_hourly_mean_surface_20190501000000_L4_v1.0_fv1.0'
-        ))
-
-        # upper time range limit > timestamp
-        self.assertFalse(converter.matches_result(
-            'cmems_001_024_hourly_mean_surface',
-            'mercatorpsy4v3r1_gl12_hrly_20190430_R20190508.nc',
-            'cmems_001_024_hourly_mean_surface_20200501000000_L4_v1.0_fv1.0'
-        ))

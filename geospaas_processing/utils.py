@@ -1,8 +1,11 @@
 """Utility functions for geospaas_processing"""
+import gzip
 import logging
 import math
 import os
 import os.path
+import posixpath
+import re
 import shutil
 import stat
 import tarfile
@@ -17,7 +20,7 @@ import requests
 import scp
 try:
     from redis import Redis
-except ImportError:
+except ImportError:  # pragma: no cover
     Redis = None
 
 
@@ -39,6 +42,14 @@ class Storage():
         """"""
         self.path = kwargs['path']
         self.block_size = self.get_block_size()
+
+    def get_files_size(self, files):
+        """Returns the total size of several files in bytes"""
+        return sum(self.get_file_size(file) for file in files)
+
+    def get_file_size(self, file):
+        """Get the size of one file in bytes"""
+        raise NotImplementedError
 
     def get_block_size(self):
         """Get the block size of the file system"""
@@ -106,9 +117,21 @@ class Storage():
             for file_name in self.listdir(current_dir):
                 path = os.path.join(current_dir, file_name)
                 if self.isfile(path):
-                    file_stat = self.stat(path)
-                    removable_files.append(
-                        (path, self._get_file_disk_usage(file_stat.st_size), file_stat.st_mtime))
+                    try:
+                        file_stat = self.stat(path)
+                    except FileNotFoundError:
+                        LOGGER.warning(
+                            "%s has been removed while a cleanup was in progress", path)
+                    except IsADirectoryError:
+                        LOGGER.warning("%s has somehow been transformed into a directory while a" +
+                                       " cleanup was in progress",
+                                       path)
+                    else:
+                        removable_files.append((
+                            path,
+                            self._get_file_disk_usage(file_stat.st_size),
+                            file_stat.st_mtime
+                        ))
                 elif self.isdir(path):
                     dirs_to_process.append(path)
                     depth += 1
@@ -155,11 +178,11 @@ class Storage():
         Removes files from `self.path` until `new_file_size` bytes have been freed,
         starting with the oldest files.
         """
-        max_retries = 10
-        countdown = 5
+        max_retries = 30
+        countdown = 20
         retries = 0
         while retries < max_retries:
-            with redis_lock('lock_cleanup', self.path) as acquired:
+            with redis_lock(f"lock_cleanup_{self.path}", '') as acquired:
                 if acquired:
                     current_free_space = self.get_free_space()
                     removable_files = self._sort_by_mtime(self._get_removable_files())
@@ -185,6 +208,9 @@ class Storage():
 
 class LocalStorage(Storage):
     """Represents a storage location on a local disk"""
+
+    def get_file_size(self, file):
+        return os.path.getsize(os.path.join(self.path, file))
 
     def get_block_size(self):
         return self.stat('').st_blksize
@@ -235,6 +261,11 @@ class RemoteStorage(Storage):
         config = paramiko.SSHConfig.from_path(
             os.path.join(os.path.expanduser('~'), '.ssh', 'config'))
         return config.lookup(self.host)
+
+    def get_file_size(self, file):
+        absolute_path = posixpath.join(self.path, file)
+        _, stdout, _ = self.ssh_client.exec_command(f"du --bytes '{absolute_path}' | cut -f1")
+        return int(stdout.read())
 
     def get_block_size(self):
         _, stdout, _ = self.ssh_client.exec_command(f"stat -f --printf '%S' '{self.path}'")
@@ -294,21 +325,42 @@ def redis_lock(lock_key, lock_value):
         yield True
 
 
-def unzip(archive_path, out_dir=None):
-    """Extracts the archive contents to `out_dir`"""
-    if not out_dir:
-        out_dir = os.path.dirname(archive_path)
-    with zipfile.ZipFile(archive_path, 'r') as zip_ref:
-        zip_ref.extractall(out_dir)
+def gunzip(archive_path, out_dir):
+    """Extracts the gzip archive contents to `out_dir`"""
+    file_name = re.sub(r'\.gz$', '', os.path.basename(archive_path))
+    with gzip.open(archive_path, 'rb') as archive_file:
+        with open(os.path.join(out_dir, file_name), 'wb') as output_file:
+            shutil.copyfileobj(archive_file, output_file)
+
+
+shutil.register_unpack_format('gz', ['.gz'], gunzip)
 
 
 def unarchive(in_file):
-    """Extract contents if `in_file` is an archive"""
+    """Extract contents if `in_file` is an archive. Supported format
+    are those supported by shutil's unpack_archive(), plus gzip.
+    The files are extracted in a folder name like the archive, minus
+    the extension.
+    Returns None if the given file is not an archive (or in an
+    unsupported archive format)
+    """
     extract_dir = None
-    if zipfile.is_zipfile(in_file):
-        extract_dir = in_file.replace('.zip', '')
-        LOGGER.debug("Unzipping %s to %s", in_file, extract_dir)
-        unzip(in_file, extract_dir)
+
+    match = re.match(
+        (r'(.*)\.('
+         r'tar'
+         r'|tar\.gz|tgz'
+         r'|tar\.bz2|tbz2'
+         r'|tar\.xz|txz'
+         r'|zip'
+         r'|(?<!tar\.)gz)$'),
+        in_file)
+    if match:
+        extract_dir = match.group(1)
+        os.makedirs(extract_dir, exist_ok=True)
+
+        shutil.unpack_archive(in_file, extract_dir)
+
     return extract_dir
 
 

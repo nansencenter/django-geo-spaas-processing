@@ -1,0 +1,7 @@
+-t rtofs
+-o collection = rtofs_diagnostic
+   gcp_row_spacing = 48
+   gcp_cell_spacing = 64
+-i variables = ssh
+   geoloc_row_spacing = 48
+   geoloc_cell_spacing = 64

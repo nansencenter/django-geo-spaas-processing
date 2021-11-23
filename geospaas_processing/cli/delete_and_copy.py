@@ -47,4 +47,4 @@ def cli_parse_args():
 
 
 if __name__ == "__main__":
-    main()
+    main()  # pragma: no cover

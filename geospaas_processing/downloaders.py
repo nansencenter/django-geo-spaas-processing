@@ -21,7 +21,7 @@ import requests.utils
 import requests_oauthlib
 try:
     from redis import Redis
-except ImportError:
+except ImportError:  # pragma: no cover
     Redis = None
 
 import geospaas.catalog.managers
@@ -35,6 +35,24 @@ LOGGER = logging.getLogger(__name__)
 
 class DownloadError(Exception):
     """Download failed"""
+
+
+class ObsoleteURLError(DownloadError):
+    """The URL no longer points to a downloadable dataset"""
+
+
+class DatasetDownloadError(DownloadError):
+    """Failed to download a dataset using any of its URLs"""
+
+    def __init__(self, *args, **kwargs):
+        self.errors = kwargs.pop('errors', [])
+        super().__init__(*args, **kwargs)
+
+    def __str__(self):
+        result = super().__str__()
+        for error in self.errors:
+            result += f"\n  {error.__class__.__name__}: {error}"
+        return result
 
 
 class TooManyDownloadsError(DownloadError):
@@ -68,7 +86,7 @@ class Downloader():
         return (None, None)
 
     @classmethod
-    def connect(cls, url, auth=(None, None)):
+    def connect(cls, url, auth=(None, None), **kwargs):
         """Connect to the remote repository. This should return an
         object from which the file to download can be read.
         """
@@ -83,7 +101,7 @@ class Downloader():
         connection.close()
 
     @classmethod
-    def get_file_name(cls, url, auth):
+    def get_file_name(cls, url, auth, **kwargs):
         """Returns the name of the file"""
         raise NotImplementedError()
 
@@ -108,14 +126,14 @@ class Downloader():
         """
         auth = cls.get_auth(kwargs)
 
-        file_name = cls.get_file_name(url, auth)
+        file_name = cls.get_file_name(url, auth, **kwargs)
         if not file_name:
             raise DownloadError(f"Could not find file name for '{url}'")
         file_path = os.path.join(download_dir, file_name)
         if os.path.exists(file_path) and os.path.isfile(file_path):
             return file_name, False
 
-        connection = cls.connect(url, auth)
+        connection = cls.connect(url, auth, **kwargs)
         try:
             file_size = cls.get_file_size(url, connection)
             if file_size:
@@ -174,42 +192,79 @@ class HTTPDownloader(Downloader):
             return super().get_auth(kwargs)
 
     @classmethod
-    def get_file_name(cls, url, auth):
+    def get_request_parameters(cls, kwargs):
+        parameters = kwargs.get('request_parameters', {})
+        if isinstance(parameters, dict):
+            return parameters
+        else:
+            raise ValueError(
+                "The 'request_parameters' configuration key should contain a dictionary")
+
+    @classmethod
+    def check_response(cls, response, kwargs):
+        """Check an HTTP response for a status indicating that the URL
+        is obsolete
+        """
+        invalid_status_codes = kwargs.get('invalid_status_codes', {})
+        invalid_status_codes.setdefault(404, 'URL does not exist')
+
+        # deal with obsolete URLs
+        if response.status_code in invalid_status_codes:
+            raise ObsoleteURLError(
+                f"{response.url} is not downloadable" +
+                f" ({str(response.status_code)}: {invalid_status_codes[response.status_code]})")
+        response.raise_for_status()
+
+    @classmethod
+    def get_file_name(cls, url, auth, **kwargs):
         """Extracts the file name from the Content-Disposition header
         of an HTTP response
         """
         try:
-            response = utils.http_request('HEAD', url, auth=auth)
-            response.raise_for_status()
+            response = utils.http_request(
+                'HEAD', url, auth=auth, params=cls.get_request_parameters(kwargs))
+            cls.check_response(response, kwargs)
         except requests.RequestException:
-            LOGGER.error("Error during HEAD request to '%s'", url, exc_info=True)
-            return ''
+            try:
+                response = utils.http_request('GET', url, auth=auth, stream=True)
+                response.close()
+                cls.check_response(response, kwargs)
+            except requests.RequestException:
+                LOGGER.error("Could not get the file name by HEAD or GET request to '%s'",
+                             url, exc_info=True)
+                return ''
 
         filename_key = 'filename='
-        try:
+        if 'Content-Disposition' in response.headers:
             content_disposition = [
                 i.strip() for i in response.headers['Content-Disposition'].split(';')
             ]
-            filename_attributes = [a for a in content_disposition if a.startswith(filename_key)]
-        except KeyError:
-            filename_attributes = []
 
-        filename_attributes_length = len(filename_attributes)
-        if filename_attributes_length > 1:
-            raise ValueError("Multiple file names found in response Content-Disposition header")
-        elif filename_attributes_length == 1:
-            return filename_attributes[0].replace(filename_key, '').strip('"')
+            filename_attributes = [a for a in content_disposition if a.startswith(filename_key)]
+            filename_attributes_length = len(filename_attributes)
+            if filename_attributes_length > 1:
+                raise ValueError("Multiple file names found in response Content-Disposition header")
+            elif filename_attributes_length == 1:
+                return filename_attributes[0].replace(filename_key, '').strip('"')
+
+        elif 'Content-Type' in response.headers:
+            url_file_name = url.split('/')[-1]
+            if (response.headers['Content-Type'].lower() == 'application/x-netcdf'
+                    and url_file_name.endswith('.nc')):
+                return url_file_name
+
         return ''
 
     @classmethod
-    def connect(cls, url, auth=(None, None)):
+    def connect(cls, url, auth=(None, None), **kwargs):
         """For HTTP downloads, the "connection" actually just consists
         of sending a GET request to the download URL and return the
         corresponding Response object
         """
         try:
-            response = utils.http_request('GET', url, stream=True, auth=auth)
-            response.raise_for_status()
+            response = utils.http_request(
+                'GET', url, stream=True, auth=auth, params=cls.get_request_parameters(kwargs))
+            cls.check_response(response, kwargs)
         # Raising DownloadError enables to display a clear message in the API response
         except requests.HTTPError as error:
             details = f"{response.status_code} {response.text}"
@@ -261,7 +316,7 @@ class FTPDownloader(Downloader):
     """Downloader for FTP repositories"""
 
     @classmethod
-    def connect(cls, url, auth=(None, None)):
+    def connect(cls, url, auth=(None, None), **kwargs):
         """Connects to the remote FTP repository.
         Returns a ftplib.FTP object.
         """
@@ -273,7 +328,7 @@ class FTPDownloader(Downloader):
             raise DownloadError(f"Could not download from '{url}': {error.args}") from error
 
     @classmethod
-    def get_file_name(cls, url, auth):
+    def get_file_name(cls, url, auth, **kwargs):
         """Extracts the file name from the URL"""
         return urlparse(url).path.split('/')[-1] or None
 
@@ -289,7 +344,11 @@ class FTPDownloader(Downloader):
     @classmethod
     def download_file(cls, file, url, connection):
         """Downloads the remote file to the `file` object"""
-        connection.retrbinary(f"RETR {urlparse(url).path}", file.write)
+        path = urlparse(url).path
+        if connection.nlst(path):
+            connection.retrbinary(f"RETR {path}", file.write)
+        else:
+            raise ObsoleteURLError(f"{url} does not exist")
 
 
 class LocalDownloader(Downloader):
@@ -301,7 +360,7 @@ class LocalDownloader(Downloader):
         return (None, None)
 
     @classmethod
-    def connect(cls, url, auth=(None, None)):
+    def connect(cls, url, auth=(None, None), **kwargs):
         return None
 
     @classmethod
@@ -309,12 +368,15 @@ class LocalDownloader(Downloader):
         return None
 
     @classmethod
-    def get_file_name(cls, url, auth):
+    def get_file_name(cls, url, auth, **kwargs):
         return os.path.basename(url)
 
     @classmethod
     def get_file_size(cls, url, connection, auth=(None, None)):
-        return os.path.getsize(url)
+        try:
+            return os.path.getsize(url)
+        except FileNotFoundError as error:
+            raise ObsoleteURLError(f"{url} does not exist") from error
 
     @classmethod
     def download_file(cls, file, url, connection):
@@ -436,6 +498,7 @@ class DownloadManager():
         selects the appropriate Dowloader based on the `service` property.
         Returns the downloaded file path if the download succeeds, an empty string otherwise.
         """
+        errors = []
         for dataset_uri in dataset.dataseturi_set.all():
             # Get the extra settings for the provider
             dataset_uri_prefix = "://".join(requests.utils.urlparse(dataset_uri.uri)[0:2])
@@ -465,15 +528,16 @@ class DownloadManager():
                         url=dataset_uri.uri, download_dir=download_directory,
                         **extra_settings
                     )
-                except DownloadError:
+                except DownloadError as error:
                     LOGGER.warning(
                         ("Failed to download dataset %s from %s. "
                          "Another URL will be tried if possible"),
                         dataset.pk, dataset_uri.uri, exc_info=True
                     )
+                    errors.append(error)
                 except (FileNotFoundError, IsADirectoryError) as error:
                     raise DownloadError(
-                        f"Could not write the dowloaded file to {error.filename}") from error
+                        f"Could not write the downloaded file to {error.filename}") from error
                 else:
                     if file_name and self.save_path:
                         dataset.dataseturi_set.get_or_create(
@@ -486,7 +550,7 @@ class DownloadManager():
                     else:
                         LOGGER.debug("Dataset %d is already present at %s", dataset.pk, file_name)
                     return file_name
-        raise DownloadError(f"Did not manage to download dataset {dataset.pk}")
+        raise DatasetDownloadError(f"Failed to download dataset {dataset.pk}", errors=errors)
 
     def download(self):
         """Attempt to download all datasets (matching the criteria if any criteria defined). """

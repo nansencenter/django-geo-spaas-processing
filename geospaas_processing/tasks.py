@@ -90,7 +90,8 @@ def download(self, args):
         LOGGER.error("Nothing was downloaded for dataset %s", dataset_id, exc_info=True)
         raise
     except TooManyDownloadsError:
-        self.retry((args,), countdown=15, max_retries=60)
+        # Stop retrying after 24 hours
+        self.retry((args,), countdown=90, max_retries=960)
     except OSError as error:
         # Retry if a "No space left" error happens.
         # It can be necessary in case of a race condition while cleaning up some space.
@@ -161,15 +162,17 @@ def publish(self, args):  # pylint: disable=unused-argument
             'GEOSPAAS_PROCESSING_FTP_PATH.'
         )
 
+    # It is assumed that the remote server uses "/"" as path separator
+    remote_storage_path = posixpath.join(ftp_root, ftp_path)
+    ftp_storage = utils.RemoteStorage(host=ftp_host, path=remote_storage_path)
+
+    LOGGER.info("Checking if there is enough free space on %s:%s", ftp_host, remote_storage_path)
+    total_size = utils.LocalStorage(path=WORKING_DIRECTORY).get_files_size(dataset_files_paths)
+    ftp_storage.free_space(total_size)
+
     results = []
     for file in dataset_files_paths:
         dataset_local_path = os.path.join(WORKING_DIRECTORY, file)
-        # It is assumed that the remote server uses "/"" as path separator
-        remote_storage_path = posixpath.join(ftp_root, ftp_path)
-
-        ftp_storage = utils.RemoteStorage(host=ftp_host, path=remote_storage_path)
-        ftp_storage.free_space(os.path.getsize(dataset_local_path))
-
         LOGGER.info("Copying %s to %s:%s", dataset_local_path, ftp_host,
                     os.path.join(remote_storage_path, file))
         try:

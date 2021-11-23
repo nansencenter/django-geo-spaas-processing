@@ -31,11 +31,11 @@ class DownloaderTestCase(unittest.TestCase):
         """
 
         @classmethod
-        def connect(cls, url, auth=(None, None)):
+        def connect(cls, url, auth=(None, None), **kwargs):
             return mock.Mock()
 
         @classmethod
-        def get_file_name(cls, url, connection):
+        def get_file_name(cls, url, auth, **kwargs):
             return 'test_file.txt'
 
         @classmethod
@@ -223,6 +223,27 @@ class HTTPDownloaderTestCase(unittest.TestCase):
             ('username', 'password')
         )
 
+    def test_get_request_parameters(self):
+        """get_request_parameters() should return the
+        'request_parameters' key from kwargs if it is present and
+        contains a dictionary
+        """
+        self.assertDictEqual(
+            downloaders.HTTPDownloader.get_request_parameters({
+                'foo': 'bar',
+                'request_parameters': {'baz': 'qux'}
+            }),
+            {'baz': 'qux'})
+
+        self.assertDictEqual(downloaders.HTTPDownloader.get_request_parameters({'foo': 'bar'}), {})
+
+    def test_get_request_parameters_invalid(self):
+        """get_request_parameters() should raise an exception if the
+        'request_parameters' key's contents are invalid
+        """
+        with self.assertRaises(ValueError):
+            downloaders.HTTPDownloader.get_request_parameters({'request_parameters': 'foo'})
+
     def test_get_file_name(self):
         """Test the correct extraction of a file name from a standard
         Content-Disposition header
@@ -233,6 +254,17 @@ class HTTPDownloaderTestCase(unittest.TestCase):
         response.headers['Content-Disposition'] = f'inline;filename="{file_name}"'
         with mock.patch('geospaas_processing.utils.http_request', return_value=response):
             self.assertEqual(downloaders.HTTPDownloader.get_file_name('url', None), file_name)
+
+    def test_get_file_name_from_netcdf_url(self):
+        """Test extracting a netcdf file name from the URL
+        """
+        response = requests.Response()
+        response.status_code = 200
+        response.headers['Content-Type'] = 'application/x-netcdf'
+        with mock.patch('geospaas_processing.utils.http_request', return_value=response):
+            self.assertEqual(
+                downloaders.HTTPDownloader.get_file_name('https://foo/bar.nc', None),
+                'bar.nc')
 
     def test_get_file_name_no_header(self):
         """`get_file_name()` must return an empty string if the
@@ -266,7 +298,8 @@ class HTTPDownloaderTestCase(unittest.TestCase):
         """`get_file_name()` must return an empty string if an error
         occurs when sending the HEAD request
         """
-        with mock.patch('geospaas_processing.utils.http_request', side_effect=requests.ConnectionError):
+        with mock.patch('geospaas_processing.utils.http_request',
+                        side_effect=requests.ConnectionError):
             with self.assertLogs(downloaders.LOGGER, level=logging.ERROR):
                 self.assertEqual(downloaders.HTTPDownloader.get_file_name('url', None), '')
 
@@ -276,6 +309,36 @@ class HTTPDownloaderTestCase(unittest.TestCase):
             with self.assertLogs(downloaders.LOGGER, level=logging.ERROR):
                 self.assertEqual(downloaders.HTTPDownloader.get_file_name('url', None), '')
 
+    def test_get_file_name_with_parameters(self):
+        """Test getting a file name with parameters in the HEAD request
+        """
+        file_name = "test_file.txt"
+        response = requests.Response()
+        response.status_code = 200
+        response.headers['Content-Disposition'] = f'inline;filename="{file_name}"'
+        with mock.patch(
+                'geospaas_processing.utils.http_request',
+                return_value=response) as mock_http_request:
+            self.assertEqual(
+                downloaders.HTTPDownloader.get_file_name(
+                    'url', None, request_parameters={'foo': 'bar'}),
+                file_name)
+        mock_http_request.assert_called_once_with('HEAD', 'url', auth=None, params={'foo': 'bar'})
+
+    def test_get_file_name_without_parameters(self):
+        """Test getting a file name without parameters in the HEAD
+        request
+        """
+        file_name = "test_file.txt"
+        response = requests.Response()
+        response.status_code = 200
+        response.headers['Content-Disposition'] = f'inline;filename="{file_name}"'
+        with mock.patch(
+                'geospaas_processing.utils.http_request',
+                return_value=response) as mock_http_request:
+            self.assertEqual(downloaders.HTTPDownloader.get_file_name('url', None), file_name)
+        mock_http_request.assert_called_once_with('HEAD', 'url', auth=None, params={})
+
     def test_connect(self):
         """Connect should return a Response object"""
         response = requests.Response()
@@ -283,6 +346,20 @@ class HTTPDownloaderTestCase(unittest.TestCase):
         with mock.patch('geospaas_processing.utils.http_request', return_value=response):
             connect_result = downloaders.HTTPDownloader.connect('url')
         self.assertEqual(connect_result, response)
+
+    def test_connect_with_parameters(self):
+        """Test connecting with parameters to the GET request"""
+        with mock.patch('geospaas_processing.utils.http_request') as mock_http_request:
+            downloaders.HTTPDownloader.connect('url', request_parameters={'appkey': 'foo'})
+        mock_http_request.assert_called_once_with(
+            'GET', 'url', stream=True, auth=(None, None), params={'appkey': 'foo'})
+
+    def test_connect_without_parameters(self):
+        """Test connecting with parameters to the GET request"""
+        with mock.patch('geospaas_processing.utils.http_request') as mock_http_request:
+            downloaders.HTTPDownloader.connect('url')
+        mock_http_request.assert_called_once_with(
+            'GET', 'url', stream=True, auth=(None, None), params={})
 
     def test_connect_error_code(self):
         """An exception should be raised when an error code is received
@@ -298,7 +375,8 @@ class HTTPDownloaderTestCase(unittest.TestCase):
         """An exception must be raised if an error prevents the
         connection from happening
         """
-        with mock.patch('geospaas_processing.utils.http_request', side_effect=requests.ConnectionError):
+        with mock.patch('geospaas_processing.utils.http_request',
+                        side_effect=requests.ConnectionError):
             with self.assertRaises(downloaders.DownloadError):
                 downloaders.HTTPDownloader.connect('url')
 

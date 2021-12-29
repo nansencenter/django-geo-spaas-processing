@@ -9,6 +9,7 @@ import tempfile
 import unittest
 import unittest.mock as mock
 from contextlib import contextmanager
+from pathlib import Path
 
 import geospaas_processing.utils as utils
 
@@ -127,6 +128,19 @@ class ArchiveUtilsTestCase(unittest.TestCase):
                     f"{unpacked_file} is not a file (unpacking {file})")
                 with open(unpacked_file, 'r') as f_h:
                     self.assertEqual(f_h.read(), 'hello\n')
+
+    def test_unarchive_removes_corrupt_extraction_dir(self):
+        """`unarchive()` should remove the extraction directory in case
+        of corrupt file
+        """
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_dir_path = Path(tmp_dir)
+            corrup_archive_name = 'corrupt_archive'
+            corrupt_archive = tmp_dir_path / f"{corrup_archive_name}.tgz"
+            corrupt_archive.touch()
+            with self.assertRaises(shutil.ReadError):
+                utils.unarchive(str(corrupt_archive))
+            self.assertFalse(os.path.exists(tmp_dir_path / corrup_archive_name))
 
 
 class AbstractStorageMethodsTestCase(unittest.TestCase):

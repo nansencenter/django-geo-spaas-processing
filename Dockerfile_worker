@@ -1,15 +1,15 @@
 ARG BASE_IMAGE=nansencenter/geospaas:latest-slim
 FROM ${BASE_IMAGE} as base
 
-RUN pip install --no-cache-dir \
-    celery==4.4 \
-    django-celery-results==1.2 \
-    graypy==2.1.0 \
-    paramiko==2.7.2 \
-    redis==3.5 \
-    requests_oauthlib==1.3 \
-    scp==0.13.2 \
-    freezegun==1.1.0
+RUN pip install --upgrade --no-cache-dir \
+    'celery==5.2.*' \
+    'django-celery-results==2.2.*' \
+    'graypy==2.1.*' \
+    'paramiko<2.9' \
+    'redis==4.1.*' \
+    'requests_oauthlib==1.3.*' \
+    'scp==0.14.*' \
+    'freezegun==1.1.*'
 
 FROM base as full
 

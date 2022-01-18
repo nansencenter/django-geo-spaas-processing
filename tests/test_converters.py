@@ -215,6 +215,17 @@ class IDFConversionManagerTestCase(django.test.TestCase):
                     callable(matching_function),
                     f"In {converter_class}, {matching_function} should be a function")
 
+    def test_remove_corrupted_archive(self):
+        """If a conversion fails because of a corrupt archive, it
+        should be removed
+        """
+        corrupt_archive = self.temp_dir_path / 'corrupt_archive.zip'
+        corrupt_archive.touch()
+        with self.assertRaises(converters.ConversionError) as error:
+            self.conversion_manager.convert(1, corrupt_archive.name)
+            self.assertIn('The input archive was corrupted', str(error.exception))
+        self.assertFalse(os.path.exists(corrupt_archive))
+
 
 class IDFConverterTestCase(unittest.TestCase):
     """Tests for the base IDFConverter class"""

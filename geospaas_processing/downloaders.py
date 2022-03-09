@@ -130,8 +130,13 @@ class Downloader():
         if not file_name:
             raise DownloadError(f"Could not find file name for '{url}'")
         file_path = os.path.join(download_dir, file_name)
+
         if os.path.exists(file_path) and os.path.isfile(file_path):
-            return file_name, False
+            if kwargs.get('disable_download_cache', False):
+                LOGGER.info('Removing existing file: %s', file_path)
+                os.remove(file_path)
+            else:
+                return file_name, False
 
         connection = cls.connect(url, auth, **kwargs)
         try:

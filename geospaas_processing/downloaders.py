@@ -16,6 +16,7 @@ import shutil
 from urllib.parse import urlparse
 
 import oauthlib.oauth2
+import re
 import requests
 import requests.utils
 import requests_oauthlib
@@ -131,13 +132,6 @@ class Downloader():
             raise DownloadError(f"Could not find file name for '{url}'")
         file_path = os.path.join(download_dir, file_name)
 
-        if os.path.exists(file_path) and os.path.isfile(file_path):
-            if kwargs.get('disable_download_cache', False):
-                LOGGER.info('Removing existing file: %s', file_path)
-                os.remove(file_path)
-            else:
-                return file_name, False
-
         connection = cls.connect(url, auth, **kwargs)
         try:
             file_size = cls.get_file_size(url, connection)
@@ -157,7 +151,7 @@ class Downloader():
                     except FileNotFoundError:
                         pass
                 raise
-            return file_name, True
+            return file_name
         finally:
             cls.close_connection(connection)
 
@@ -497,65 +491,95 @@ class DownloadManager():
                 return self.provider_settings[prefix]
         return {}
 
+    @staticmethod
+    def get_dataset_directory(dataset):
+        """Get the directory where a dataset should be downloaded from
+        its entry_id, splitting on potential path separators
+        """
+        return os.path.join(*re.split(r'/|\\', dataset.entry_id))
+
+    @classmethod
+    def already_downloaded(cls, dataset_directory):
+        """Check if a dataset has already been downloaded"""
+        if os.path.isdir(dataset_directory):
+            dir_contents = os.listdir(dataset_directory)
+            if len(dir_contents) == 1:
+                return True
+        return False
+
     def download_dataset(self, dataset, download_directory):
         """
-        Attempts to download a dataset by trying its URIs one by one. For each `DatasetURI`, it
+        Attempt to download a dataset by trying its URIs one by one. For each `DatasetURI`, it
         selects the appropriate Dowloader based on the `service` property.
         Returns the downloaded file path if the download succeeds, an empty string otherwise.
         """
         errors = []
-        for dataset_uri in dataset.dataseturi_set.all():
-            # Get the extra settings for the provider
-            dataset_uri_prefix = "://".join(requests.utils.urlparse(dataset_uri.uri)[0:2])
-            # Find provider settings
-            extra_settings = self.get_provider_settings(dataset_uri_prefix)
-            if extra_settings:
-                LOGGER.debug("Loaded extra settings for provider %s: %s",
-                             dataset_uri_prefix, extra_settings)
-            # Launch download if the maximum number of parallel downloads has not been reached
-            with DownloadLock(dataset_uri_prefix,
-                              extra_settings.get('max_parallel_downloads'),
-                              utils.REDIS_HOST, utils.REDIS_PORT) as acquired:
-                if not acquired:
-                    raise TooManyDownloadsError(
-                        f"Too many downloads in progress for {dataset_uri_prefix}")
-                # Try to find a downloader
-                try:
-                    downloader = self.DOWNLOADERS[dataset_uri.service]
-                except KeyError:
-                    LOGGER.error("No downloader found for %s service",
-                                 dataset_uri.service, exc_info=True)
-                    raise
+        dataset_directory = self.get_dataset_directory(dataset)  # relative to the download dir
+        full_dataset_directory = os.path.join(download_directory,
+                                              self.get_dataset_directory(dataset))
+        file_name = None
 
-                LOGGER.debug("Attempting to download from '%s'", dataset_uri.uri)
-                try:
-                    file_name, downloaded = downloader.check_and_download_url(
-                        url=dataset_uri.uri, download_dir=download_directory,
-                        **extra_settings
-                    )
-                except DownloadError as error:
-                    LOGGER.warning(
-                        ("Failed to download dataset %s from %s. "
-                         "Another URL will be tried if possible"),
-                        dataset.pk, dataset_uri.uri, exc_info=True
-                    )
-                    errors.append(error)
-                except (FileNotFoundError, IsADirectoryError) as error:
-                    raise DownloadError(
-                        f"Could not write the downloaded file to {error.filename}") from error
-                else:
-                    if file_name and self.save_path:
-                        dataset.dataseturi_set.get_or_create(
-                            dataset=dataset,
-                            uri = os.path.join(os.path.realpath(download_directory), file_name),
-                        )
-                    if downloaded:
-                        LOGGER.info("Successfully downloaded dataset %d to %s",
-                                    dataset.pk, file_name)
+        if self.already_downloaded(full_dataset_directory):
+            file_name = os.listdir(full_dataset_directory)[0]
+            dataset_path = os.path.join(dataset_directory, file_name)
+            LOGGER.debug("Dataset %d is already present at %s",
+                         dataset.pk, dataset_path)
+        else:
+            os.makedirs(full_dataset_directory, exist_ok=True)
+            for dataset_uri in dataset.dataseturi_set.all():
+                # Get the extra settings for the provider
+                dataset_uri_prefix = "://".join(requests.utils.urlparse(dataset_uri.uri)[0:2])
+                # Find provider settings
+                extra_settings = self.get_provider_settings(dataset_uri_prefix)
+                if extra_settings:
+                    LOGGER.debug("Loaded extra settings for provider %s: %s",
+                                dataset_uri_prefix, extra_settings)
+                # Launch download if the maximum number of parallel downloads has not been reached
+                with DownloadLock(dataset_uri_prefix,
+                                extra_settings.get('max_parallel_downloads'),
+                                utils.REDIS_HOST, utils.REDIS_PORT) as acquired:
+                    if not acquired:
+                        raise TooManyDownloadsError(
+                            f"Too many downloads in progress for {dataset_uri_prefix}")
+                    # Try to find a downloader
+                    try:
+                        downloader = self.DOWNLOADERS[dataset_uri.service]
+                    except KeyError:
+                        LOGGER.error("No downloader found for %s service",
+                                    dataset_uri.service, exc_info=True)
+                        raise
+
+                    LOGGER.debug("Attempting to download from '%s'", dataset_uri.uri)
+                    try:
+                        file_name = downloader.check_and_download_url(
+                            url=dataset_uri.uri, download_dir=full_dataset_directory,
+                            **extra_settings)
+                    except DownloadError as error:
+                        LOGGER.warning(
+                            ("Failed to download dataset %s from %s. "
+                            "Another URL will be tried if possible"),
+                            dataset.pk, dataset_uri.uri, exc_info=True)
+                        errors.append(error)
+                        shutil.rmtree(full_dataset_directory, ignore_errors=True)
+                    except (FileNotFoundError, IsADirectoryError) as error:
+                        shutil.rmtree(full_dataset_directory, ignore_errors=True)
+                        raise DownloadError(
+                            f"Could not write the downloaded file to {error.filename}") from error
                     else:
-                        LOGGER.debug("Dataset %d is already present at %s", dataset.pk, file_name)
-                    return file_name
-        raise DatasetDownloadError(f"Failed to download dataset {dataset.pk}", errors=errors)
+                        dataset_path = os.path.join(dataset_directory, file_name)
+                        LOGGER.info("Successfully downloaded dataset %d to %s",
+                                    dataset.pk, dataset_path)
+                        break
+
+        if file_name:
+            if self.save_path:
+                dataset.dataseturi_set.get_or_create(
+                    dataset=dataset,
+                    uri=os.path.join(os.path.realpath(full_dataset_directory), file_name))
+            return dataset_path
+        else:
+            shutil.rmtree(full_dataset_directory, ignore_errors=True)
+            raise DatasetDownloadError(f"Failed to download dataset {dataset.pk}", errors=errors)
 
     def download(self):
         """Attempt to download all datasets (matching the criteria if any criteria defined). """

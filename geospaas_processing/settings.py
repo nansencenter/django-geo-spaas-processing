@@ -36,7 +36,8 @@ django_settings = {
     # Celery settings
     'CELERY_BROKER_URL': os.getenv(
         'GEOSPAAS_PROCESSING_BROKER', 'amqp://guest:guest@localhost:5672'),
-    'CELERY_RESULT_BACKEND': 'django-db'
+    'CELERY_RESULT_BACKEND': 'django-db',
+    'DEFAULT_AUTO_FIELD': 'django.db.models.AutoField',
 }
 
 if django_celery_results:

@@ -199,6 +199,28 @@ class IDFConversionManagerTestCase(django.test.TestCase):
             with self.assertRaises(converters.ConversionError):
                 self.conversion_manager.convert(1, 'dataset_1.nc')
 
+    def test_convert_corrupted_archive(self):
+        """If the archive is corrupted, it needs to be removed
+        """
+        # create corrupted archive
+        corrupted_archive_name = 'corrupted_archive.zip'
+        with open(self.temp_dir_path / corrupted_archive_name, 'wb') as corrupted_file:
+            corrupted_file.write(b'foo')
+        with self.assertRaises(converters.ConversionError):
+            self.conversion_manager.convert(1, corrupted_archive_name)
+        self.assertFalse(os.path.exists(self.temp_dir_path / corrupted_archive_name))
+
+    def test_convert_archive_directory(self):
+        """If the archive is a folder, it needs to be removed, although
+        it should never happen
+        """
+        # create directory instead of archive
+        corrupted_archive_name = 'corrupted_archive.zip'
+        os.makedirs(self.temp_dir_path / corrupted_archive_name)
+        with self.assertRaises(converters.ConversionError):
+            self.conversion_manager.convert(1, corrupted_archive_name)
+        self.assertFalse(os.path.exists(self.temp_dir_path / corrupted_archive_name))
+
     def test_registered_converters(self):
         """Test that registered converters contain the right
         information

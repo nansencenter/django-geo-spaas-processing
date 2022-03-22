@@ -367,11 +367,17 @@ def unarchive(in_file):
 
     return extract_dir
 
+def is_gzipfile(file_path):
+    """Test if a file is a gzip archive by checking the magic number
+    """
+    with open(file_path, 'rb') as file_handler:
+        return file_handler.read(2) == b'\x1f\x8b'
 
 def tar_gzip(file_path):
     """Makes the file a tar archive compressed with gzip if the file is not one already"""
     if os.path.isfile(file_path) and (tarfile.is_tarfile(file_path) or
-                                      zipfile.is_zipfile(file_path)):
+                                      zipfile.is_zipfile(file_path) or
+                                      is_gzipfile(file_path)):
         return file_path
 
     archive_path = f"{file_path}.tar.gz"

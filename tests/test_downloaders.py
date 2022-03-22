@@ -22,6 +22,25 @@ import geospaas_processing.downloaders as downloaders
 import geospaas_processing.utils as utils
 
 
+class DatasetDownloadErrorTestCase(unittest.TestCase):
+    """Tests for the DatasetDownloadError Exception class"""
+    def test_constructor(self):
+        """Test constructing a DatasetDownloadError from various errors
+        """
+        errors = [FileNotFoundError(), IsADirectoryError()]
+        download_error = downloaders.DatasetDownloadError(errors=errors)
+        self.assertListEqual(download_error.errors, errors)
+
+    def test_str(self):
+        """Test the string representation of a DownloadError
+        """
+        errors = [FileNotFoundError('foo'), IsADirectoryError('bar')]
+        download_error = downloaders.DatasetDownloadError(errors=errors)
+        self.assertEqual(
+            str(download_error),
+            '\n  FileNotFoundError: foo\n  IsADirectoryError: bar')
+
+
 class DownloaderTestCase(unittest.TestCase):
     """Tests for the base Downloader class"""
 
@@ -108,9 +127,9 @@ class DownloaderTestCase(unittest.TestCase):
         """Test a simple file download"""
         self.assertEqual(
             self.TestDownloader.check_and_download_url('', self.temp_directory.name),
-            ('test_file.txt', True)
-        )
-        with open(os.path.join(self.download_dir, 'test_file.txt'), 'r') as file_handler:
+            'test_file.txt')
+        with open(os.path.join(self.download_dir, 'test_file.txt'), 'r',
+                  encoding='utf-8') as file_handler:
             file_contents = file_handler.readlines()
         self.assertEqual(file_contents[0], 'contents')
 
@@ -138,10 +157,19 @@ class DownloaderTestCase(unittest.TestCase):
             self.TestDownloader.check_and_download_url('', self.download_dir)
 
     def test_check_and_download_url_if_file_already_exists(self):
-        """check_and_download_url should return false if the destination file already exists """
-        Path(os.path.join(self.download_dir, 'test_file.txt')).touch()
-        self.assertFalse(
-            self.TestDownloader.check_and_download_url('', self.download_dir)[1])
+        """check_and_download_url should overwrite the destination file
+        if it already exists
+        """
+        destination_file_path = os.path.join(
+            self.download_dir, self.TestDownloader.get_file_name('', None))
+        # write something in the destination file
+        with open(destination_file_path, 'w', encoding='utf-8') as f:
+            f.write('foo')
+        # simulate a download
+        self.TestDownloader.check_and_download_url('', self.download_dir)
+        # check that the contents of the destination file have been overwritten
+        with open(destination_file_path, 'r', encoding='utf-8') as f:
+            self.assertEqual(f.read(), 'contents')
 
     def test_check_and_download_url_remove_file_if_no_space_left(self):
         """
@@ -243,6 +271,19 @@ class HTTPDownloaderTestCase(unittest.TestCase):
         """
         with self.assertRaises(ValueError):
             downloaders.HTTPDownloader.get_request_parameters({'request_parameters': 'foo'})
+
+    def test_check_response(self):
+        """check_response() should raise an ObsoleteURLError if the
+        status code of the response is in the invalid status codes list
+        """
+        # a 404 status code raises an error by default
+        with self.assertRaises(downloaders.ObsoleteURLError):
+            downloaders.HTTPDownloader.check_response(mock.Mock(status_code=404), {})
+
+        with self.assertRaises(downloaders.ObsoleteURLError):
+            downloaders.HTTPDownloader.check_response(
+                mock.Mock(status_code=202),
+                {'invalid_status_codes': {202: 'Offline dataset'}})
 
     def test_get_file_name(self):
         """Test the correct extraction of a file name from a standard
@@ -499,6 +540,15 @@ class FTPDownloaderTestCase(unittest.TestCase):
 
         mock_connection.retrbinary.assert_called_with('RETR /path/file.nc', mock_file.write)
 
+    def test_download_file_error(self):
+        """An ObsoleteURLError should be raised if the path does not
+        exist on the FTP server
+        """
+        mock_connection = mock.Mock()
+        mock_connection.nlst.return_value = False
+        with self.assertRaises(downloaders.ObsoleteURLError):
+            downloaders.FTPDownloader.download_file(mock.Mock(), 'ftp://foo', mock_connection)
+
 
 class LocalDownloaderTestCase(unittest.TestCase):
     """Tests for the LocalDownloader class"""
@@ -696,37 +746,39 @@ class DownloadManagerTestCase(django.test.TestCase):
             mock_p_s.return_value = {}
             with mock.patch.object(
                     downloaders.HTTPDownloader, 'check_and_download_url') as mock_dl_url:
-                mock_dl_url.return_value=('Dataset_1_test.nc', False)
+                mock_dl_url.return_value='Dataset_1_test.nc'
                 download_manager.download_dataset(Dataset.objects.get(pk=1), '')
                 mock_dl_url.assert_called()
 
-    def test_the_storing_ability_of_file_local_address_in_the_case_of_downloading_file(self):
+    def test_save_path(self):
         """
         Test that address of downloaded file is added to the dataseturi model
          in the case of downloading file.
         """
         download_manager = downloaders.DownloadManager(save_path=True)
         dataset = Dataset.objects.get(pk=3)
-        with mock.patch.object(downloaders.HTTPDownloader, 'check_and_download_url') as mock_dl_url:
-            mock_dl_url.return_value = ('test.nc', True)
+        with mock.patch.object(downloaders.HTTPDownloader,
+                               'check_and_download_url',
+                               return_value='test.nc'), \
+                mock.patch('os.makedirs'):
             download_manager.download_dataset(dataset, '/testing_value')
             self.assertEqual(dataset.dataseturi_set.filter(
                                 dataset=dataset,service=LOCAL_FILE_SERVICE)[0].uri,
-                            '/testing_value/test.nc')
+                             os.path.join('/testing_value', dataset.entry_id, 'test.nc'))
 
-    def test_the_storing_ability_of_file_local_address_if_previously_downloaded_file_exists(self):
+    def test_save_path_if_file_already_exists(self):
         """
         Test that address of previously downloaded file is added to the dataseturi model. in the
         case of lack of downloading action.
         """
         download_manager = downloaders.DownloadManager(save_path=True)
         dataset = Dataset.objects.get(pk=3)
-        with mock.patch.object(downloaders.HTTPDownloader, 'check_and_download_url') as mock_dl_url:
-            mock_dl_url.return_value = ('test.nc', False)
+        with mock.patch('os.path.isdir', return_value=True), \
+                mock.patch('os.listdir', return_value=['test.nc']):
             download_manager.download_dataset(dataset, '/testing_value')
-            self.assertEqual(dataset.dataseturi_set.filter(
-                                dataset=dataset,service=LOCAL_FILE_SERVICE)[0].uri,
-                            '/testing_value/test.nc')
+            self.assertEqual(
+                dataset.dataseturi_set.filter(dataset=dataset,service=LOCAL_FILE_SERVICE)[0].uri,
+                os.path.join('/testing_value', dataset.entry_id, 'test.nc'))
 
     def test_download_dataset(self):
         """Test that a dataset is downloaded with the correct arguments"""
@@ -736,16 +788,16 @@ class DownloadManagerTestCase(django.test.TestCase):
         dataset = Dataset.objects.get(pk=1)
         dataset_url = dataset.dataseturi_set.first().uri
         with mock.patch.object(downloaders.HTTPDownloader, 'check_and_download_url') as mock_dl_url:
-            mock_dl_url.return_value = ('dataset_1_file.h5', True)
+            mock_dl_url.return_value = 'dataset_1_file.h5'
             result = download_manager.download_dataset(dataset, '')
             mock_dl_url.assert_called_with(
                 url=dataset_url,
-                download_dir='',
+                download_dir=dataset.entry_id,
                 username='topvoys',
                 password='password',
                 max_parallel_downloads=2
             )
-            self.assertEqual(result, 'dataset_1_file.h5')
+            self.assertEqual(result, os.path.join(dataset.entry_id, 'dataset_1_file.h5'))
 
     def test_download_dataset_file_exists(self):
         """
@@ -755,12 +807,12 @@ class DownloadManagerTestCase(django.test.TestCase):
         download_manager = downloaders.DownloadManager()
         dataset = Dataset.objects.get(pk=1)
 
-        with mock.patch.object(downloaders.HTTPDownloader, 'check_and_download_url') as mock_dl_url:
-            mock_dl_url.return_value = ('dataset_1_file.h5', False)
+        with mock.patch('os.path.isdir', return_value=True), \
+                mock.patch('os.listdir', return_value=['dataset_1_file.h5']):
             with self.assertLogs(logger=downloaders.LOGGER, level=logging.DEBUG) as logs_cm:
                 result = download_manager.download_dataset(dataset, 'test_folder')
-                self.assertTrue("is already present at" in logs_cm.records[2].message)
-            self.assertEqual(result, 'dataset_1_file.h5')
+                self.assertTrue("is already present at" in logs_cm.records[0].message)
+            self.assertEqual(result, os.path.join(dataset.entry_id, 'dataset_1_file.h5'))
 
     def test_download_dataset_locked(self):
         """Test that an exception is raised if the max number of downloads has been reached"""
@@ -783,14 +835,15 @@ class DownloadManagerTestCase(django.test.TestCase):
         # Function used to mock a download failure on the first URL
         def check_and_download_url_side_effect(url, download_dir, **kwargs):  # pylint: disable=unused-argument
             if url == 'https://scihub.copernicus.eu/fakeurl':
-                return dataset_file_name, True
+                return dataset_file_name
             else:
                 raise downloaders.DownloadError()
 
         with mock.patch.object(downloaders.HTTPDownloader, 'check_and_download_url') as mock_dl_url:
             mock_dl_url.side_effect = check_and_download_url_side_effect
             with self.assertLogs(logger=downloaders.LOGGER, level=logging.WARNING) as logs_cm:
-                self.assertEqual(download_manager.download_dataset(dataset, ''), dataset_file_name)
+                self.assertEqual(download_manager.download_dataset(dataset, ''),
+                                 os.path.join(dataset.entry_id, dataset_file_name))
                 self.assertTrue(logs_cm.records[0].message.startswith('Failed to download dataset'))
 
     def test_download_dataset_having_local_link_fails(self):

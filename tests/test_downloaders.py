@@ -272,6 +272,19 @@ class HTTPDownloaderTestCase(unittest.TestCase):
         with self.assertRaises(ValueError):
             downloaders.HTTPDownloader.get_request_parameters({'request_parameters': 'foo'})
 
+    def test_check_response(self):
+        """check_response() should raise an ObsoleteURLError if the
+        status code of the response is in the invalid status codes list
+        """
+        # a 404 status code raises an error by default
+        with self.assertRaises(downloaders.ObsoleteURLError):
+            downloaders.HTTPDownloader.check_response(mock.Mock(status_code=404), {})
+
+        with self.assertRaises(downloaders.ObsoleteURLError):
+            downloaders.HTTPDownloader.check_response(
+                mock.Mock(status_code=202),
+                {'invalid_status_codes': {202: 'Offline dataset'}})
+
     def test_get_file_name(self):
         """Test the correct extraction of a file name from a standard
         Content-Disposition header

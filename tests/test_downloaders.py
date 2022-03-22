@@ -540,6 +540,15 @@ class FTPDownloaderTestCase(unittest.TestCase):
 
         mock_connection.retrbinary.assert_called_with('RETR /path/file.nc', mock_file.write)
 
+    def test_download_file_error(self):
+        """An ObsoleteURLError should be raised if the path does not
+        exist on the FTP server
+        """
+        mock_connection = mock.Mock()
+        mock_connection.nlst.return_value = False
+        with self.assertRaises(downloaders.ObsoleteURLError):
+            downloaders.FTPDownloader.download_file(mock.Mock(), 'ftp://foo', mock_connection)
+
 
 class LocalDownloaderTestCase(unittest.TestCase):
     """Tests for the LocalDownloader class"""

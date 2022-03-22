@@ -22,6 +22,25 @@ import geospaas_processing.downloaders as downloaders
 import geospaas_processing.utils as utils
 
 
+class DatasetDownloadErrorTestCase(unittest.TestCase):
+    """Tests for the DatasetDownloadError Exception class"""
+    def test_constructor(self):
+        """Test constructing a DatasetDownloadError from various errors
+        """
+        errors = [FileNotFoundError(), IsADirectoryError()]
+        download_error = downloaders.DatasetDownloadError(errors=errors)
+        self.assertListEqual(download_error.errors, errors)
+
+    def test_str(self):
+        """Test the string representation of a DownloadError
+        """
+        errors = [FileNotFoundError('foo'), IsADirectoryError('bar')]
+        download_error = downloaders.DatasetDownloadError(errors=errors)
+        self.assertEqual(
+            str(download_error),
+            '\n  FileNotFoundError: foo\n  IsADirectoryError: bar')
+
+
 class DownloaderTestCase(unittest.TestCase):
     """Tests for the base Downloader class"""
 

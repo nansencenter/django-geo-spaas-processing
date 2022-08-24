@@ -21,9 +21,8 @@ import scp
 from django.db import connection
 
 import geospaas_processing.utils as utils
-from .converters import IDFConversionManager
+from .converters import IDFConversionManager, SyntoolConversionManager
 from .downloaders import DownloadManager, TooManyDownloadsError
-
 
 LOGGER = celery.utils.log.get_task_logger(__name__)
 WORKING_DIRECTORY = os.getenv('GEOSPAAS_PROCESSING_WORK_DIR', '/tmp/test_data')
@@ -106,7 +105,7 @@ def download(self, args):
 @lock_dataset_files
 def convert_to_idf(self, args):  # pylint: disable=unused-argument
     """
-    Takes a tuple.
+    Takes a tuple as argument.
     The first element is the dataset's ID (mandatory).
     The second element is the file to convert (optional: can be None).
     For compatibility with other tasks, the second element should be a one-element list.
@@ -121,6 +120,19 @@ def convert_to_idf(self, args):  # pylint: disable=unused-argument
                 dataset_files_paths, converted_files)
     return (dataset_id, converted_files)
 
+
+@app.task(base=FaultTolerantTask, bind=True, track_started=True)
+@lock_dataset_files
+def convert_to_syntool(self, args):  # pylint: disable=unused-argument
+    """Convert a dataset to a format displayable by Syntool"""
+    dataset_id = args[0]
+    dataset_files_paths = args[1][0]
+    LOGGER.debug("Converting dataset file '%s' to Syntool format", dataset_files_paths)
+    converted_files = SyntoolConversionManager(WORKING_DIRECTORY).convert(
+        dataset_id, dataset_files_paths)
+    LOGGER.info("Successfully converted '%s' to Syntool format. The results directories are '%s'",
+                dataset_files_paths, converted_files)
+    return (dataset_id, converted_files)
 
 @app.task(base=FaultTolerantTask, bind=True, track_started=True)
 @lock_dataset_files

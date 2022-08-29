@@ -164,3 +164,40 @@ class CMEMSL4CurrentSyntoolConverter(PresetSyntoolConverter):
             crop(converted_file_path, tmp_file, self.bounding_box)
             shutil.move(tmp_file, converted_file_path)
         return converted_files
+
+
+@SyntoolConversionManager.register()
+class Sentinel1SyntoolConverter(PresetSyntoolConverter):
+    """Syntool converter for Sentinel 1"""
+    PARAMETER_SELECTORS = (
+        ParameterSelector(
+            matches=lambda d: re.match(r'^S1[AB]_.*_(GRD[A-Z]?|SLC)_.*', d.entry_id),
+            convert_parameter_file='convert_sar_roughness',
+            ingest_parameter_files='ingest_geotiff_4326_tiles',),
+        ParameterSelector(
+            matches=lambda d: re.match(r'^S1[AB]_.*_OCN_.*', d.entry_id),
+            convert_parameter_file='convert_sar_wind',
+            ingest_parameter_files='ingest_geotiff_4326_tiles',),
+    )
+
+    @staticmethod
+    def list_files(input_path):
+        """Utility method to list files in a directory and raise an exception
+        if nothing is found. Takes a Path object.
+        """
+        files_to_convert = list(input_path.iterdir())
+        if not files_to_convert:
+            raise ConversionError(f"Could not find any file to convert in {input_path}")
+        return files_to_convert
+
+    def convert(self, in_file, out_dir, options):
+        results = []
+        for measurement_file in self.list_files(Path(in_file, 'measurement')):
+            results.extend(super().convert(measurement_file, out_dir, options))
+        return results
+
+    def ingest(self, in_file, out_dir, options):
+        results = []
+        for converted_file in self.list_files(Path(in_file)):
+            results.extend(super().ingest(converted_file, out_dir, options))
+        return results

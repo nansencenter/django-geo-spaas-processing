@@ -38,8 +38,10 @@ class SyntoolConverter(Converter):
                     f"Conversion failed with the following message: {error.stderr}") from error
             results = self.move_results(tmp_dir, out_dir)
         if not results:
-            raise ConversionError(
-                f"syntool-converter did not produce any file. Output: {process.stdout}")
+            raise ConversionError((
+                "syntool-converter did not produce any file. "
+                f"stdout: {process.stdout}"
+                f"stderr: {process.stderr}"))
         return results
 
     def ingest(self, in_file, out_dir, options):
@@ -59,8 +61,10 @@ class SyntoolConverter(Converter):
                     f"Ingestion failed with the following message: {error.stderr}") from error
             results = self.move_results(tmp_dir, out_dir)
         if not results:
-            raise ConversionError(
-                f"syntool-ingestor did not produce any file. Output: {process.stdout}")
+            raise ConversionError((
+                "syntool-ingestor did not produce any file. "
+                f"stdout: {process.stdout}"
+                f"stderr: {process.stderr}"))
         return results
 
     def run(self, in_file, out_dir):

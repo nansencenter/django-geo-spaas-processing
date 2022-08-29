@@ -80,8 +80,11 @@ class PresetSyntoolConverter(SyntoolConverter):
         ParameterSelector(
             matches=lambda d: re.match(r'^S3[AB]_OL_2_WFR.*$', d.entry_id),
             convert_parameter_file='convert_sentinel3_olci_l2',
-            ingest_parameter_files='ingest_geotiff_4326_tiles'
-            ),
+            ingest_parameter_files='ingest_geotiff_4326_tiles'),
+        ParameterSelector(
+            matches=lambda d: re.match(r'^S3[AB]_SL_1_RBT.*$', d.entry_id),
+            convert_parameter_file='convert_sentinel3_slstr_bt_l1',
+            ingest_parameter_files='ingest_geotiff_4326_tiles'),
         ParameterSelector(
             matches=lambda d: re.match(r'^.*nersc-MODEL-nextsimf.*$', d.entry_id),
             convert_parameter_file='convert_nextsim',

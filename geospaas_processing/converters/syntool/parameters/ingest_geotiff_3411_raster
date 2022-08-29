@@ -1,0 +1,1 @@
+--input-format geotiff --input-options projection=3411 --output-format raster

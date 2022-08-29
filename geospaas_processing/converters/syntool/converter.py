@@ -96,8 +96,15 @@ class PresetSyntoolConverter(SyntoolConverter):
                     ingest_file='ingest_geotiff_3413_raster'),
                 ParameterSelector(
                     matches=lambda p: 'sea_ice_drift_velocity' in str(p),
-                    ingest_file='ingest_geotiff_3413_vectorfield'),
-        )),
+                    ingest_file='ingest_geotiff_3413_vectorfield'),)),
+        ParameterSelector(
+            matches=lambda d: d.entry_id.startswith('ice_conc_nh_polstere-'),
+            convert_parameter_file='convert_osisaf_sea_ice_conc',
+            ingest_parameter_files='ingest_geotiff_3411_raster',),
+        ParameterSelector(
+            matches=lambda d: d.entry_id.startswith('ice_drift_nh_polstere-'),
+            convert_parameter_file='convert_osisaf_sea_ice_drift',
+            ingest_parameter_files='ingest_osisaf_sea_ice_drift',),
     )
 
     def __init__(self, convert_parameter_file, ingest_parameter_files, **kwargs):

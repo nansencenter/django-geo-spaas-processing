@@ -247,6 +247,11 @@ class CustomReaderSyntoolConverter(BasicSyntoolConverter):
     """
     CONVERTER_COMMAND = Path('extra_readers', 'runner.py')
     PARAMETER_SELECTORS = (
+        ParameterSelector(
+            matches=lambda d: re.match(r'^dt_arctic_multimission_v.*_sea_level_.*$', d.entry_id),
+            converter_type='duacs_sea_level_arctic',
+            ingest_parameter_files='ingest_geotiff_3413_raster',
+        ),
     )
 
     def parse_converter_args(self, kwargs):

@@ -285,6 +285,15 @@ class CustomReaderSyntoolConverter(BasicSyntoolConverter):
             matches=lambda d: re.match(r'^WIND_S1[AB]_.*$', d.entry_id),
             converter_type='sios_wind',
             ingest_parameter_files='ingest_geotiff_3413_tiles',),
+        ParameterSelector(
+            matches=lambda d: re.match(
+                r'^[0-9]{8}_dm-metno-MODEL-topaz4-ARC-b[0-9]{8}-fv[0-9.]+$', d.entry_id),
+            converter_type='topaz_forecast',
+            ingest_parameter_files=(
+                ParameterSelector(
+                    matches=lambda p: 'topaz_forecast_sea_surface_elevation' in p,
+                    ingest_file='ingest_geotiff_3413_raster'),
+            ),),
     )
 
     def parse_converter_args(self, kwargs):

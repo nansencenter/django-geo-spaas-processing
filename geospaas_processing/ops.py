@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 class OutputFormat(Enum):
     """Output formats supported by GDAL"""
     geotiff = 'GTiff'
+    netcdf = 'netCDF'
     vrt = 'VRT'
 
 

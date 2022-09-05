@@ -6,8 +6,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from ..base import ConversionError, ConversionManager, Converter, \
-                   ParameterSelector, NoMatch
+from ..base import ConversionError, ConversionManager, Converter, ParameterSelector
 from ...ops import crop
 
 logger = logging.getLogger(__name__)

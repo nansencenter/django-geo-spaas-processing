@@ -281,6 +281,10 @@ class CustomReaderSyntoolConverter(BasicSyntoolConverter):
             matches=lambda d: re.match(r'^[0-9]{8}_cmems_arctic1km_cmems_oceancolour$', d.entry_id),
             converter_type='sios_chlorophyll',
             ingest_parameter_files='ingest_geotiff_32662_tiles',),
+        ParameterSelector(
+            matches=lambda d: re.match(r'^WIND_S1[AB]_.*$', d.entry_id),
+            converter_type='sios_wind',
+            ingest_parameter_files='ingest_geotiff_3413_tiles',),
     )
 
     def parse_converter_args(self, kwargs):

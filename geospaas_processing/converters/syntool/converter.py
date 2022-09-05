@@ -252,6 +252,11 @@ class CustomReaderSyntoolConverter(BasicSyntoolConverter):
             converter_type='duacs_sea_level_arctic',
             ingest_parameter_files='ingest_geotiff_3413_raster',
         ),
+        ParameterSelector(
+            matches=lambda d: d.entry_id.startswith('ice_type_nh_polstere-'),
+            converter_type='osisaf_sea_ice_type',
+            ingest_parameter_files='ingest_geotiff_3411_raster',
+        ),
     )
 
     def parse_converter_args(self, kwargs):

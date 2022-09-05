@@ -1,0 +1,3 @@
+--input-format geotiff
+--input-options projection=32662
+--output-format rastertiles

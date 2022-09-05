@@ -257,6 +257,11 @@ class CustomReaderSyntoolConverter(BasicSyntoolConverter):
             converter_type='osisaf_sea_ice_type',
             ingest_parameter_files='ingest_geotiff_3411_raster',
         ),
+        ParameterSelector(
+            matches=lambda d: d.entry_id.startswith('RS2_'),
+            converter_type='radarsat2',
+            ingest_parameter_files='ingest_geotiff_4326_tiles',
+        ),
     )
 
     def parse_converter_args(self, kwargs):

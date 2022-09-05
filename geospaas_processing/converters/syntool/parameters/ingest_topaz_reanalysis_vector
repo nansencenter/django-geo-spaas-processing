@@ -1,0 +1,5 @@
+--input-format geotiff
+--input-options projection=3413
+                angles_proj=3413
+--output-format vectorfield
+--output-options resolution=12500x12500

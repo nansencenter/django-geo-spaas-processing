@@ -294,6 +294,18 @@ class CustomReaderSyntoolConverter(BasicSyntoolConverter):
                     matches=lambda p: 'topaz_forecast_sea_surface_elevation' in p,
                     ingest_file='ingest_geotiff_3413_raster'),
             ),),
+        ParameterSelector(
+            matches=lambda d: re.match(
+                r'^[0-9]{8}_dm-12km-NERSC-MODEL-TOPAZ4B-ARC-RAN\.[0-9.]+$', d.entry_id),
+            converter_type='topaz_reanalysis',
+            ingest_parameter_files=(
+                ParameterSelector(
+                    matches=lambda p: any(i in p for i in ('swt', 'salinity')),
+                    ingest_file='ingest_geotiff_3413_raster'),
+                ParameterSelector(
+                    matches=lambda p: 'current' in p,
+                    ingest_file='ingest_topaz_reanalysis_vector'),
+            ),),
     )
 
     def parse_converter_args(self, kwargs):

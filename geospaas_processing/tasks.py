@@ -123,13 +123,13 @@ def convert_to_idf(self, args):  # pylint: disable=unused-argument
 
 @app.task(base=FaultTolerantTask, bind=True, track_started=True)
 @lock_dataset_files
-def convert_to_syntool(self, args):  # pylint: disable=unused-argument
+def convert_to_syntool(self, args, **kwargs):  # pylint: disable=unused-argument
     """Convert a dataset to a format displayable by Syntool"""
     dataset_id = args[0]
     dataset_files_paths = args[1][0]
     LOGGER.debug("Converting dataset file '%s' to Syntool format", dataset_files_paths)
     converted_files = SyntoolConversionManager(WORKING_DIRECTORY).convert(
-        dataset_id, dataset_files_paths)
+        dataset_id, dataset_files_paths, **kwargs)
     LOGGER.info("Successfully converted '%s' to Syntool format. The results directories are '%s'",
                 dataset_files_paths, converted_files)
     return (dataset_id, converted_files)

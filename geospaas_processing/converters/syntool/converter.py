@@ -262,6 +262,17 @@ class CustomReaderSyntoolConverter(BasicSyntoolConverter):
             converter_type='radarsat2',
             ingest_parameter_files='ingest_geotiff_4326_tiles',
         ),
+        ParameterSelector(
+            matches=lambda d: d.entry_id.startswith('NorKyst-800m_'),
+            converter_type='roms_norkyst800',
+            ingest_parameter_files=(
+                ParameterSelector(
+                    matches=lambda p: any(i in p for i in ('swt', 'salinity')),
+                    ingest_file='ingest_geotiff_3413_raster'),
+                ParameterSelector(
+                    matches=lambda p: 'roms_norkyst800_current' in str(p),
+                    ingest_file='ingest_norkyst800_current'),),
+        ),
     )
 
     def parse_converter_args(self, kwargs):

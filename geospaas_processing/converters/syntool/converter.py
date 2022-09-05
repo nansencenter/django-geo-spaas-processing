@@ -237,3 +237,17 @@ class Sentinel1SyntoolConverter(BasicSyntoolConverter):
         for converted_file in self.list_files(Path(in_file)):
             results.extend(super().ingest(converted_file, out_dir, options))
         return results
+
+
+@SyntoolConversionManager.register()
+class CustomReaderSyntoolConverter(BasicSyntoolConverter):
+    """Syntool converter using cutom readers. The converter_type
+    constructor argument must match the name of a reader module in
+    extra_readers
+    """
+    CONVERTER_COMMAND = Path('extra_readers', 'runner.py')
+    PARAMETER_SELECTORS = (
+    )
+
+    def parse_converter_args(self, kwargs):
+        return ['-r', self.converter_type, *self.parse_converter_options(kwargs)]

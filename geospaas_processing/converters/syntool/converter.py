@@ -306,6 +306,32 @@ class CustomReaderSyntoolConverter(BasicSyntoolConverter):
                     matches=lambda p: 'current' in p,
                     ingest_file='ingest_topaz_reanalysis_vector'),
             ),),
+        ParameterSelector(
+            matches=lambda d: re.match(
+                r'^[0-9]{8}_dm-metno-MODEL-topaz5-ARC-b[0-9]{8}-fv[0-9.]+$', d.entry_id),
+            converter_type='topaz5_forecast_phy',
+            ingest_parameter_files=(
+                ParameterSelector(
+                    matches=lambda p: any(i in p for i in ('swt', 'salinity')),
+                    ingest_file='ingest_geotiff_3413_raster'),
+                ParameterSelector(
+                    matches=lambda p: any(i in p for i in (
+                        'current', 'sea_ice_velocity')),
+                    ingest_file='ingest_topaz5_forecast_vector'),
+            ),),
+        ParameterSelector(
+            matches=lambda d: re.match(
+                r'^[0-9]{8}_dm-metno-MODEL-topaz5_ecosmo-ARC-b[0-9]{8}-fv[0-9.]+$', d.entry_id),
+            converter_type='topaz5_forecast_bgc',
+            ingest_parameter_files=(
+                ParameterSelector(
+                    matches=lambda p: any(i in p for i in ('swt', 'salinity')),
+                    ingest_file='ingest_geotiff_3413_raster'),
+                ParameterSelector(
+                    matches=lambda p: any(i in p for i in (
+                        'current', 'sea_ice_velocity')),
+                    ingest_file='ingest_topaz5_forecast_vector'),
+            ),),
     )
 
     def parse_converter_args(self, kwargs):

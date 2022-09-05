@@ -83,7 +83,7 @@ class SyntoolConverter(Converter):
 
 
 @SyntoolConversionManager.register()
-class PresetSyntoolConverter(SyntoolConverter):
+class BasicSyntoolConverter(SyntoolConverter):
     """Syntool converter using pre-set configuration files"""
 
     PARAMETER_SELECTORS = (
@@ -179,7 +179,7 @@ class PresetSyntoolConverter(SyntoolConverter):
 
 
 @SyntoolConversionManager.register()
-class CMEMSL4CurrentSyntoolConverter(PresetSyntoolConverter):
+class CMEMSL4CurrentSyntoolConverter(BasicSyntoolConverter):
     """Syntool converter for current from CMEMS L4 products"""
     PARAMETER_SELECTORS = (
         ParameterSelector(
@@ -203,7 +203,7 @@ class CMEMSL4CurrentSyntoolConverter(PresetSyntoolConverter):
 
 
 @SyntoolConversionManager.register()
-class Sentinel1SyntoolConverter(PresetSyntoolConverter):
+class Sentinel1SyntoolConverter(BasicSyntoolConverter):
     """Syntool converter for Sentinel 1"""
     PARAMETER_SELECTORS = (
         ParameterSelector(

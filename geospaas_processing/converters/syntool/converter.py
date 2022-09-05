@@ -273,6 +273,10 @@ class CustomReaderSyntoolConverter(BasicSyntoolConverter):
                     matches=lambda p: 'roms_norkyst800_current' in str(p),
                     ingest_file='ingest_norkyst800_current'),),
         ),
+        ParameterSelector(
+            matches=lambda d: re.match(r'^S1[AB]_.*_(GRD[A-Z]?|SLC)_.*_denoised$', d.entry_id),
+            converter_type='s1_denoised',
+            ingest_parameter_files='ingest_geotiff_4326_tiles',),
     )
 
     def parse_converter_args(self, kwargs):

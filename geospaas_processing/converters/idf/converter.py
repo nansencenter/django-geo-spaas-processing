@@ -61,7 +61,7 @@ class IDFConverter(Converter):
             os.path.join(self.PARAMETERS_DIR, parameter_file) for parameter_file in parameter_files
         ]
 
-    def run(self, in_file, out_dir):
+    def run(self, in_file, out_dir, **kwargs):
         """Run the IDF converter"""
         input_cli_args = ['-i', 'path', '=', in_file]
 
@@ -109,7 +109,7 @@ class MultiFilesIDFConverter(IDFConverter):
         """
         raise NotImplementedError
 
-    def run(self, in_file, out_dir):
+    def run(self, in_file, out_dir, **kwargs):
         """calls the IDFConverter.run() method on all dataset files
         contained returned by list_files_to_convert()
         """

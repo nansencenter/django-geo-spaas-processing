@@ -52,7 +52,7 @@ class ConversionManager():
                 continue
         raise ConversionError(f"Could not find a converter for dataset {dataset_id}")
 
-    def convert(self, dataset_id, file_name):
+    def convert(self, dataset_id, file_name, **kwargs):
         """Converts a file using the right converter class"""
         file_path = os.path.join(self.working_directory, file_name)
 
@@ -76,7 +76,7 @@ class ConversionManager():
         converter = self.get_converter(dataset_id)
 
         # Convert the file(s)
-        results = converter.run(file_path, self.working_directory)
+        results = converter.run(file_path, self.working_directory, **kwargs)
 
         # Remove intermediate files
         if extract_dir:
@@ -103,7 +103,7 @@ class Converter():
 
     PARAMETER_SELECTORS = tuple()
 
-    def run(self, in_file, out_dir):
+    def run(self, in_file, out_dir, **kwargs):
         """Run the conversion"""
         raise NotImplementedError()
 

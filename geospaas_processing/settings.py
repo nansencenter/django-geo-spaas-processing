@@ -40,7 +40,11 @@ django_settings = {
     'CELERY_RESULT_BACKEND': 'django-db',
     # syntool conversion needs to be processed by a specific worker
     # with the right tools installed
-    'CELERY_TASK_ROUTES': {'geospaas_processing.tasks.convert_to_syntool': {'queue': 'syntool'}},
+    'CELERY_TASK_ROUTES': {
+        'geospaas_processing.tasks.core.*': {'queue': 'core'},
+        'geospaas_processing.tasks.idf.*': {'queue': 'idf'},
+        'geospaas_processing.tasks.syntool.*': {'queue': 'syntool'},
+    },
 }
 
 if django_celery_results:

@@ -1,7 +1,7 @@
 ARG BASE_IMAGE=nansencenter/geospaas:latest-slim
 FROM ${BASE_IMAGE} as base
 
-RUN pip install --upgrade --no-cache-dir \
+RUN pip3 install --upgrade --no-cache-dir \
     'celery==5.2.*' \
     'django-celery-results==2.2.*' \
     'graypy==2.1.*' \
@@ -13,14 +13,11 @@ RUN pip install --upgrade --no-cache-dir \
 
 FROM base as full
 
-COPY idf_converter.tar.gz /tmp/idf_converter.tar.gz
-RUN pip install /tmp/idf_converter.tar.gz
-
 WORKDIR /tmp/setup
 COPY setup.py README.md ./
 COPY geospaas_processing ./geospaas_processing
-RUN python setup.py bdist_wheel && \
-    pip install -v dist/geospaas_processing-*.whl && \
+RUN python3 setup.py bdist_wheel && \
+    pip3 install -v dist/geospaas_processing-*.whl && \
     cd /tmp && rm -rf /tmp/setup/
 WORKDIR /
 

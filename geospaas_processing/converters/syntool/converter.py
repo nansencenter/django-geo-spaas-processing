@@ -69,12 +69,18 @@ class SyntoolConverter(Converter):
             except subprocess.CalledProcessError as error:
                 raise ConversionError(
                     f"Ingestion failed with the following message: {error.stderr}") from error
-            results = self.move_results(tmp_dir, out_dir)
+            # TODO clean this up
+            ingested_dir = Path(out_dir, 'ingested')
+            results = [
+                str(Path('ingested', result))
+                for result in self.move_results(tmp_dir, ingested_dir)
+            ]
         if not results:
             raise ConversionError((
                 "syntool-ingestor did not produce any file. "
                 f"stdout: {process.stdout}"
                 f"stderr: {process.stderr}"))
+        os.remove(in_file)
         return results
 
     def run(self, in_file, out_dir, **kwargs):
@@ -159,6 +165,7 @@ class BasicSyntoolConverter(SyntoolConverter):
         """Transforms a file into a Syntool-displayable format using
         the syntool-converter and syntool-ingestor tools
         """
+        results_dir = kwargs.pop('results_dir')
         # syntool-converter
         converted_files = self.convert(in_file, out_dir,
                                        self.parse_converter_args(kwargs),
@@ -169,8 +176,8 @@ class BasicSyntoolConverter(SyntoolConverter):
         results = []
         for converted_file in converted_files:
             converted_path = Path(out_dir, converted_file)
-            results.append(self.ingest(
-                converted_path, out_dir, [
+            results.extend(self.ingest(
+                converted_path, results_dir, [
                     '--config', ingestor_config,
                     '--options-file',
                     self.PARAMETERS_DIR / self.find_ingest_config(converted_path)],

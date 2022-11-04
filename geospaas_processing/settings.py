@@ -14,6 +14,7 @@ django_settings = {
     'INSTALLED_APPS': [
         'geospaas.catalog',
         'geospaas.vocabularies',
+        'geospaas_processing',
     ],
     'DATABASES': {
         'default': {

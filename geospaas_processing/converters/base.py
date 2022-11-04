@@ -40,21 +40,21 @@ class ConversionManager():
         return inner_wrapper
 
     @classmethod
-    def get_converter(cls, dataset_id):
+    def get_converter(cls, dataset):
         """Chooses a converter class and parameter file based on the
         dataset
         """
-        dataset = Dataset.objects.get(pk=dataset_id)
         for converter_class in cls.converters:
             try:
                 return converter_class.make_converter(dataset)
             except NoMatch:
                 continue
-        raise ConversionError(f"Could not find a converter for dataset {dataset_id}")
+        raise ConversionError(f"Could not find a converter for dataset {dataset.id}")
 
     def convert(self, dataset_id, file_name, **kwargs):
         """Converts a file using the right converter class"""
         file_path = os.path.join(self.working_directory, file_name)
+        dataset = Dataset.objects.get(pk=dataset_id)
 
         # Unzip the file if necessary
         try:
@@ -73,10 +73,10 @@ class ConversionManager():
             file_path = os.path.join(extract_dir, os.listdir(extract_dir)[0])
 
         # Find out the converter to use
-        converter = self.get_converter(dataset_id)
+        converter = self.get_converter(dataset)
 
         # Convert the file(s)
-        results = converter.run(file_path, self.working_directory, **kwargs)
+        results = converter.run(file_path, self.working_directory, dataset=dataset, **kwargs)
 
         # Remove intermediate files
         if extract_dir:

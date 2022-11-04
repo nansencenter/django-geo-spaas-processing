@@ -590,3 +590,15 @@ class DownloadManager():
             os.makedirs(appropriate_download_directory, exist_ok=True)
             files.append(self.download_dataset(dataset, appropriate_download_directory))
         return files
+
+    def remove(self):
+        """Remove downloaded dataset files"""
+        removed = []
+        for dataset in self.datasets:
+            download_dir = os.path.join(
+                self.download_folder,
+                self.get_dataset_directory(dataset))
+            if os.path.isdir(download_dir):
+                shutil.rmtree(download_dir, ignore_errors=True)
+                removed.append(download_dir)
+        return removed

@@ -49,6 +49,18 @@ def download(self, args):
 
 @app.task(base=FaultTolerantTask, bind=True, track_started=True)
 @lock_dataset_files
+def remove_downloaded(self, args):  # pylint: disable=unused-argument
+    """Removes the dowloaded dataset file(s)"""
+    dataset_id = args[0]
+    download_manager = DownloadManager(
+        download_directory=WORKING_DIRECTORY,
+        pk=dataset_id
+    )
+    return (dataset_id, download_manager.remove())
+
+
+@app.task(base=FaultTolerantTask, bind=True, track_started=True)
+@lock_dataset_files
 def archive(self, args):  # pylint: disable=unused-argument
     """Compress the dataset file(s) into a tar.gz archive"""
     dataset_id = args[0]

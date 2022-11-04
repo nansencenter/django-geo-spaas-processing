@@ -1,1 +1,5 @@
---input-format geotiff --input-options projection=3413 --output-format raster
+--input-format geotiff
+--input-options projection=3413
+--output-format raster
+--output-options min-zoom=0
+                 max-zoom=8

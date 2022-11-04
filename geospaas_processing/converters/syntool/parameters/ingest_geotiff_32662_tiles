@@ -1,3 +1,5 @@
 --input-format geotiff
 --input-options projection=32662
 --output-format rastertiles
+--output-options min-zoom=0
+                 max-zoom=8

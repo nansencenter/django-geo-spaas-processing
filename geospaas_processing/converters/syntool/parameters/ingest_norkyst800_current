@@ -3,3 +3,5 @@
                 angles_proj=3413
 --output-format vectorfield
 --output-options resolution=800x800
+                 min-zoom=0
+                 max-zoom=8

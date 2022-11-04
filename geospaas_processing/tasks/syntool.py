@@ -107,3 +107,61 @@ def db_insert(self, args, **kwargs):
             raise RuntimeError(f"Database insertion failed. {mysql_process.stderr}")
 
     return args
+
+
+@app.task(base=FaultTolerantTask, bind=True, track_started=True)
+def cleanup_ingested(self, date, created=False):
+    """Remove ingested files older than `date` as well as the
+    corresponding entries in the syntool and geospaas databases.
+    `created` can be:
+    - True: files ingested before the date are removed
+    - False: files whose dataset's time coverage ends before the
+             date are removed
+    The date needs to be given in UTC timezone
+    """
+    syntool_database_host, syntool_database_name = get_db_config()
+    if created:
+        processing_results = ProcessingResult.objects.filter(
+            type=ProcessingResult.ProcessingResultType.SYNTOOL,
+            created__lte=date)
+    else:
+        processing_results = ProcessingResult.objects.filter(
+            type=ProcessingResult.ProcessingResultType.SYNTOOL,
+            dataset__time_coverage_end__lte=date)
+
+    deleted = []
+    for processing_result in processing_results:
+        result_path = Path(WORKING_DIRECTORY, processing_result.path)
+        logger.info("Deleting %s", result_path)
+        # remove the files
+        try:
+            try:
+                shutil.rmtree(result_path)
+            except NotADirectoryError:
+                os.remove(result_path)
+        except FileNotFoundError:
+            logger.warning("%s has already been deleted", result_path)
+
+        # remove the entry from the syntool database
+        match = re.search(
+            rf'ingested{os.sep}([^{os.sep}]+){os.sep}([^{os.sep}]+){os.sep}?',
+            processing_result.path)
+        table_name = f"product_{match.group(1)}"
+        dataset_name = match.group(2)
+        try:
+            subprocess.run(
+                [
+                    'mysql', '-h', syntool_database_host, syntool_database_name,
+                    '-e', f"DELETE FROM `{table_name}` WHERE dataset_name = '{dataset_name}';"
+                ],
+                capture_output=True,
+                check=True)
+        except subprocess.CalledProcessError as error:
+            logger.error("Database deletion failed for %s. %s", dataset_name, error.stderr)
+            raise
+
+        deleted.append(processing_result.path)
+        # remove the processing result entry from the geospaas database
+        processing_result.delete()
+
+    return deleted

@@ -14,6 +14,16 @@ app = celery.Celery(__name__)
 app.config_from_object('django.conf:settings', namespace='CELERY')
 
 
+def save_results(dataset_id, result_files):
+    """Write the resulting files to the database"""
+    for file_path in result_files:
+        ProcessingResult.objects.get_or_create(
+            dataset=Dataset.objects.get(id=dataset_id),
+            path=file_path,
+            type=ProcessingResult.ProcessingResultType.SYNTOOL,
+        )
+
+
 @app.task(base=FaultTolerantTask, bind=True, track_started=True)
 @lock_dataset_files
 def convert(self, args, **kwargs):  # pylint: disable=unused-argument
@@ -25,6 +35,7 @@ def convert(self, args, **kwargs):  # pylint: disable=unused-argument
         dataset_id, dataset_files_paths, **kwargs)
     logger.info("Successfully converted '%s' to Syntool format. The results directories are '%s'",
                 dataset_files_paths, converted_files)
+    save_results(dataset_id, converted_files)
     return (dataset_id, converted_files)
 
 

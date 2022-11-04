@@ -1,4 +1,5 @@
 """Tools for converting dataset into a format displayable by Syntool"""
+import configparser
 import logging
 import os
 import re
@@ -9,6 +10,7 @@ from pathlib import Path
 
 from ..base import ConversionError, ConversionManager, Converter, ParameterSelector
 from ...ops import crop
+
 
 logger = logging.getLogger(__name__)
 
@@ -83,6 +85,20 @@ class SyntoolConverter(Converter):
                 f"stderr: {process.stderr}"))
         os.remove(in_file)
         return results
+
+    def post_ingest(self, results, out_dir, **kwargs):
+        """Post-ingestion step, the default is to create a "features"
+        directory containing some metadata about what was generated
+        """
+        dataset = kwargs['dataset']
+        config = configparser.ConfigParser()
+        config['metadata'] = {'syntool_id': 'data_access'}
+        config['geospaas'] = {'entry_id': dataset.entry_id}
+        for result in results:
+            features_path = Path(out_dir, result, 'features')
+            features_path.mkdir(exist_ok=True)
+            with open(features_path / 'metadata.ini', 'w', encoding='utf-8') as metadata_file:
+                config.write(metadata_file)
 
     def run(self, in_file, out_dir, **kwargs):
         """Runs the whole conversion process"""
@@ -183,6 +199,8 @@ class BasicSyntoolConverter(SyntoolConverter):
                     '--options-file',
                     self.PARAMETERS_DIR / self.find_ingest_config(converted_path)],
                 **kwargs))
+
+        self.post_ingest(results, results_dir, **kwargs)
         return results
 
 

@@ -1,11 +1,16 @@
 """Tasks related to Syntool"""
 import os
+import shutil
 import subprocess
+import re
+from pathlib import Path
 
 import celery
 
+from geospaas.catalog.models import Dataset
 from geospaas_processing.tasks import lock_dataset_files, FaultTolerantTask, WORKING_DIRECTORY
 from ..converters import SyntoolConversionManager
+from ..models import ProcessingResult
 
 
 logger = celery.utils.log.get_task_logger(__name__)

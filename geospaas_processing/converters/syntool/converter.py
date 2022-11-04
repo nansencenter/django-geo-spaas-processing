@@ -1,5 +1,6 @@
 """Tools for converting dataset into a format displayable by Syntool"""
 import logging
+import os
 import re
 import shutil
 import subprocess

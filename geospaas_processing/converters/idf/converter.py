@@ -12,7 +12,7 @@ from contextlib import closing
 
 from ..base import ConversionError, ConversionManager, Converter, ParameterSelector
 
-AUXILIARY_PATH = os.path.join(os.path.dirname(__file__), 'auxiliary')
+AUXILIARY_PATH = os.path.join(os.path.expanduser('~'), '.geospaas', 'auxiliary')
 logger = logging.getLogger(__name__)
 
 

@@ -242,7 +242,20 @@ class Sentinel1SyntoolConverter(BasicSyntoolConverter):
     def ingest(self, in_file, out_dir, options, **kwargs):
         results = []
         for converted_file in self.list_files(Path(in_file)):
-            results.extend(super().ingest(converted_file, out_dir, options))
+            base_result_dirs = super().ingest(converted_file, out_dir, options)
+            # folders for each polarisation case (hh, hv, etc.) are
+            # created inside each result folder. They need to be moved
+            # up and the original folder needs to be deleted for
+            # the ingestion in the database to work properly
+            for base_result_dir in base_result_dirs:
+                base_result_path = Path(out_dir, base_result_dir)
+                for result_dir in base_result_path.iterdir():
+                    final_result_path = result_dir.parent.parent / result_dir.name
+                    shutil.rmtree(final_result_path, ignore_errors=True)
+                    result_dir.replace(final_result_path)
+                    results.append(str(final_result_path))
+                base_result_path.rmdir()
+        os.rmdir(in_file)
         return results
 
 

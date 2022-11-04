@@ -25,6 +25,23 @@ def save_results(dataset_id, result_files):
 
 
 @app.task(base=FaultTolerantTask, bind=True, track_started=True)
+def check_ingested(self, args, **kwargs):
+    """Stop the current chain of tasks if ingested files already exist
+    for the current dataset
+    """
+    dataset_id = args[0]
+    ingested_files = ProcessingResult.objects.filter(
+        dataset_id=dataset_id,
+        type=ProcessingResult.ProcessingResultType.SYNTOOL,
+    )
+    if ingested_files.exists():
+        logger.info("Already produced syntool files for dataset %s, stopping.", dataset_id)
+        self.request.callbacks = None
+        return (dataset_id, [i.path for i in ingested_files])
+    return args
+
+
+@app.task(base=FaultTolerantTask, bind=True, track_started=True)
 @lock_dataset_files
 def convert(self, args, **kwargs):  # pylint: disable=unused-argument
     """Convert a dataset to a format displayable by Syntool"""

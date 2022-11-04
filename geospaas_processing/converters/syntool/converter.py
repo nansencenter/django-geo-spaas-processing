@@ -105,7 +105,7 @@ class BasicSyntoolConverter(SyntoolConverter):
             ingest_parameter_files='ingest_geotiff_4326_tiles'),
         ParameterSelector(
             matches=lambda d: re.match(r'^.*nersc-MODEL-nextsimf.*$', d.entry_id),
-            converter_type='nextsim ',
+            converter_type='nextsim',
             ingest_parameter_files=(
                 ParameterSelector(
                     matches=lambda p: ('sea_ice_concentration' in str(p) or

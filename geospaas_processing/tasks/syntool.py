@@ -14,6 +14,14 @@ app = celery.Celery(__name__)
 app.config_from_object('django.conf:settings', namespace='CELERY')
 
 
+def get_db_config():
+    """Get the database configuration from environment variables
+    """
+    return (
+        os.getenv('SYNTOOL_DATABASE_HOST'),
+        os.getenv('SYNTOOL_DATABASE_NAME'))
+
+
 def save_results(dataset_id, result_files):
     """Write the resulting files to the database"""
     for file_path in result_files:
@@ -60,40 +68,42 @@ def convert(self, args, **kwargs):  # pylint: disable=unused-argument
 @app.task(base=FaultTolerantTask, bind=True, track_started=True)
 @lock_dataset_files
 def db_insert(self, args, **kwargs):
-    """Insert ingested files in a syntool database"""
+    """Insert ingested files in a syntool database.
+    The whole thing is quite uneffective and needs to be cleaned and
+    optimized
+    """
     dataset_id = args[0]
-    dataset_files_paths = args[1][0]
+    dataset_files_paths = args[1]
 
-    syntool_database_host = os.getenv('SYNTOOL_DATABASE_HOST')
-    syntool_database_name = os.getenv('SYNTOOL_DATABASE_NAME')
-
-    meta2sql_process = subprocess.Popen(
-        ['syntool-meta2sql', '--chunk_size=100', '-', '--'],
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
+    syntool_database_host, syntool_database_name = get_db_config()
+    results_dir = os.getenv('GEOSPAAS_PROCESSING_SYNTOOL_RESULTS_DIR', WORKING_DIRECTORY)
 
     for file_path in dataset_files_paths:
-        metadata_path = os.path.join(WORKING_DIRECTORY, file_path, 'metadata.json')
-        meta2sql_process.stdin.write(bytes(metadata_path, encoding='utf-8'))
-    meta2sql_process.stdin.close()
+        metadata_file = os.path.join(results_dir, file_path, 'metadata.json')
+        meta2sql_process = subprocess.Popen(
+            ['syntool-meta2sql', '--chunk_size=100', '-', '--', metadata_file],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
 
-    try:
-        mysql_process = subprocess.run(
-            ['mysql', '-h', syntool_database_host, syntool_database_name],
-            stdin=meta2sql_process.stdout,
-            capture_output=True,
-            check=True)
-    except subprocess.CalledProcessError as error:
-        logger.error("Database insertion failed for %s. %s", dataset_id, error.stderr)
-        raise
+        try:
+            mysql_process = subprocess.run(
+                ['mysql', '-h', syntool_database_host, syntool_database_name],
+                stdin=meta2sql_process.stdout,
+                capture_output=True,
+                check=True)
+        except subprocess.CalledProcessError as error:
+            logger.error("Database insertion failed for %s. %s", dataset_id, error.stderr)
+            raise
 
-    meta2sql_return_code = meta2sql_process.wait(timeout=500)
-    if meta2sql_return_code != 0:
-        raise RuntimeError(f"Could not generate SQL statement. {meta2sql_process.stderr.read()}")
+        meta2sql_return_code = meta2sql_process.wait(timeout=500)
+        if meta2sql_return_code != 0:
+            raise RuntimeError(
+                f"Could not generate SQL statement. {meta2sql_process.stderr.read()}")
 
-    if mysql_process.returncode != 0:
-        raise RuntimeError(f"Database insertion failed. {mysql_process.stderr}")
+        if mysql_process.returncode != 0:
+            raise RuntimeError(f"Database insertion failed. {mysql_process.stderr}")
 
     return args

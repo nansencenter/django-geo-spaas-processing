@@ -30,9 +30,10 @@ def convert(self, args, **kwargs):  # pylint: disable=unused-argument
     """Convert a dataset to a format displayable by Syntool"""
     dataset_id = args[0]
     dataset_files_paths = args[1][0]
+    results_dir = os.getenv('GEOSPAAS_PROCESSING_SYNTOOL_RESULTS_DIR', WORKING_DIRECTORY)
     logger.debug("Converting dataset file '%s' to Syntool format", dataset_files_paths)
     converted_files = SyntoolConversionManager(WORKING_DIRECTORY).convert(
-        dataset_id, dataset_files_paths, **kwargs)
+        dataset_id, dataset_files_paths, results_dir=results_dir, **kwargs)
     logger.info("Successfully converted '%s' to Syntool format. The results directories are '%s'",
                 dataset_files_paths, converted_files)
     save_results(dataset_id, converted_files)

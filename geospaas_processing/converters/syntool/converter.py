@@ -8,6 +8,8 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+from geospaas.catalog.managers import LOCAL_FILE_SERVICE
+
 from ..base import ConversionError, ConversionManager, Converter, ParameterSelector
 from ...ops import crop
 
@@ -93,12 +95,21 @@ class SyntoolConverter(Converter):
         dataset = kwargs['dataset']
         config = configparser.ConfigParser()
         config['metadata'] = {'syntool_id': 'data_access'}
-        config['geospaas'] = {'entry_id': dataset.entry_id}
+        config['geospaas'] = {
+            'entry_id': dataset.entry_id,
+            'dataset_url': self._extract_url(dataset),
+        }
         for result in results:
             features_path = Path(out_dir, result, 'features')
             features_path.mkdir(exist_ok=True)
             with open(features_path / 'metadata.ini', 'w', encoding='utf-8') as metadata_file:
                 config.write(metadata_file)
+
+    @staticmethod
+    def _extract_url(dataset):
+        """Get the first URL which is not a local path"""
+        dataset_uri = dataset.dataseturi_set.exclude(service=LOCAL_FILE_SERVICE).first()
+        return '' if dataset_uri is None else dataset_uri.uri
 
     def run(self, in_file, out_dir, **kwargs):
         """Runs the whole conversion process"""

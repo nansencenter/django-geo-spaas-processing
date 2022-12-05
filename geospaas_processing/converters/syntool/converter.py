@@ -8,6 +8,7 @@ from pathlib import Path
 
 from ..base import ConversionError, ConversionManager, Converter, \
                    ParameterSelector, NoMatch
+from ...ops import crop
 
 logger = logging.getLogger(__name__)
 
@@ -125,3 +126,27 @@ class PresetSyntoolConverter(SyntoolConverter):
                     '--options-file',
                     self.PARAMETERS_DIR / self.find_ingest_config(converted_path)]))
         return results
+
+
+@SyntoolConversionManager.register()
+class CMEMSL4CurrentSyntoolConverter(PresetSyntoolConverter):
+    """Syntool converter for current from CMEMS L4 products"""
+    PARAMETER_SELECTORS = (
+        ParameterSelector(
+            matches=lambda d: d.entry_id.startswith('nrt_global_allsat_phy_l4_'),
+            convert_parameter_file='convert_cmems_l4_current',
+            ingest_parameter_files='ingest_geotiff_4326_vectorfield'),)
+
+    def __init__(self, convert_parameter_file, ingest_parameter_files, **kwargs):
+        self.bounding_box = kwargs.pop('bounding_box', ('-180', '90', '180', '50'))
+        super().__init__(convert_parameter_file, ingest_parameter_files)
+
+    def convert(self, in_file, out_dir, options):
+        converted_files = super().convert(in_file, out_dir, options)
+        for converted_file in converted_files:
+            converted_file_path = Path(out_dir, converted_file)
+            _, tmp_file = tempfile.mkstemp()
+            logger.info("Cropping %s with bounding box %s", converted_file, self.bounding_box)
+            crop(converted_file_path, tmp_file, self.bounding_box)
+            shutil.move(tmp_file, converted_file_path)
+        return converted_files

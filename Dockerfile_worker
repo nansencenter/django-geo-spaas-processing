@@ -5,6 +5,7 @@ RUN pip install --upgrade --no-cache-dir \
     'celery==5.2.*' \
     'django-celery-results==2.2.*' \
     'graypy==2.1.*' \
+    'importlib-metadata==4.*' \
     'paramiko<2.9' \
     'redis==4.1.*' \
     'requests_oauthlib==1.3.*' \

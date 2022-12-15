@@ -39,8 +39,8 @@ def nco_crop(in_file, out_file, bbox):
             input=in_file,
             output=out_file,
             options=[
-                f"-d lat,{bbox[0]:f},{bbox[2]:f}",
-                f"-d lon,{bbox[3]:f},{bbox[1]:f}",
+                f"-d lat,{bbox[3]:f},{bbox[1]:f}",
+                f"-d lon,{bbox[0]:f},{bbox[2]:f}",
             ])
     except NCOException as error:
         raise RuntimeError('An error happened during cropping. Please check that the bounding '

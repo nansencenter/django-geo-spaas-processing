@@ -326,7 +326,8 @@ class SingleResultIDFConverter(IDFConverter):
         (('ghrsst_l2p_viirs_jpl_sst',), lambda d: '-JPL-L2P_GHRSST-SSTskin-VIIRS' in d.entry_id),
         (('ghrsst_l2p_viirs_navo_sst',), lambda d: '-NAVO-L2P_GHRSST-SST1m-VIIRS' in d.entry_id),
         (('ghrsst_l2p_viirs_ospo_sst',),
-         lambda d: 'OSPO-L2P_GHRSST-SSTsubskin-VIIRS' in d.entry_id),
+         lambda d: ('OSPO-L2P_GHRSST-SSTsubskin-VIIRS' in d.entry_id or
+                    '-STAR-L2P_GHRSST-SSTsubskin-VIIRS' in d.entry_id)),
         (('ghrsst_l3c_avhrr_metop_b_sst',),
          lambda d: '-OSISAF-L3C_GHRSST-SSTsubskin-AVHRR_SST_METOP_B_GLB-' in d.entry_id),
         (('ghrsst_l3c_goes16_sst',),

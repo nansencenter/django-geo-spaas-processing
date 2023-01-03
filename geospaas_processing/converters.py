@@ -374,4 +374,6 @@ class MultiResultFoldersIDFConverter(IDFConverter):
          lambda d: '_hts-CMCC--ASLV-MFSeas6-MEDATL-' in d.entry_id),
         (('mfs_med-cmcc-temp',),
          lambda d: '_hts-CMCC--TEMP-MFSeas6-MEDATL-' in d.entry_id),
+        (('meteofrance_model_mfwam',),
+         lambda d: 'mfwamglocep_' in d.entry_id),
     )

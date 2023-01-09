@@ -373,7 +373,7 @@ def is_gzipfile(file_path):
     with open(file_path, 'rb') as file_handler:
         return file_handler.read(2) == b'\x1f\x8b'
 
-def tar_gzip(file_path):
+def tar_gzip(file_path, force=False):
     """Makes the file a tar archive compressed with gzip if the file is not one already"""
     if os.path.isfile(file_path) and (tarfile.is_tarfile(file_path) or
                                       zipfile.is_zipfile(file_path) or
@@ -381,9 +381,14 @@ def tar_gzip(file_path):
         return file_path
 
     archive_path = f"{file_path}.tar.gz"
-    if not os.path.isfile(archive_path):
-        with tarfile.open(archive_path, 'w:gz') as archive:
-            archive.add(file_path, arcname=os.path.basename(file_path))
+    if os.path.isfile(archive_path):
+        if force:
+            os.remove(archive_path)
+        else:
+            return archive_path
+    with tarfile.open(archive_path, 'w:gz') as archive:
+        archive.add(file_path, arcname=os.path.basename(file_path))
+
     return archive_path
 
 

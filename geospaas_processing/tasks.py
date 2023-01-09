@@ -155,7 +155,7 @@ def archive(self, args):  # pylint: disable=unused-argument
     for file in dataset_files_paths:
         local_path = os.path.join(WORKING_DIRECTORY, file)
         LOGGER.info("Compressing %s", local_path)
-        compressed_file = utils.tar_gzip(local_path)
+        compressed_file = utils.tar_gzip(local_path, force=True)
         if compressed_file != local_path:
             LOGGER.info("Removing %s", local_path)
             try:

@@ -1,6 +1,5 @@
 -t netcdf/grid/latlon
--o path = seascope/data
-   collection = cmems_015_003_0m
+-o collection = cmems_015_003_0m
    gcp_spacing = 4
 -i variables = uo,vo
    time_variable = time

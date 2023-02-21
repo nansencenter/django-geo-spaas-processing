@@ -1,0 +1,4 @@
+-t model/mfwam
+-o collection = meteofrance_model_mfwam
+-i time_coverage_relative_start = -5400
+   time_coverage_relative_end = +5400

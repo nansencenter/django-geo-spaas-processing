@@ -2,4 +2,5 @@
 -o collection = sentinel3_olci_chl
    downscale = yes
    gcp_spacing = 128
+   remove_variables = Oa04_reflectance,Oa06_reflectance,Oa09_reflectance,Oa17_reflectance,CHL_NN,TSM_NN
 -i geoloc_spacing = 128

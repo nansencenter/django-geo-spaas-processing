@@ -9,6 +9,7 @@ import shutil
 import celery
 import celery.utils
 
+import geospaas_processing.ops as ops
 import geospaas_processing.utils as utils
 from geospaas_processing.tasks import lock_dataset_files, FaultTolerantTask, WORKING_DIRECTORY
 from ..downloaders import DownloadManager, TooManyDownloadsError
@@ -123,3 +124,25 @@ def publish(self, args):  # pylint: disable=unused-argument
         results.append(f"ftp://{ftp_host}/{ftp_path}/{file}")
 
     return (dataset_id, results)
+
+
+@app.task(base=FaultTolerantTask, bind=True, track_started=True)
+@lock_dataset_files
+def crop(self, args, bounding_box=None):
+    """Downloads the dataset whose ID is `dataset_id`"""
+    if bounding_box is None:
+        return args
+    dataset_id = args[0]
+    dataset_file_path = args[1][0]
+    bounding_box_str = '_'.join(str(i) for i in bounding_box)
+    logger.debug("Cropping dataset %s file '%s' to %s",
+                 dataset_id, dataset_file_path, bounding_box_str)
+    dataset_file_name, extension = os.path.splitext(os.path.basename(dataset_file_path))
+    cropped_file_path = os.path.join(
+        os.path.dirname(dataset_file_path),
+        f"{dataset_file_name}_{bounding_box_str}{extension}")
+    ops.crop(
+        os.path.join(WORKING_DIRECTORY, dataset_file_path),
+        os.path.join(WORKING_DIRECTORY, cropped_file_path),
+        bounding_box)
+    return (dataset_id, (cropped_file_path,))

@@ -150,6 +150,10 @@ class BasicSyntoolConverter(SyntoolConverter):
             matches=lambda d: d.entry_id.startswith('ice_drift_nh_polstere-'),
             converter_type='osisaf_sea_ice_drift',
             ingest_parameter_files='ingest_osisaf_sea_ice_drift',),
+        ParameterSelector(
+            matches=lambda d: d.entry_id.startswith('nrt_global_allsat_phy_l4_'),
+            converter_type='current_cmems_l4',
+            ingest_parameter_files='ingest_geotiff_4326_vectorfield'),
     )
 
     def __init__(self, **kwargs):
@@ -213,30 +217,6 @@ class BasicSyntoolConverter(SyntoolConverter):
 
         self.post_ingest(results, results_dir, **kwargs)
         return results
-
-
-@SyntoolConversionManager.register()
-class CMEMSL4CurrentSyntoolConverter(BasicSyntoolConverter):
-    """Syntool converter for current from CMEMS L4 products"""
-    PARAMETER_SELECTORS = (
-        ParameterSelector(
-            matches=lambda d: d.entry_id.startswith('nrt_global_allsat_phy_l4_'),
-            converter_type='current_cmems_l4',
-            ingest_parameter_files='ingest_geotiff_4326_vectorfield'),)
-
-    def convert(self, in_file, out_dir, options, **kwargs):
-        converted_files = super().convert(in_file, out_dir, options)
-        bounding_box = kwargs.pop('bounding_box', None)
-        if bounding_box:
-            for converted_file in converted_files:
-                converted_file_path = Path(out_dir, converted_file)
-                _, tmp_file = tempfile.mkstemp()
-                logger.info("Cropping %s with bounding box %s", converted_file, bounding_box)
-                crop(converted_file_path, tmp_file, bounding_box)
-                shutil.move(tmp_file, converted_file_path)
-        else:
-            logger.info("No bounding box provided for %s", in_file)
-        return converted_files
 
 
 @SyntoolConversionManager.register()

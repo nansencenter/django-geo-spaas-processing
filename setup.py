@@ -24,6 +24,7 @@ setuptools.setup(
         'django-geo-spaas',
         'django',
         'freezegun',
+        'nco',
         'oauthlib',
         'paramiko',
         'PyYAML',

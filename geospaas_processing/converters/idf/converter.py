@@ -186,6 +186,9 @@ class SingleResultIDFConverter(IDFConverter):
             matches=lambda d: d.entry_id.startswith('GL_TS_DB_'),
             parameter_files=('cmems_013_030_drifter_0m', 'cmems_013_030_drifter_15m')),
         ParameterSelector(
+            lambda d: re.match(r'^mercatorbiomer4v2r1_global_mean_[0-9]{8}$', d.entry_id),
+            parameter_files=('cmems_001_028_daily_mean_0.5m',)),
+        ParameterSelector(
             matches=lambda d: re.match(
                 '^D[0-9]{3}-ESACCI-L4_GHRSST-SSTdepth-OSTIA-GLOB_CDR2\.1-v02\.0-fv01\.0$',
                 d.entry_id),
@@ -203,7 +206,8 @@ class SingleResultIDFConverter(IDFConverter):
             matches=lambda d: '-NAVO-L2P_GHRSST-SST1m-VIIRS' in d.entry_id,
             parameter_files=('ghrsst_l2p_viirs_navo_sst',)),
         ParameterSelector(
-            matches=lambda d: 'OSPO-L2P_GHRSST-SSTsubskin-VIIRS' in d.entry_id,
+            matches=lambda d: ('OSPO-L2P_GHRSST-SSTsubskin-VIIRS' in d.entry_id or
+                               '-STAR-L2P_GHRSST-SSTsubskin-VIIRS' in d.entry_id),
             parameter_files=('ghrsst_l2p_viirs_ospo_sst',)),
         ParameterSelector(
             matches=lambda d: '-OSISAF-L3C_GHRSST-SSTsubskin-AVHRR_SST_METOP_B_GLB-' in d.entry_id,
@@ -278,4 +282,7 @@ class MultiResultFoldersIDFConverter(IDFConverter):
         ParameterSelector(
             matches=lambda d: '_hts-CMCC--TEMP-MFSeas6-MEDATL-' in d.entry_id,
             parameter_files=('mfs_med-cmcc-temp',)),
+        ParameterSelector(
+            matches=lambda d: 'mfwamglocep_' in d.entry_id,
+            parameter_files=('meteofrance_model_mfwam',)),
     )

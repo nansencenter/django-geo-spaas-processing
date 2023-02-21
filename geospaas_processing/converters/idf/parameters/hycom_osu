@@ -11,7 +11,7 @@
    time_coverage_relative_end = +1800
    geoloc_at_pixel_center = false
    global_overrides = processing_level:L4,product_version:1.0,file_version:1.0
-   variable_overrides_water_temp = valid_min:0.0,valid_max:36.0
-   variable_overrides_surf_el = valid_min:-2.5,valid_max:2.5
-   variable_overrides_water_u = valid_min:-2.5,valid_max:2.5
-   variable_overrides_water_v = valid_min:-2.5,valid_max:2.5
+   override(water_temp) = valid_min:0.0,valid_max:36.0
+   override(surf_el) = valid_min:-2.5,valid_max:2.5
+   override(water_u) = valid_min:-2.5,valid_max:2.5
+   override(water_v) = valid_min:-2.5,valid_max:2.5

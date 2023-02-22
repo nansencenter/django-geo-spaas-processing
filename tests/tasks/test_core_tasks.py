@@ -14,7 +14,7 @@ import geospaas_processing.utils as utils
 
 
 class DownloadTestCase(unittest.TestCase):
-    """Tests for the download() task"""
+    """Tests for tasks dealing with downloads"""
 
     def setUp(self):
         download_manager_patcher = mock.patch('geospaas_processing.tasks.core.DownloadManager')
@@ -61,6 +61,13 @@ class DownloadTestCase(unittest.TestCase):
         self.dm_mock.return_value.download.side_effect = OSError()
         with self.assertRaises(OSError):
             tasks_core.download((1,))  # pylint: disable=no-value-for-parameter
+
+    def test_remove_downloaded(self):
+        """Test removing downloaded files"""
+        tasks_core.remove_downloaded((1,))
+        self.dm_mock.assert_called_with(download_directory=tasks_core.WORKING_DIRECTORY,
+                                        pk=1)
+        self.dm_mock.return_value.remove.assert_called_once()
 
 
 class ArchiveTestCase(unittest.TestCase):

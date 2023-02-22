@@ -898,3 +898,19 @@ class DownloadManagerTestCase(django.test.TestCase):
                 with self.assertRaises(downloaders.DownloadError):
                     with self.assertLogs(downloaders.LOGGER):
                         download_manager.download_dataset(Dataset.objects.get(pk=1), '')
+
+    def test_remove(self):
+        """Test removing all downloaded files"""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            download_manager = downloaders.DownloadManager(
+                download_directory=tmp_dir,
+                entry_id__startswith='S3A_OL_1_EFR')
+            dataset_entry_id = ('S3A_OL_1_EFR____20181213T024322_20181213T024622_20181214T065355_'
+                                '0179_039_089_2340_LN1_O_NT_002')
+            dataset_download_dir_path = Path(tmp_dir, dataset_entry_id)
+            os.makedirs(dataset_download_dir_path)
+            (dataset_download_dir_path / 'file.SEN3').touch()
+
+            download_manager.remove()
+
+            self.assertListEqual(os.listdir(tmp_dir), [])

@@ -6,6 +6,7 @@ import os.path
 import re
 import shutil
 import subprocess
+import sys
 import tarfile
 import tempfile
 from contextlib import closing
@@ -41,7 +42,9 @@ def download_auxiliary_files(auxiliary_path):
             shutil.rmtree(auxiliary_path)
             raise
 
-download_auxiliary_files(AUXILIARY_PATH)
+
+if 'unittest' not in sys.modules:  # pragma: no cover
+    download_auxiliary_files(AUXILIARY_PATH)
 
 
 class IDFConversionManager(ConversionManager):

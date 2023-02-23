@@ -162,3 +162,25 @@ class PublishTestCase(unittest.TestCase):
                     mock.patch.object(utils.RemoteStorage, '__del__', return_value=None):
                 with self.assertRaises(scp.SCPException):
                     tasks_core.publish((1, [file_name]))  # pylint: disable=no-value-for-parameter
+
+
+class CropTestCase(unittest.TestCase):
+    """Tests for cropping tasks"""
+
+    def test_crop(self):
+        """Test the cropping task"""
+        with mock.patch('geospaas_processing.ops.crop') as mock_crop:
+            with self.assertLogs(tasks_core.logger, level=logging.DEBUG):
+                result = tasks_core.crop((1, ('foo.nc',)), bounding_box=[1, 2, 3, 4])
+        mock_crop.assert_called_once_with(
+            '/tmp/test_data/foo.nc',
+            '/tmp/test_data/foo_1_2_3_4.nc',
+            [1, 2, 3, 4])
+        self.assertEqual(result, (1, ('foo_1_2_3_4.nc',)))
+
+    def test_crop_noop(self):
+        """Nothing is done if no bounding box is provided"""
+        with mock.patch('geospaas_processing.ops.crop') as mock_crop:
+            result = tasks_core.crop((1, ('foo.nc',)))
+        mock_crop.assert_not_called()
+        self.assertEqual(result, (1, ('foo.nc',)))

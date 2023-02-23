@@ -39,6 +39,7 @@ class LockDecoratorTestCase(unittest.TestCase):
         """If the lock is acquired, the wrapped function must be called"""
         self.redis_mock.return_value.setnx.return_value = 1
         self.assertEqual(self.decorated_function(mock.Mock(), (1,)), (1,))
+        self.assertEqual(self.decorated_function(mock.Mock(), args=(1,)), (1,))
 
     def test_retry_if_locked(self):
         """If the lock is is not acquired, retries must be made"""

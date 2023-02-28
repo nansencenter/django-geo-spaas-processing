@@ -18,6 +18,12 @@ RUN pip install --upgrade --no-cache-dir \
     'freezegun==1.1.*' \
     'nco'
 
+ARG HARVESTING_VERSION=3.7.0.dev2
+ARG METANORM_VERSION=4.1.1
+RUN pip install --upgrade --no-cache-dir \
+    https://github.com/nansencenter/django-geo-spaas-harvesting/archive/refs/tags/${HARVESTING_VERSION}.tar.gz \
+    https://github.com/nansencenter/metanorm/releases/download/${METANORM_VERSION}/metanorm-${METANORM_VERSION}-py3-none-any.whl
+
 FROM base as full
 
 COPY idf_converter.tar.gz /tmp/idf_converter.tar.gz

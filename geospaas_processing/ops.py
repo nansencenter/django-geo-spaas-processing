@@ -9,7 +9,7 @@ from nco import Nco, NCOException
 nco = Nco()
 try:
     from osgeo import gdal
-except ImportError:
+except ImportError:  # pragma: no cover
     import gdal
 
 
@@ -24,7 +24,8 @@ class OutputFormat(Enum):
 
 
 def gdal_crop(in_file, out_file, bbox, output_format=OutputFormat.geotiff):
-    """Cropping function for files without subdatasets. Uses GDAL.
+    """Cropping function using GDAL translate.
+    Works for GeoTIFF, for example.
     """
     options = gdal.TranslateOptions(
         projWin=tuple(str(b) for b in bbox[0:4]),
@@ -60,8 +61,8 @@ def nco_crop(in_file, out_file, bbox):
     longitude_name, latitude_name = find_netcdf_lon_lat(in_file)
     try:
         nco.ncks(
-            input=in_file,
-            output=out_file,
+            input=str(in_file),
+            output=str(out_file),
             options=[
                 f"-d {latitude_name},{bbox[3]:f},{bbox[1]:f}",
                 f"-d {longitude_name},{bbox[0]:f},{bbox[2]:f}",

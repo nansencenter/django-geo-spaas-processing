@@ -18,7 +18,7 @@ RUN pip install --upgrade --no-cache-dir \
     'freezegun==1.1.*' \
     'nco'
 
-ARG HARVESTING_VERSION=3.7.0.dev2
+ARG HARVESTING_VERSION=3.7.0.dev3
 ARG METANORM_VERSION=4.1.1
 RUN pip install --upgrade --no-cache-dir \
     https://github.com/nansencenter/django-geo-spaas-harvesting/archive/refs/tags/${HARVESTING_VERSION}.tar.gz \

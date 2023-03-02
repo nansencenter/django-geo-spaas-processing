@@ -171,12 +171,18 @@ class CropTestCase(unittest.TestCase):
         """Test the cropping task"""
         with mock.patch('geospaas_processing.ops.crop') as mock_crop:
             with self.assertLogs(tasks_core.logger, level=logging.DEBUG):
-                result = tasks_core.crop((1, ('foo.nc',)), bounding_box=[1, 2, 3, 4])
-        mock_crop.assert_called_once_with(
-            '/tmp/test_data/foo.nc',
-            '/tmp/test_data/foo_1_2_3_4.nc',
-            [1, 2, 3, 4])
-        self.assertEqual(result, (1, ('foo_1_2_3_4.nc',)))
+                result = tasks_core.crop((1, ('foo.nc', 'bar.nc')), bounding_box=[1, 2, 3, 4])
+        mock_crop.assert_has_calls((
+            mock.call(
+                '/tmp/test_data/foo.nc',
+                '/tmp/test_data/foo_1_2_3_4.nc',
+                [1, 2, 3, 4]),
+            mock.call(
+                '/tmp/test_data/bar.nc',
+                '/tmp/test_data/bar_1_2_3_4.nc',
+                [1, 2, 3, 4]),
+        ))
+        self.assertEqual(result, (1, ['foo_1_2_3_4.nc', 'bar_1_2_3_4.nc']))
 
     def test_crop_noop(self):
         """Nothing is done if no bounding box is provided"""

@@ -144,10 +144,90 @@ To define a limit for a particular provider, a `max_parallel_downloads` entry mu
 provider's configuration section in the provider settings file.
 
 
-### `converters` module
+### `converters` subpackage
 
-TODO
+The `converters` subpackage contains code to convert datasets from one format to
+another. The conversion process must be adapted to the product and desired output
+format, which is why the following structure is used.
 
+Base classes for managing conversions are defined in the
+[converters.base module](./geospaas_processing/converters/base.py).
+
+The `Converter` class is the parent of classes which handle the actual conversion
+process.
+The `ConversionManager` class is the parent of classes used to choose which converter
+to use depending on the dataset.
+Each converter has a `PARAMETER_SELECTORS` class attribute. It contains a sequence of
+`ParameterSelector` objects which are used by the conversion manager to know in which
+case the converter can be used and how to instantiate it.
+
+Here is an example of declaration and usage of such classes:
+
+```python
+from geospaas_processing.converters.base import (ConversionManager,
+                                                 Converter,
+                                                 ParameterSelector)
+
+
+class ExampleConversionManager(ConversionManager):
+    """Example conversion manager"""
+
+
+@ExampleConversionManager.register()
+class ExampleConverter(Converter):
+    """Example converter"""
+
+    # define the conditions for using this converter and the keyword
+    # arguments to pass to its constructor
+    PARAMETER_SELECTORS = (
+        ParameterSelector(
+            matches=lambda d: d.entry_id.startswith('something'),
+            param='foo'),
+        ParameterSelector(
+            matches=lambda d: d.entry_id.startswith('something_else'),
+            param='bar'),
+    )
+
+    def __init__(self, param):
+        self.param = param
+
+    def run(self, in_file, out_dir, **kwargs):
+        """Conversion method"""
+        # conversion code goes here
+
+
+@ExampleConversionManager.register()
+class SpecialExampleConverter(ExampleConverter):
+    """Example converter to be used in a special case"""
+    PARAMETER_SELECTORS = (
+        ParameterSelector(
+            matches=lambda d: d.entry_id.startswith('something_special'),
+            param='baz'),
+    )
+
+    def run(self, in_file, out_dir, **kwargs):
+        """Conversion method for a special case"""
+        # conversion code goes here
+
+# Run an actual conversion
+conversion_manager = ExampleConversionManager('/working_directory')
+conversion_manager.convert(dataset_id=42, file_name='dataset.nc')
+```
+
+#### `converters.idf`
+
+The [converters.idf.converter](./geospaas_processing/converters/idf/converter.py)
+module contains the `IDFConversionManager` and `IDFConverter` classes which can be
+used to convert downloaded dataset files to the IDF format for use with
+[SEAScope](https://seascope.oceandatalab.com/).
+
+#### `converters.syntool`
+
+The
+[converters.syntool.converter](./geospaas_processing/converters/syntool/converter.py)
+module contains the `SyntoolConversionManager` and `SyntoolConverter` classes which
+can be used to convert downloaded dataset files to a format allowing to display them
+in a [Syntool](https://www.oceandatalab.com/syntool) portal.
 
 ## Tasks queue
 

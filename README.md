@@ -259,53 +259,63 @@ The workflow represented on the diagram is the following:
 
 ### Tasks
 
-The `geospaas_processing.tasks` module provides various Celery tasks.
+The `geospaas_processing.tasks` subpackage provides various Celery tasks divided into separate
+modules. Each tasks module has its own "theme": one deals with IDF conversions, one with Syntool
+conversions, one with generic operation like downloading a dataset's files.
+This structure makes it possible to run a separate celery worker for each module.
+Among other things, it makes it easier to deal with each group of tasks' requirements.
 
-All these tasks are designed to work with datasets which are present in the GeoSPaaS database.
-They all take one argument: a tuple containing a dataset ID as it's first element, and other
-elements depending on the task. This makes it possible to prevent simultaneous operations on the
-same dataset's files, and makes it easy to chain these tasks.
+Most of these tasks are designed to work with datasets which are present in the GeoSPaaS database.
+They take one argument: a tuple containing a dataset ID as it's first element, and other
+elements depending on the task. This makes it easy to chain the tasks and makes it possible to prevent simultaneous operations on the same dataset's files via the `lock_dataset_files()`.
+decorator.
 
-#### `download()`
+Example of command to start a worker:
+
+```python
+celery -A geospaas_processing.tasks.core worker -l info -Q core -E -c 4 --max-tasks-per-child 4
+```
+
+See the [Celery documentation](https://docs.celeryq.dev/en/stable/userguide/workers.html)
+for more details.
+
+#### `tasks.core`
+
+Generic tasks.
+
+##### `download()`
 
 Downloads a dataset.
-
-Argument: a one-element tuple containing the ID of the dataset to download.
 
 Example:
 
 ```python
 # Asynchronously downloads the dataset whose ID is 180
-geospaas_processing.tasks.download.delay((180,))
+geospaas_processing.tasks.core.download.delay((180,))
 ```
 
-#### `convert_to_idf()`
+##### `remove_downloaded()`
 
-Converts a dataset to the IDF format for usage in Oceandatalab's
-[SEAScope](https://seascope.oceandatalab.com/index.html).
+Removes the downloaded files for a dataset.
 
-Argument: a two-elements tuple containing the ID of the dataset and the path to the file to convert.
+Example:
 
 ```python
-# Asynchronously convert the dataset whose ID is 180
-geospaas_processing.tasks.convert_to_idf.delay((180, './dataset_180.nc'))
+# Remove files for the dataset whose ID is 180
+geospaas_processing.tasks.core.remove_downloaded.delay((180,))
 ```
 
-#### `archive()`
+##### `archive()`
 
 Compresses a dataset file into a tar.gz archive.
 
-Argument: a two-elements tuple containing the dataset's ID and the path to the file to archive.
-
 ```python
-geospaas_processing.tasks.archive.delay((180, './dataset_180.nc'))
+geospaas_processing.tasks.core.archive.delay((180, './dataset_180.nc'))
 ```
 
-#### `publish()`
+##### `publish()`
 
 Copies the given file or directory to a remote server using SCP.
-
-Argument: a two-elements tuple containing the ID of the dataset and the path to the file to upload.
 
 This task also requires the following environment variables to be set:
   - `GEOSPAAS_PROCESSING_FTP_HOST`: the hostname of the server to which the files will be copied
@@ -331,3 +341,116 @@ If the task is called with the following argument: `(180, './foo/dataset_180.nc'
   - the file will be copied to `ftp.domain.com:/ftp_root/project/foo/dataset_180.nc`.
   - the task will return the following tuple:
     `(180, ftp://ftp.domain.com/project/foo/dataset_180.nc)`.
+
+##### `crop()`
+
+Crops a dataset file to the given bounding box.
+
+Example:
+
+```python
+geospaas_processing.tasks.core.crop.delay((180, ('foo.nc', 'bar.nc')), bounding_box=[0, 20, 20, 0])
+```
+
+#### `tasks.idf`
+
+Tasks which deal with converting dataset files to IDF format.
+
+##### `convert_to_idf()`
+
+Converts a dataset to the IDF format for usage in Oceandatalab's
+[SEAScope](https://seascope.oceandatalab.com/index.html).
+
+```python
+# Asynchronously convert the dataset whose ID is 180
+geospaas_processing.tasks.idf.convert_to_idf.delay((180, './dataset_180.nc'))
+```
+
+#### `tasks.syntool`
+
+Tasks which deal with converting dataset files to Syntool format.
+
+##### `check_ingested()`
+
+Checks that the dataset does not have saved processing results in the database.
+If there are existing results, stop the current tasks chain,
+otherwise just pass along the arguments.
+
+Example:
+
+```python
+geospaas_processing.tasks.syntool.check_ingested.delay((180, './dataset_180.nc'))
+```
+
+##### `convert()`
+
+Convert a dataset's files to a format displayable in Syntool.
+
+Example:
+
+```python
+geospaas_processing.tasks.syntool.convert.delay((180, './dataset_180.nc'))
+```
+
+##### `db_insert()`
+
+Insert converted files in a Syntool database to make them accessible through a Syntool portal.
+
+Example:
+
+```python
+geospaas_processing.tasks.syntool.db_insert.delay((180, './dataset_180.nc'))
+```
+
+##### `cleanup_ingested()`
+
+Remove all ingested datasets files older than a certain date.
+
+Example:
+
+```python
+geospaas_processing.tasks.syntool.cleanup_ingested.delay('2022-03-04')
+```
+
+#### `tasks.harvesting`
+
+Tasks dealing with harvesting metadata. Requires the `GEOSPAAS_PROCESSING_HARVEST_CONFIG`
+environment variable to contain the path to the [harvesting configuration file](https://github.com/nansencenter/django-geo-spaas-harvesting/tree/3.7.0.dev3#configuration).
+
+##### `start_harvest()`
+
+Start the harvesting process using a dictionary which contains the search configuration.
+
+Example:
+
+```python
+geospaas_processing.tasks.harvesting.start_harvest.delay({
+    'common': {'start_time': '2022-08-01', 'end_time': '2022-08-02'},
+    'searches': [{'provider_name': 'creodias', 'collection': 'Sentinel3'}]
+})
+```
+
+##### `save_search_results()`
+
+Start the ingestion process from a `SearchResults` object.
+Used in `start_harvest()`, there should not be any reason to use it directly.
+
+##### `update_vocabularies()`
+
+Update the vocabularies according to the harvesting configuration.
+
+Example:
+
+```python
+geospaas_processing.tasks.harvesting.update_vocabularies.delay()
+```
+
+##### `retry_ingestion()`
+
+Retries failed ingestions which have been dumped during a previous harvesting run.
+
+Example:
+
+```python
+geospaas_processing.tasks.harvesting.retry_ingestion.delay()
+```

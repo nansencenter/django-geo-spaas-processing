@@ -43,10 +43,7 @@ def save_search_results(self, search_results):
 
 @app.task(base=FaultTolerantTask, bind=True, track_started=True)
 def update_vocabularies(self):
-    """Retry failed ingestions. Requires the
-    GEOSPAAS_FAILED_INGESTIONS_DIR environment variables to be set (see
-    geospaas_harvesting.recovery for more details)
-    """
+    """Update vocabularies in the GeoSPaaS database"""
     config = ProvidersConfiguration.from_file(HARVEST_CONFIG_PATH)
     refresh_vocabularies(config)
 

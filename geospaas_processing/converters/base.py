@@ -56,31 +56,11 @@ class ConversionManager():
         file_path = os.path.join(self.working_directory, file_name)
         dataset = Dataset.objects.get(pk=dataset_id)
 
-        # Unzip the file if necessary
-        try:
-            extract_dir = utils.unarchive(file_path)
-        except shutil.ReadError as error:
-            try:
-                os.remove(file_path)
-            except IsADirectoryError:
-                shutil.rmtree(file_path)
-            raise ConversionError(
-                "The input archive was corrupted." +
-                " It has been removed, you can try to download the file again") from error
-
-        if extract_dir:
-            # Set the extracted file as the path to convert
-            file_path = os.path.join(extract_dir, os.listdir(extract_dir)[0])
-
         # Find out the converter to use
         converter = self.get_converter(dataset)
 
         # Convert the file(s)
         results = converter.run(file_path, self.working_directory, dataset=dataset, **kwargs)
-
-        # Remove intermediate files
-        if extract_dir:
-            shutil.rmtree(extract_dir)
 
         return results
 

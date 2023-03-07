@@ -83,6 +83,34 @@ def archive(self, args):  # pylint: disable=unused-argument
 
 @app.task(base=FaultTolerantTask, bind=True, track_started=True)
 @lock_dataset_files
+def unarchive(self, args):  # pylint: disable=unused-argument
+    """Uncompress a dataset file"""
+    dataset_id = args[0]
+    dataset_files_paths = args[1] or []
+    results = []
+    for file in dataset_files_paths:
+        file_path = os.path.join(WORKING_DIRECTORY, file)
+        try:
+            extract_dir = utils.unarchive(file_path)
+        except shutil.ReadError as error:
+            try:
+                os.remove(file_path)
+            except IsADirectoryError:
+                shutil.rmtree(file_path)
+            raise RuntimeError(
+                "The input archive was corrupted." +
+                " It has been removed, you can try to download the file again") from error
+        if extract_dir:
+            extracted_files = os.listdir(extract_dir)
+            extract_dir_name = os.path.basename(extract_dir)
+            results.extend([os.path.join(extract_dir_name, f) for f in extracted_files])
+        else:
+            results.append(file)
+    return (dataset_id, results)
+
+
+@app.task(base=FaultTolerantTask, bind=True, track_started=True)
+@lock_dataset_files
 def publish(self, args):  # pylint: disable=unused-argument
     """Copy the file (tree) located at `args[1]` to the FTP server (using SCP)"""
     dataset_id = args[0]

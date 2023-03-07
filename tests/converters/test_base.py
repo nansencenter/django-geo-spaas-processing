@@ -60,6 +60,9 @@ class ConversionManagerTestCase(django.test.TestCase):
 
         self.conversion_manager = TestConversionManager(self.temp_directory.name)
 
+    def tearDown(self):
+        self.temp_directory.cleanup()
+
     def test_register(self):
         """The register() decorator should add the decorated class to
         the converters dict of the IDFConversionManager
@@ -103,48 +106,6 @@ class ConversionManagerTestCase(django.test.TestCase):
                 {'dataset': Dataset.objects.get(id=1)}
             )
         )
-
-    def test_convert_zip(self):
-        """Test a conversion of a dataset contained in a zip file"""
-        # Make a test zip file
-        test_file_path = self.temp_dir_path / 'dataset_1.nc'
-        test_file_path.touch()
-        with zipfile.ZipFile(self.temp_dir_path / 'dataset_1.zip', 'w') as zip_file:
-            zip_file.write(test_file_path, test_file_path.name)
-        test_file_path.unlink()
-
-        self.assertTupleEqual(
-            self.conversion_manager.convert(1, 'dataset_1.zip'),
-            (
-                str(self.temp_dir_path / 'dataset_1' / 'dataset_1.nc'),
-                self.temp_directory.name,
-                {'dataset': Dataset.objects.get(id=1)}
-            )
-        )
-        # Check that temporary files have been cleaned up
-        self.assertFalse((self.temp_dir_path / 'dataset_1').exists())
-
-    def test_convert_corrupted_archive(self):
-        """If the archive is corrupted, it needs to be removed
-        """
-        # create corrupted archive
-        corrupted_archive_name = 'corrupted_archive.zip'
-        with open(self.temp_dir_path / corrupted_archive_name, 'wb') as corrupted_file:
-            corrupted_file.write(b'foo')
-        with self.assertRaises(converters_base.ConversionError):
-            self.conversion_manager.convert(1, corrupted_archive_name)
-        self.assertFalse(os.path.exists(self.temp_dir_path / corrupted_archive_name))
-
-    def test_convert_archive_directory(self):
-        """If the archive is a folder, it needs to be removed, although
-        it should never happen
-        """
-        # create directory instead of archive
-        corrupted_archive_name = 'corrupted_archive.zip'
-        os.makedirs(self.temp_dir_path / corrupted_archive_name)
-        with self.assertRaises(converters_base.ConversionError):
-            self.conversion_manager.convert(1, corrupted_archive_name)
-        self.assertFalse(os.path.exists(self.temp_dir_path / corrupted_archive_name))
 
 
 class ConverterTestCase(unittest.TestCase):

@@ -2,8 +2,11 @@
 import errno
 import logging
 import os
+import tempfile
 import unittest
 import unittest.mock as mock
+import zipfile
+from pathlib import Path
 
 import celery
 import scp
@@ -90,6 +93,65 @@ class ArchiveTestCase(unittest.TestCase):
                     tasks_core.archive((1, [file_name]))  # pylint: disable=no-value-for-parameter
                 mock_rmtree.assert_called_with(
                     os.path.join(tasks_core.WORKING_DIRECTORY, file_name))
+
+
+class UnarchiveTestCase(unittest.TestCase):
+    """Tests for the unarchive task"""
+
+    def setUp(self):
+        self.temp_directory = tempfile.TemporaryDirectory()
+        self.temp_dir_path = Path(self.temp_directory.name)
+        mock.patch('geospaas_processing.tasks.core.WORKING_DIRECTORY',
+                   str(self.temp_dir_path)).start()
+        self.addCleanup(mock.patch.stopall)
+
+    def tearDown(self):
+        self.temp_directory.cleanup()
+
+    def test_unarchive_zip(self):
+        """Test a conversion of a dataset contained in a zip file"""
+        # Make a test zip file
+        test_file_path = self.temp_dir_path / 'dataset_1.nc'
+        test_file_path.touch()
+        with zipfile.ZipFile(self.temp_dir_path / 'dataset_1.zip', 'w') as zip_file:
+            zip_file.write(test_file_path, test_file_path.name)
+        test_file_path.unlink()
+
+        self.assertTupleEqual(
+            tasks_core.unarchive((1, ['dataset_1.zip'])),
+            (1, [str(Path('dataset_1') / 'dataset_1.nc')]))
+
+    def test_unarchive_file(self):
+        """If the file is not an archive, do nothing"""
+        # Make a test text file
+        test_file_path = self.temp_dir_path / 'dataset_1.nc'
+        test_file_path.touch()
+
+        self.assertTupleEqual(
+            tasks_core.unarchive((1, ['dataset_1.nc'])),
+            (1, ['dataset_1.nc']))
+
+    def test_unarchive_corrupted_archive(self):
+        """If the archive is corrupted, it needs to be removed
+        """
+        # create corrupted archive
+        corrupted_archive_name = 'corrupted_archive.zip'
+        with open(self.temp_dir_path / corrupted_archive_name, 'wb') as corrupted_file:
+            corrupted_file.write(b'foo')
+        with self.assertRaises(RuntimeError):
+            tasks_core.unarchive((1, [corrupted_archive_name]))
+        self.assertFalse((self.temp_dir_path / corrupted_archive_name).exists())
+
+    def test_unarchive_directory(self):
+        """If the archive is a folder, it needs to be removed, although
+        it should never happen
+        """
+        # create directory instead of archive
+        corrupted_archive_name = 'corrupted_archive.zip'
+        os.makedirs(self.temp_dir_path / corrupted_archive_name)
+        with self.assertRaises(RuntimeError):
+            tasks_core.unarchive((1, [corrupted_archive_name]))
+        self.assertFalse((self.temp_dir_path / corrupted_archive_name).exists())
 
 
 class PublishTestCase(unittest.TestCase):

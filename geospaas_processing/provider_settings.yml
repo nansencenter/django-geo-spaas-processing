@@ -31,7 +31,7 @@
   username: !ENV 'CREODIAS_USERNAME'
   password: !ENV 'CREODIAS_PASSWORD'
   authentication_type: 'oauth2'
-  token_url: 'https://auth.creodias.eu/auth/realms/DIAS/protocol/openid-connect/token'
+  token_url: 'https://identity.cloudferro.com/auth/realms/DIAS/protocol/openid-connect/token'
   client_id: 'CLOUDFERRO_PUBLIC'
   max_parallel_downloads: 10
 'https://podaac-tools.jpl.nasa.gov/drive/files':

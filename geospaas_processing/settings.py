@@ -14,6 +14,7 @@ django_settings = {
     'INSTALLED_APPS': [
         'geospaas.catalog',
         'geospaas.vocabularies',
+        'geospaas_processing',
     ],
     'DATABASES': {
         'default': {
@@ -33,11 +34,20 @@ django_settings = {
     'USE_I18N': True,
     'USE_L10N': True,
     'USE_TZ': True,
+    'DEFAULT_AUTO_FIELD': 'django.db.models.AutoField',
     # Celery settings
     'CELERY_BROKER_URL': os.getenv(
         'GEOSPAAS_PROCESSING_BROKER', 'amqp://guest:guest@localhost:5672'),
     'CELERY_RESULT_BACKEND': 'django-db',
-    'DEFAULT_AUTO_FIELD': 'django.db.models.AutoField',
+    # syntool conversion needs to be processed by a specific worker
+    # with the right tools installed
+    'CELERY_ACCEPT_CONTENT': ['json', 'pickle'],
+    'CELERY_TASK_ROUTES': {
+        'geospaas_processing.tasks.core.*': {'queue': 'core'},
+        'geospaas_processing.tasks.idf.*': {'queue': 'idf'},
+        'geospaas_processing.tasks.syntool.*': {'queue': 'syntool'},
+        'geospaas_processing.tasks.harvesting.*': {'queue': 'harvesting'},
+    },
 }
 
 if django_celery_results:

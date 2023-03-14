@@ -1,0 +1,5 @@
+--input-format geotiff
+--input-options projection=4326
+--output-format vectorfield
+--output-options min-zoom=0
+                 max-zoom=8

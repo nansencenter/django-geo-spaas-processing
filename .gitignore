@@ -5,4 +5,5 @@ dist
 build
 **egg*
 .coverage
-geospaas_processing/auxiliary/**
+**/auxiliary/**
+**.pyc

@@ -1,0 +1,12 @@
+-t netcdf/grid/latlon
+-o collection = ghrsst_l3u_amsr2_sst
+   gcp_spacing = 4
+   add_variables(anomaly_sea_surface_temperature) = using:anomaly_from_clim,climatology_path:auxiliary/sst_cci_clim_extrapolated/extra_D*-ESACCI-L4_GHRSST-SSTdepth-OSTIA-GLOB_CDR2.1-v02.0-fv01.0.nc,climatology_variable:analysed_sst,targets:sea_surface_temperature;,outputs:anomaly_sea_surface_temperature;,default_min:-10,default_max:10,extrapolate:no,interpolate:yes
+-i time_variable=time
+   lon_variable=lon
+   lat_variable=lat
+   variables=sea_surface_temperature,quality_level
+   time_coverage_relative_start = 0
+   time_coverage_relative_end = +86400
+   global_overrides = processing_level:L3,product_version:1.0,file_version:1.0
+   override(sea_surface_temperature) = flag_variable:quality_level,flag_min:3,valid_min:auto,valid_max:auto

@@ -1,0 +1,9 @@
+-t netcdf/grid/latlon
+-o collection = esa_cci_sst
+-i variables = analysed_sst,sea_ice_fraction
+   time_variable = time
+   lon_variable = lon
+   lat_variable = lat
+   global_overrides = time_coverage_end:21000101T000000Z
+   override(analysed_sst) = valid_min:270.15,valid_max:315.15
+   override(sea_ice_fraction) = valid_min:0.0,valid_max:1.0

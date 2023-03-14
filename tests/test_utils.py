@@ -98,6 +98,29 @@ class ArchiveUtilsTestCase(unittest.TestCase):
             self.assertEqual(result, archive_file_path)
             mock_add.assert_not_called()
 
+    def test_tar_gzip_existing_archive(self):
+        """If the archive already exists, do nothing if force=False"""
+        with tempfile.TemporaryDirectory() as temp_dir_name:
+            # create test file
+            file_path = Path(temp_dir_name, 'foo.txt')
+            with open(file_path, 'w', encoding='utf-8') as handle:
+                handle.write('bar')
+
+            # create empty archive
+            archive_path = Path(temp_dir_name, 'foo.txt.tar.gz')
+            with tarfile.open(archive_path, 'w:gz'):
+                pass
+
+            with self.subTest('If force=False, leave the existing archive in place'):
+                utils.tar_gzip(file_path, force=False)
+                with tarfile.open(archive_path, 'r') as archive:
+                    self.assertEqual(archive.getnames(), [])
+
+            with self.subTest('If force=True, remove the existing archive and re-create it'):
+                utils.tar_gzip(file_path, force=True)
+                with tarfile.open(archive_path, 'r') as archive:
+                    self.assertEqual(archive.getnames(), ['foo.txt'])
+
     def test_gunzip(self):
         """Should unpack a gzipped file in the target directory"""
         with tempfile.TemporaryDirectory() as tmp_dir:

@@ -1,0 +1,15 @@
+--input-format geotiff
+--input-options projection=3411
+--output-format vectorfield
+--output-options
+    with-shape=no
+    modulus-band=1
+    angle-band=2
+    scale-min=0
+    scale-max=100
+    color-min=0
+    color-max=100
+    resolution=15625
+    gdal_threads=2
+    min-zoom=0
+    max-zoom=8

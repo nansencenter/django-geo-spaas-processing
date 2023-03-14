@@ -1,0 +1,13 @@
+-t netcdf/grid/latlon
+-o collection = cmems_015_003_15m
+   gcp_spacing = 4
+-i variables = uo,vo
+   time_variable = time
+   lon_variable = longitude
+   lat_variable = latitude
+   depth_variable = depth
+   depth_dimension = depth
+   depth_value = 15
+   global_overrides = product_version:1.0,processing_level:L4,file_version:1.0
+   time_coverage_relative_start = -10800
+   time_coverage_relative_end = +10800

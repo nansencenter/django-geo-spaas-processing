@@ -1,0 +1,9 @@
+-t netcdf/grid/latlon
+-o collection = cmems_008_046
+   gcp_spacing = 4
+-i variables = adt,ugos,vgos
+   time_variable = time
+   time_coverage_relative_start = -43200
+   time_coverage_relative_end = 43200
+   lat_variable = latitude
+   lon_variable = longitude

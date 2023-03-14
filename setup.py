@@ -13,7 +13,7 @@ setuptools.setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/nansencenter/django-geo-spaas-processing",
-    packages=["geospaas_processing", "geospaas_processing.cli"],
+    packages=setuptools.find_packages(),
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
@@ -24,6 +24,7 @@ setuptools.setup(
         'django-geo-spaas',
         'django',
         'freezegun',
+        'nco',
         'oauthlib',
         'paramiko',
         'PyYAML',
@@ -36,5 +37,10 @@ setuptools.setup(
         'parallel_download': ['redis'],
         'worker': ['celery==4.4.*', 'django-celery-results==1.2.*'],
     },
-    package_data={'': ['*.yml', 'parameters/*']},
+    package_data={
+        '': [
+            '*.yml',
+            'converters/*/parameters/*',
+            'converters/*/extra_readers/*.py']
+    },
 )

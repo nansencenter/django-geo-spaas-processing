@@ -1,0 +1,7 @@
+--input-format geotiff
+--input-options projection=3413
+                angles_proj=3413
+--output-format vectorfield
+--output-options resolution=6250x6250
+--output-options min-zoom=0
+                 max-zoom=8

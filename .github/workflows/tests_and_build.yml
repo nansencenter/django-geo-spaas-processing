@@ -15,8 +15,6 @@ jobs:
     runs-on: 'ubuntu-20.04'
     outputs:
       git_tag: ${{ steps.get_git_tag.outputs.version }}
-      docker_tags: ${{ steps.make_docker_tags.outputs.tags }}
-      docker_slim_tags: ${{ steps.make_docker_tags.outputs.slim_tags }}
     steps:
       - name: "Extract tag name"
         id: get_git_tag
@@ -28,17 +26,6 @@ jobs:
           fi
           echo "version=$TAG" >> $GITHUB_OUTPUT
 
-      - name: "Make Docker tags"
-        id: make_docker_tags
-        run: |
-          WORKER_TAGS=${{ env.IMAGE_NAME_WORKER }}:${{ steps.get_git_tag.outputs.version }}
-          CLI_TAGS='${{ env.IMAGE_NAME_CLI }}:${{ steps.get_git_tag.outputs.version }}'
-          if [[ '${{ github.event.action }}' == released ]];then
-            WORKER_TAGS="$WORKER_TAGS,${{ env.IMAGE_NAME_WORKER }}:latest"
-            CLI_TAGS="$CLI_TAGS,${{ env.IMAGE_NAME_CLI }}:latest"
-          fi
-          echo "worker_tags=$WORKER_TAGS" >> $GITHUB_OUTPUT
-          echo "cli_tags=$CLI_TAGS" >> $GITHUB_OUTPUT
   tests:
     name: Run unit tests
     runs-on: 'ubuntu-20.04'
@@ -165,7 +152,7 @@ jobs:
       - name: "Make Docker tags"
         id: make_docker_tags
         run: |
-          TAGS=${{ env.IMAGE_NAME_WORKER }}:${{ needs.setup.outputs.version }}
+          TAGS=${{ env.IMAGE_NAME_WORKER }}:${{ needs.setup.outputs.git_tag }}
           if [[ '${{ github.event.action }}' == released ]];then
             TAGS="$TAGS,${{ env.IMAGE_NAME_WORKER }}:latest"
           fi
@@ -219,7 +206,7 @@ jobs:
       - name: "Make Docker tags"
         id: make_docker_tags
         run: |
-          TAGS=${{ env.IMAGE_NAME_CLI }}:${{ needs.setup.outputs.version }}
+          TAGS=${{ env.IMAGE_NAME_CLI }}:${{ needs.setup.outputs.git_tag }}
           if [[ '${{ github.event.action }}' == released ]];then
             TAGS="$TAGS,${{ env.IMAGE_NAME_CLI }}:latest"
           fi

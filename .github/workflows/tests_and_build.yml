@@ -1,12 +1,44 @@
 ---
 name: "Unit tests and builds"
-on: push
+on:
+  push:
+    branches: ['**']
+  release:
+    types: [prereleased, released]
 env:
-  BASE_IMAGE_NAME: "${{ secrets.DOCKER_ORG }}/geospaas:2.5.1-slim"
-  IMAGE_NAME_WORKER: "${{ secrets.DOCKER_ORG }}/geospaas_processing_worker"
-  IMAGE_NAME_CLI: "${{ secrets.DOCKER_ORG }}/geospaas_processing_cli"
+  BASE_IMAGE_NAME: "${{ vars.DOCKER_ORG }}/geospaas:2.5.1-slim"
+  IMAGE_NAME_WORKER: "${{ vars.DOCKER_ORG }}/geospaas_processing_worker"
+  IMAGE_NAME_CLI: "${{ vars.DOCKER_ORG }}/geospaas_processing_cli"
   IDF_CONVERTER_VERSION: '0.1.324'
 jobs:
+  setup:
+    runs-on: 'ubuntu-20.04'
+    outputs:
+      git_tag: ${{ steps.get_git_tag.outputs.version }}
+      docker_tags: ${{ steps.make_docker_tags.outputs.tags }}
+      docker_slim_tags: ${{ steps.make_docker_tags.outputs.slim_tags }}
+    steps:
+      - name: "Extract tag name"
+        id: get_git_tag
+        run: |
+          if [[ $GITHUB_REF == refs/tags/* ]];then
+            TAG="${GITHUB_REF#refs/tags/}"
+          else
+            TAG='tmp'
+          fi
+          echo "version=$TAG" >> $GITHUB_OUTPUT
+
+      - name: "Make Docker tags"
+        id: make_docker_tags
+        run: |
+          WORKER_TAGS=${{ env.IMAGE_NAME_WORKER }}:${{ steps.get_git_tag.outputs.version }}
+          CLI_TAGS='${{ env.IMAGE_NAME_CLI }}:${{ steps.get_git_tag.outputs.version }}'
+          if [[ '${{ github.event.action }}' == released ]];then
+            WORKER_TAGS="$WORKER_TAGS,${{ env.IMAGE_NAME_WORKER }}:latest"
+            CLI_TAGS="$CLI_TAGS,${{ env.IMAGE_NAME_CLI }}:latest"
+          fi
+          echo "worker_tags=$WORKER_TAGS" >> $GITHUB_OUTPUT
+          echo "cli_tags=$CLI_TAGS" >> $GITHUB_OUTPUT
   tests:
     name: Run unit tests
     runs-on: 'ubuntu-20.04'
@@ -98,20 +130,10 @@ jobs:
   build_worker_image:
     name: Build worker Docker image
     runs-on: 'ubuntu-20.04'
-    needs: 'tests'
+    needs: ['setup', 'tests']
     steps:
       - name: 'Checkout repository'
         uses: actions/checkout@v2
-
-      - name: "Extract tag name"
-        id: get_version
-        run: |
-          if [[ $GITHUB_REF == refs/tags/* ]];then
-            TAG="${GITHUB_REF#refs/tags/}"
-          else
-            TAG='tmp'
-          fi
-          echo "::set-output name=VERSION::${TAG}"
 
       - name: Get IDF converter
         env:
@@ -140,6 +162,15 @@ jobs:
           username: ${{ secrets.DOCKER_USER }}
           password: ${{ secrets.DOCKER_PASS }}
 
+      - name: "Make Docker tags"
+        id: make_docker_tags
+        run: |
+          TAGS=${{ env.IMAGE_NAME_WORKER }}:${{ needs.setup.outputs.version }}
+          if [[ '${{ github.event.action }}' == released ]];then
+            TAGS="$TAGS,${{ env.IMAGE_NAME_WORKER }}:latest"
+          fi
+          echo "tags=$TAGS" >> $GITHUB_OUTPUT
+
       - name: Build docker image
         uses: docker/build-push-action@v3
         with:
@@ -148,9 +179,7 @@ jobs:
           build-args: |
             BASE_IMAGE=${{ env.BASE_IMAGE_NAME }}
           push: ${{ startsWith(github.event.ref, 'refs/tags/') }}
-          tags: |
-            ${{ env.IMAGE_NAME_WORKER }}:latest
-            ${{ env.IMAGE_NAME_WORKER }}:${{ steps.get_version.outputs.VERSION }}
+          tags: ${{ steps.make_docker_tags.outputs.tags }}
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache-new
 
@@ -166,20 +195,10 @@ jobs:
   build_cli_image:
     name: Build CLI Docker image
     runs-on: 'ubuntu-20.04'
-    needs: 'tests'
+    needs: ['setup', 'tests']
     steps:
       - name: 'Checkout repository'
         uses: actions/checkout@v2
-
-      - name: "Extract tag name"
-        id: get_version
-        run: |
-          if [[ $GITHUB_REF == refs/tags/* ]];then
-            TAG="${GITHUB_REF#refs/tags/}"
-          else
-            TAG='tmp'
-          fi
-          echo "::set-output name=VERSION::${TAG}"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
@@ -197,6 +216,15 @@ jobs:
           username: ${{ secrets.DOCKER_USER }}
           password: ${{ secrets.DOCKER_PASS }}
 
+      - name: "Make Docker tags"
+        id: make_docker_tags
+        run: |
+          TAGS=${{ env.IMAGE_NAME_CLI }}:${{ needs.setup.outputs.version }}
+          if [[ '${{ github.event.action }}' == released ]];then
+            TAGS="$TAGS,${{ env.IMAGE_NAME_CLI }}:latest"
+          fi
+          echo "tags=$TAGS" >> $GITHUB_OUTPUT
+
       - name: Build docker image
         uses: docker/build-push-action@v3
         with:
@@ -205,9 +233,7 @@ jobs:
           build-args: |
             BASE_IMAGE=${{ env.BASE_IMAGE_NAME }}
           push: ${{ startsWith(github.event.ref, 'refs/tags/') }}
-          tags: |
-            ${{ env.IMAGE_NAME_CLI }}:latest
-            ${{ env.IMAGE_NAME_CLI }}:${{ steps.get_version.outputs.VERSION }}
+          tags: ${{ steps.make_docker_tags.outputs.tags }}
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache-new
 

@@ -165,7 +165,7 @@ jobs:
           file: Dockerfile_worker
           build-args: |
             BASE_IMAGE=${{ env.BASE_IMAGE_NAME }}
-          push: ${{ startsWith(github.event.ref, 'refs/tags/') }}
+          push: ${{ github.event_name == 'release' }}
           tags: ${{ steps.make_docker_tags.outputs.tags }}
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache-new
@@ -219,7 +219,7 @@ jobs:
           file: Dockerfile_cli
           build-args: |
             BASE_IMAGE=${{ env.BASE_IMAGE_NAME }}
-          push: ${{ startsWith(github.event.ref, 'refs/tags/') }}
+          push: ${{ github.event_name == 'release' }}
           tags: ${{ steps.make_docker_tags.outputs.tags }}
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache-new
@@ -237,7 +237,7 @@ jobs:
     name: Build Python package and publish it as a release artifact
     runs-on: 'ubuntu-20.04'
     needs: 'tests'
-    if: startsWith(github.event.ref, 'refs/tags/')
+    if: ${{ github.event_name == 'release' }}
     env:
       TAG_REF: ${{ github.ref }}
     steps:

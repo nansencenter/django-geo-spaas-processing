@@ -24,7 +24,7 @@ def start_harvest(self, search_config_dict):
     config = ProvidersConfiguration.from_file(HARVEST_CONFIG_PATH)
     search_config = SearchConfiguration.from_dict(search_config_dict) \
                                        .with_providers(config.providers) # pylint: disable=no-member
-    searches = search_config.start_searches()
+    searches = search_config.create_provider_searches()
     logger.info("Running the following searches: %s", searches)
     tasks_to_run = celery.group(
         save_search_results.s(search_results)

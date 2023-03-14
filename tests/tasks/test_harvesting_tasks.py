@@ -17,7 +17,7 @@ class StartHarvestTestCase(unittest.TestCase):
         self.search_results_mocks = [mock.Mock(), mock.Mock()]
         self.mock_search_config.from_dict.return_value \
                                .with_providers.return_value \
-                               .start_searches.return_value = self.search_results_mocks
+                               .create_provider_searches.return_value = self.search_results_mocks
         self.mock_celery_group = mock.patch('celery.group').start()
 
     def tearDown(self):

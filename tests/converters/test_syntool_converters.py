@@ -241,7 +241,7 @@ class Sentinel1SyntoolConverterTestCase(unittest.TestCase):
             for file_name in ('foo', 'bar'):
                 with open(Path(tmp_dir, file_name), 'wb'):
                     pass
-            self.assertListEqual(
+            self.assertCountEqual(
                 syntool_converter.Sentinel1SyntoolConverter.list_files(Path(tmp_dir)),
                 [Path(tmp_dir, 'bar'), Path(tmp_dir, 'foo')])
 

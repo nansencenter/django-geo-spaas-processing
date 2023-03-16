@@ -50,6 +50,7 @@ def check_ingested(self, args, **kwargs):
     if ingested_files.exists():
         logger.info("Already produced syntool files for dataset %s, stopping.", dataset_id)
         self.request.callbacks = None
+        self.request.chain = None
         return (dataset_id, [i.path for i in ingested_files])
     return args
 

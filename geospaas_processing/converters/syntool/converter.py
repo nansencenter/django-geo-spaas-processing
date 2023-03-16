@@ -263,7 +263,7 @@ class Sentinel1SyntoolConverter(BasicSyntoolConverter):
                     final_result_path = result_dir.parent.parent / result_dir.name
                     shutil.rmtree(final_result_path, ignore_errors=True)
                     result_dir.replace(final_result_path)
-                    results.append(str(final_result_path))
+                    results.append(str(final_result_path.relative_to(out_dir)))
                 base_result_path.rmdir()
         os.rmdir(in_file)
         return results

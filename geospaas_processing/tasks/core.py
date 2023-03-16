@@ -102,7 +102,7 @@ def unarchive(self, args):  # pylint: disable=unused-argument
                 " It has been removed, you can try to download the file again") from error
         if extract_dir:
             extracted_files = os.listdir(extract_dir)
-            extract_dir_name = os.path.basename(extract_dir)
+            extract_dir_name = os.path.relpath(extract_dir, WORKING_DIRECTORY)
             results.extend([os.path.join(extract_dir_name, f) for f in extracted_files])
         else:
             results.append(file)

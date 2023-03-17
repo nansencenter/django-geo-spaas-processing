@@ -101,6 +101,8 @@ class CroppingTestCase(unittest.TestCase):
                         return_value=('lon', 'lat')):
             with self.assertRaises(RuntimeError):
                 ops.nco_crop('', '', [1, 2, 3, 4])
+            with self.assertRaises(TypeError):
+                ops.nco_crop('', '', [1, 2, 3, 4])
 
     def test_find_netcdf_lon_lat(self):
         """Test find the longitude and latitude variable names in a

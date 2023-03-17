@@ -8,7 +8,7 @@ import netCDF4
 try:
     from nco import Nco, NCOException
     nco = Nco()
-except ImportError:  # pragma: no cover
+except (ImportError, TypeError):  # pragma: no cover
     nco = None
 
 try:

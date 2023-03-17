@@ -5,8 +5,12 @@ import logging
 from enum import Enum
 
 import netCDF4
-from nco import Nco, NCOException
-nco = Nco()
+try:
+    from nco import Nco, NCOException
+    nco = Nco()
+except ImportError:  # pragma: no cover
+    nco = None
+
 try:
     from osgeo import gdal
 except ImportError:  # pragma: no cover
@@ -70,6 +74,8 @@ def nco_crop(in_file, out_file, bbox):
     except NCOException as error:
         raise RuntimeError('An error happened during cropping. Please check that the bounding '
                            'box is within the datasets spatial coverage') from error
+    except AttributeError:
+        raise RuntimeError('nco is not available')
 
 
 def crop(in_file, out_file, bbox):

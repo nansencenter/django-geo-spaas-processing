@@ -94,6 +94,14 @@ class CroppingTestCase(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 ops.nco_crop('', '', [1, 2, 3, 4])
 
+    def test_nco_unavailable(self):
+        """An error must be raised if nco is not installed"""
+        with mock.patch('geospaas_processing.ops.nco', None), \
+             mock.patch('geospaas_processing.ops.find_netcdf_lon_lat',
+                        return_value=('lon', 'lat')):
+            with self.assertRaises(RuntimeError):
+                ops.nco_crop('', '', [1, 2, 3, 4])
+
     def test_find_netcdf_lon_lat(self):
         """Test find the longitude and latitude variable names in a
         netCDF file

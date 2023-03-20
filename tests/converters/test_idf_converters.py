@@ -14,8 +14,8 @@ import geospaas_processing.converters.base as converters_base
 import geospaas_processing.converters.idf.converter as idf_converter
 
 
-class AuxiliaryFilesDownloadTestCase(unittest.TestCase):
-    """Test auxiliary files downloading"""
+class IDFConversionManagerTestCase(unittest.TestCase):
+    """Tests for the IDFConversionManager class"""
 
     def test_do_not_download_auxiliary_files_if_folder_present(self):
         """Test that auxiliary files are not downloaded if the folder
@@ -23,7 +23,7 @@ class AuxiliaryFilesDownloadTestCase(unittest.TestCase):
         """
         with mock.patch('os.path.isdir', return_value=True), \
                 mock.patch('ftplib.FTP') as mock_ftp:
-            idf_converter.download_auxiliary_files('/foo')
+            idf_converter.IDFConversionManager.download_auxiliary_files('/foo')
         mock_ftp.assert_not_called()
 
     def test_download_auxiliary_files_if_folder_not_present(self):
@@ -34,7 +34,7 @@ class AuxiliaryFilesDownloadTestCase(unittest.TestCase):
                 mock.patch('os.makedirs'), \
                 mock.patch('ftplib.FTP') as mock_ftp, \
                 mock.patch('tempfile.TemporaryFile'):
-            idf_converter.download_auxiliary_files('/foo')
+            idf_converter.IDFConversionManager.download_auxiliary_files('/foo')
         mock_ftp.assert_called()
         mock_ftp.return_value.retrbinary.assert_called()
 
@@ -49,8 +49,23 @@ class AuxiliaryFilesDownloadTestCase(unittest.TestCase):
                 mock.patch('tarfile.TarFile', side_effect=tarfile.ExtractError), \
                 mock.patch('shutil.rmtree') as mock_rmtree:
             with self.assertRaises(tarfile.ExtractError):
-                idf_converter.download_auxiliary_files('/foo')
+                idf_converter.IDFConversionManager.download_auxiliary_files('/foo')
             mock_rmtree.assert_called_with('/foo')
+
+    def test_download_if_no_unittest(self):
+        """Test that the download happens only if not in the process of
+        running unit tests
+        """
+        with mock.patch('sys.modules', {}), \
+             mock.patch('geospaas_processing.converters.idf.converter'
+                        '.IDFConversionManager.download_auxiliary_files') as mock_download:
+            idf_converter.IDFConversionManager('')
+        mock_download.assert_called()
+
+        with mock.patch('geospaas_processing.converters.idf.converter'
+                        '.IDFConversionManager.download_auxiliary_files') as mock_download:
+            idf_converter.IDFConversionManager('')
+        mock_download.assert_not_called()
 
 
 class IDFConverterTestCase(unittest.TestCase):

@@ -17,38 +17,43 @@ AUXILIARY_PATH = os.path.join(os.path.expanduser('~'), '.geospaas', 'auxiliary')
 logger = logging.getLogger(__name__)
 
 
-def download_auxiliary_files(auxiliary_path):
-    """Download the auxiliary files necessary for IDF conversion.
-    They are too big to be included in the package.
-    """
-    if not os.path.isdir(auxiliary_path):
-        logger.info("Downloading auxiliary files for IDF conversion, this may take a while")
-        os.makedirs(auxiliary_path)
-        try:
-            with closing(ftplib.FTP('ftp.nersc.no')) as ftp:
-                ftp.login()
-                # we write the archive to a tmp file...
-                with tempfile.TemporaryFile() as tmp_file:
-                    ftp.retrbinary('RETR /pub/Adrien/idf_converter_auxiliary.tar', tmp_file.write)
-                    # ...then set the cursor back at the beginning of
-                    # the file...
-                    tmp_file.seek(0)
-                    # ...and finally extract the contents of the
-                    # archive to the auxiliary folder
-                    with tarfile.TarFile(fileobj=tmp_file) as tar_file:
-                        tar_file.extractall(auxiliary_path)
-        except (*ftplib.all_errors, tarfile.ExtractError):
-            # in case of error, we just remove everything
-            shutil.rmtree(auxiliary_path)
-            raise
-
-
-if 'unittest' not in sys.modules:  # pragma: no cover
-    download_auxiliary_files(AUXILIARY_PATH)
-
-
 class IDFConversionManager(ConversionManager):
     """Manager for IDF conversion"""
+
+    downloaded_aux = False
+
+    @classmethod
+    def download_auxiliary_files(cls, auxiliary_path):
+        """Download the auxiliary files necessary for IDF conversion.
+        They are too big to be included in the package.
+        """
+        if not (cls.downloaded_aux or os.path.isdir(auxiliary_path)):
+            logger.info("Downloading auxiliary files for IDF conversion, this may take a while")
+            os.makedirs(auxiliary_path)
+            try:
+                with closing(ftplib.FTP('ftp.nersc.no')) as ftp:
+                    ftp.login()
+                    # we write the archive to a tmp file...
+                    with tempfile.TemporaryFile() as tmp_file:
+                        ftp.retrbinary(
+                            'RETR /pub/Adrien/idf_converter_auxiliary.tar', tmp_file.write)
+                        # ...then set the cursor back at the beginning of
+                        # the file...
+                        tmp_file.seek(0)
+                        # ...and finally extract the contents of the
+                        # archive to the auxiliary folder
+                        with tarfile.TarFile(fileobj=tmp_file) as tar_file:
+                            tar_file.extractall(auxiliary_path)
+            except (*ftplib.all_errors, tarfile.ExtractError):
+                # in case of error, we just remove everything
+                shutil.rmtree(auxiliary_path)
+                raise
+            cls.downloaded_aux = True
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if 'unittest' not in sys.modules:  # pragma: no cover
+            self.download_auxiliary_files(AUXILIARY_PATH)
 
 
 class IDFConverter(Converter):

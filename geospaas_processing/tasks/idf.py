@@ -2,7 +2,7 @@
 import celery
 
 from geospaas_processing.tasks import lock_dataset_files, FaultTolerantTask, WORKING_DIRECTORY
-from ..converters import IDFConversionManager
+from ..converters.idf.converter import IDFConversionManager
 
 
 logger = celery.utils.log.get_task_logger(__name__)

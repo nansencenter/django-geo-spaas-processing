@@ -48,6 +48,7 @@ django_settings = {
         'geospaas_processing.tasks.syntool.*': {'queue': 'syntool'},
         'geospaas_processing.tasks.harvesting.*': {'queue': 'harvesting'},
     },
+    'CELERYD_PREFETCH_MULTIPLIER': 1,
 }
 
 if django_celery_results:

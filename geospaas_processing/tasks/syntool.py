@@ -9,7 +9,7 @@ import celery
 
 from geospaas.catalog.models import Dataset
 from geospaas_processing.tasks import lock_dataset_files, FaultTolerantTask, WORKING_DIRECTORY
-from ..converters import SyntoolConversionManager
+from ..converters.syntool.converter import SyntoolConversionManager
 from ..models import ProcessingResult
 
 

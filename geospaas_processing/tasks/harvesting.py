@@ -7,12 +7,12 @@ import celery.utils
 
 from geospaas_harvesting.cli import refresh_vocabularies, retry_ingest
 from geospaas_harvesting.config import ProvidersConfiguration, SearchConfiguration
+
 from geospaas_processing.tasks import FaultTolerantTask
+from . import app
 
 
 logger = celery.utils.log.get_task_logger(__name__)
-app = celery.Celery(__name__)
-app.config_from_object('django.conf:settings', namespace='CELERY')
 
 
 HARVEST_CONFIG_PATH = os.getenv('GEOSPAAS_PROCESSING_HARVEST_CONFIG')

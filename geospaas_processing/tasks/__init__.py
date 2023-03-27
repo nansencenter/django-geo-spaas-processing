@@ -24,7 +24,7 @@ WORKING_DIRECTORY = os.getenv('GEOSPAAS_PROCESSING_WORK_DIR', '/tmp/test_data')
 DATASET_LOCK_PREFIX = 'lock-'
 
 app = celery.Celery('geospaas_processing')
-app.config_from_object('django.conf:settings', namespace='CELERY')
+app.config_from_object('geospaas_processing.celeryconfig')
 
 
 @celery.signals.after_setup_logger.connect

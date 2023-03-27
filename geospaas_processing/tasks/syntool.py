@@ -11,12 +11,9 @@ from geospaas.catalog.models import Dataset
 from geospaas_processing.tasks import lock_dataset_files, FaultTolerantTask, WORKING_DIRECTORY
 from ..converters.syntool.converter import SyntoolConversionManager
 from ..models import ProcessingResult
-
+from . import app
 
 logger = celery.utils.log.get_task_logger(__name__)
-
-app = celery.Celery(__name__)
-app.config_from_object('django.conf:settings', namespace='CELERY')
 
 
 def get_db_config():

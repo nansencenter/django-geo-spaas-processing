@@ -14,11 +14,10 @@ import geospaas_processing.utils as utils
 from geospaas_processing.tasks import lock_dataset_files, FaultTolerantTask, WORKING_DIRECTORY
 from ..downloaders import DownloadManager, TooManyDownloadsError
 
+from . import app
+
 
 logger = celery.utils.log.get_task_logger(__name__)
-
-app = celery.Celery(__name__)
-app.config_from_object('django.conf:settings', namespace='CELERY')
 
 
 @app.task(base=FaultTolerantTask, bind=True, track_started=True)

@@ -11,12 +11,9 @@ from geospaas.catalog.models import Dataset
 from geospaas_processing.tasks import lock_dataset_files, FaultTolerantTask, WORKING_DIRECTORY
 from ..converters.syntool.converter import SyntoolConversionManager
 from ..models import ProcessingResult
-
+from . import app
 
 logger = celery.utils.log.get_task_logger(__name__)
-
-app = celery.Celery(__name__)
-app.config_from_object('django.conf:settings', namespace='CELERY')
 
 
 def get_db_config():
@@ -49,10 +46,12 @@ def check_ingested(self, args, **kwargs):
     )
     if ingested_files.exists():
         logger.info("Already produced syntool files for dataset %s, stopping.", dataset_id)
-        self.request.callbacks = None
-        self.request.chain = None
         return (dataset_id, [i.path for i in ingested_files])
-    return args
+    else:
+        to_execute = celery.signature(kwargs.pop('to_execute'))
+        to_execute.args = (args,)
+        to_execute.kwargs = {**to_execute.kwargs, **kwargs}
+        return self.replace(to_execute)
 
 
 @app.task(base=FaultTolerantTask, bind=True, track_started=True)

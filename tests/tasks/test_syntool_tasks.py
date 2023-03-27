@@ -5,6 +5,8 @@ import unittest
 import unittest.mock as mock
 from pathlib import Path
 
+import celery.exceptions
+
 import geospaas_processing.tasks
 import geospaas_processing.tasks.syntool as tasks_syntool
 from geospaas_processing.models import ProcessingResult
@@ -49,18 +51,20 @@ class SyntoolTasksTestCase(unittest.TestCase):
         with mock.patch('geospaas_processing.models.ProcessingResult.objects.filter',
                         return_value=mock_queryset):
             self.assertTupleEqual(
-                tasks_syntool.check_ingested((1,)),
+                tasks_syntool.check_ingested((1,), to_execute=mock.Mock()),
                 (1, ['foo', 'bar']))
 
     def test_check_ingested_dont_exist(self):
-        """If no result files exist for the dataset, just pass on the
-        arguments
+        """If no result files exist for the dataset, replace the current task
+        with the signature to execute
         """
         mock_queryset = mock.MagicMock()
         mock_queryset.exists.return_value = False
         with mock.patch('geospaas_processing.models.ProcessingResult.objects.filter',
                         return_value=mock_queryset):
-            self.assertTupleEqual(tasks_syntool.check_ingested((1,)), (1,))
+            with self.assertRaises(celery.exceptions.Ignore):
+                self.assertTupleEqual(tasks_syntool.check_ingested((1,), to_execute=mock.Mock()),
+                                    (1,))
 
     def test_convert(self):
         """Test that the dataset files are converted to Syntool format

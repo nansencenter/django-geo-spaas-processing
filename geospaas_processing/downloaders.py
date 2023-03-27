@@ -595,10 +595,11 @@ class DownloadManager():
         """Remove downloaded dataset files"""
         removed = []
         for dataset in self.datasets:
+            relative_download_dir = self.get_dataset_directory(dataset)
             download_dir = os.path.join(
                 self.download_folder,
-                self.get_dataset_directory(dataset))
+                relative_download_dir)
             if os.path.isdir(download_dir):
                 shutil.rmtree(download_dir, ignore_errors=True)
-                removed.append(download_dir)
+                removed.append(relative_download_dir)
         return removed

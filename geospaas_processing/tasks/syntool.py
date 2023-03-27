@@ -46,10 +46,12 @@ def check_ingested(self, args, **kwargs):
     )
     if ingested_files.exists():
         logger.info("Already produced syntool files for dataset %s, stopping.", dataset_id)
-        self.request.callbacks = None
-        self.request.chain = None
         return (dataset_id, [i.path for i in ingested_files])
-    return args
+    else:
+        to_execute = celery.signature(kwargs.pop('to_execute'))
+        to_execute.args = (args,)
+        to_execute.kwargs = {**to_execute.kwargs, **kwargs}
+        return self.replace(to_execute)
 
 
 @app.task(base=FaultTolerantTask, bind=True, track_started=True)

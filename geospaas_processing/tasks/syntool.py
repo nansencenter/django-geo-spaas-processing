@@ -134,9 +134,11 @@ def cleanup_ingested(self, date, created=False):
             type=ProcessingResult.ProcessingResultType.SYNTOOL,
             dataset__time_coverage_end__lte=date)
 
+    results_dir = os.getenv('GEOSPAAS_PROCESSING_SYNTOOL_RESULTS_DIR', WORKING_DIRECTORY)
+
     deleted = []
     for processing_result in processing_results:
-        result_path = Path(WORKING_DIRECTORY, processing_result.path)
+        result_path = Path(results_dir, processing_result.path)
         logger.info("Deleting %s", result_path)
         # remove the files
         try:

@@ -3,6 +3,7 @@ FROM ${BASE_IMAGE} AS base
 RUN pip install --no-cache-dir \
     freezegun==1.1.0 \
     graypy==2.1.0 \
+    'pyotp' \
     redis==3.5.3 \
     requests_oauthlib==1.3
 

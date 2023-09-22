@@ -12,11 +12,13 @@ import ftplib
 import logging
 import os
 import os.path
+import re
 import shutil
 from urllib.parse import urlparse
 
 import oauthlib.oauth2
-import re
+import oauthlib.oauth2.rfc6749.errors
+import pyotp
 import requests
 import requests.utils
 import requests_oauthlib
@@ -161,16 +163,33 @@ class HTTPDownloader(Downloader):
     CHUNK_SIZE = 1024 * 1024
 
     @classmethod
-    def build_oauth2_authentication(cls, username, password, token_url, client_id):
+    def build_oauth2_authentication(cls, username, password, token_url, client_id,
+                                    totp_secret=None):
         """Creates an OAuth2 object usable by `requests` methods"""
-        client = oauthlib.oauth2.LegacyApplicationClient(client_id=client_id)
-        token = requests_oauthlib.OAuth2Session(client=client).fetch_token(
-            token_url=token_url,
-            username=username,
-            password=password,
-            client_id=client_id,
-        )
-        return requests_oauthlib.OAuth2(client_id=client_id, client=client, token=token)
+        # TOTP passwords are valid for 30 seconds, so we retry a few
+        # times in case we get unlucky and the password expires between
+        # the generation of the password and the authentication request
+        retries = 5
+        while retries > 0:
+            client = oauthlib.oauth2.LegacyApplicationClient(client_id=client_id)
+            session_args = {
+                'token_url': token_url,
+                'username': username,
+                'password': password,
+                'client_id': client_id,
+            }
+            if totp_secret:
+                session_args['totp'] = pyotp.TOTP(totp_secret).now()
+
+            try:
+                token = requests_oauthlib.OAuth2Session(client=client).fetch_token(**session_args)
+            except oauthlib.oauth2.rfc6749.errors.InvalidGrantError:
+                retries -= 1
+                if retries  > 0:
+                    continue
+                else:
+                    raise
+            return requests_oauthlib.OAuth2(client_id=client_id, client=client, token=token)
 
     @classmethod
     def get_auth(cls, kwargs):
@@ -185,7 +204,8 @@ class HTTPDownloader(Downloader):
                 kwargs['username'],
                 kwargs['password'],
                 kwargs['token_url'],
-                kwargs['client_id']
+                kwargs['client_id'],
+                totp_secret=kwargs.get('totp_secret'),
             )
         else:
             return super().get_auth(kwargs)

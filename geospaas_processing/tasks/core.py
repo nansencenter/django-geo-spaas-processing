@@ -11,7 +11,10 @@ import celery.utils
 
 import geospaas_processing.ops as ops
 import geospaas_processing.utils as utils
-from geospaas_processing.tasks import lock_dataset_files, FaultTolerantTask, WORKING_DIRECTORY
+from geospaas_processing.tasks import (lock_dataset_files,
+                                       FaultTolerantTask,
+                                       WORKING_DIRECTORY,
+                                       PROVIDER_SETTINGS_PATH)
 from ..downloaders import DownloadManager, TooManyDownloadsError
 
 from . import app
@@ -27,6 +30,7 @@ def download(self, args):
     dataset_id = args[0]
     download_manager = DownloadManager(
         download_directory=WORKING_DIRECTORY,
+        provider_settings_path=PROVIDER_SETTINGS_PATH,
         pk=dataset_id
     )
     try:
@@ -54,6 +58,7 @@ def remove_downloaded(self, args):  # pylint: disable=unused-argument
     dataset_id = args[0]
     download_manager = DownloadManager(
         download_directory=WORKING_DIRECTORY,
+        provider_settings_path=PROVIDER_SETTINGS_PATH,
         pk=dataset_id
     )
     return (dataset_id, download_manager.remove())

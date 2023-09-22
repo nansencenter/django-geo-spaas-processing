@@ -21,6 +21,7 @@ import geospaas_processing.utils as utils
 
 logger_ = celery.utils.log.get_task_logger(__name__)
 WORKING_DIRECTORY = os.getenv('GEOSPAAS_PROCESSING_WORK_DIR', '/tmp/test_data')
+PROVIDER_SETTINGS_PATH = os.getenv('GEOSPAAS_PROCESSING_PROVIDER_SETTINGS_PATH', None)
 DATASET_LOCK_PREFIX = 'lock-'
 
 app = celery.Celery('geospaas_processing')

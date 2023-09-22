@@ -69,6 +69,7 @@ class DownloadTestCase(unittest.TestCase):
         """Test removing downloaded files"""
         tasks_core.remove_downloaded((1,))
         self.dm_mock.assert_called_with(download_directory=tasks_core.WORKING_DIRECTORY,
+                                        provider_settings_path=None,
                                         pk=1)
         self.dm_mock.return_value.remove.assert_called_once()
 

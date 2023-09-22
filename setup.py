@@ -27,6 +27,7 @@ setuptools.setup(
         'nco',
         'oauthlib',
         'paramiko',
+        'pyotp',
         'PyYAML',
         'requests_oauthlib',
         'requests',

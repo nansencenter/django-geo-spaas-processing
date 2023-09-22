@@ -8,10 +8,13 @@ import os.path
 import tempfile
 import unittest
 import unittest.mock as mock
+from datetime import datetime
 from pathlib import Path
 
 import django.test
 import oauthlib.oauth2
+import oauthlib.oauth2.rfc6749.errors
+import pyotp
 import requests
 import requests_oauthlib
 from geospaas.catalog.managers import LOCAL_FILE_SERVICE
@@ -223,7 +226,40 @@ class HTTPDownloaderTestCase(unittest.TestCase):
                 self.fail(f"oauth2._client does not have the attribute: '{k}'")
             self.assertEqual(property_value, v, f"oauth2._client.{k} should have the value: '{v}'")
 
-    def test_get_oauth2_auth(self):
+    def test_build_oauth2_authentication_with_totp(self):
+        """Test that the right TOTP password is generated and used"""
+        with mock.patch('requests_oauthlib.OAuth2Session.fetch_token') as mock_fetch_token:
+            now = datetime.now()
+            downloaders.HTTPDownloader.build_oauth2_authentication(
+                'username', 'password', 'token_url', 'client_id', totp_secret='TOTPSECRET')
+
+        mock_fetch_token.assert_called_with(
+            token_url='token_url',
+            username='username',
+            password='password',
+            client_id='client_id',
+            totp=pyotp.TOTP('TOTPSECRET').at(now),
+        )
+
+    def test_build_oauth2_authentication_totp_retry(self):
+        """Test that the token retrieval is retried in case the TOTP
+        authentication fails once."""
+        with mock.patch('requests_oauthlib.OAuth2Session.fetch_token') as mock_fetch_token:
+            mock_fetch_token.side_effect = (oauthlib.oauth2.rfc6749.errors.InvalidGrantError, {})
+            oauth2 = downloaders.HTTPDownloader.build_oauth2_authentication(
+                'username', 'password', 'token_url', 'client_id', totp_secret='TOTPSECRET')
+            self.assertIsInstance(oauth2, requests_oauthlib.OAuth2)
+
+    def test_build_oauth2_authentication_totp_error(self):
+        """Test that the exception is raised in case of persistent TOTP
+        authentication failure"""
+        with mock.patch('requests_oauthlib.OAuth2Session.fetch_token') as mock_fetch_token:
+            mock_fetch_token.side_effect = oauthlib.oauth2.rfc6749.errors.InvalidGrantError
+            with self.assertRaises(oauthlib.oauth2.rfc6749.errors.InvalidGrantError):
+                downloaders.HTTPDownloader.build_oauth2_authentication(
+                    'username', 'password', 'token_url', 'client_id', totp_secret='TOTPSECRET')
+
+    def test_get_oauth2_auth_no_totp(self):
         """Test getting an OAuth2 authentication from get_auth()"""
         mock_auth = mock.Mock()
         with mock.patch(
@@ -239,7 +275,28 @@ class HTTPDownloaderTestCase(unittest.TestCase):
                 }),
                 mock_auth
             )
-        mock_build_auth.assert_called_with('username', 'password', 'token_url', 'client_id')
+        mock_build_auth.assert_called_with('username', 'password', 'token_url', 'client_id',
+                                           totp_secret=None)
+
+    def test_get_oauth2_auth_with_totp(self):
+        """Test getting an OAuth2 authentication from get_auth()"""
+        mock_auth = mock.Mock()
+        with mock.patch(
+                'geospaas_processing.downloaders.HTTPDownloader.build_oauth2_authentication',
+                return_value=mock_auth) as mock_build_auth:
+            self.assertEqual(
+                downloaders.HTTPDownloader.get_auth({
+                    'authentication_type': 'oauth2',
+                    'username': 'username',
+                    'password': 'password',
+                    'token_url': 'token_url',
+                    'client_id': 'client_id',
+                    'totp_secret': 'totp_secret',
+                }),
+                mock_auth
+            )
+        mock_build_auth.assert_called_with('username', 'password', 'token_url', 'client_id',
+                                           totp_secret='totp_secret')
 
     def test_get_basic_auth(self):
         """Test getting a basic authentication from get_auth()"""

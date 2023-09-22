@@ -12,6 +12,7 @@ RUN pip install --upgrade --no-cache-dir \
     'importlib-metadata==4.*' \
     'netCDF4>=1.6.0' \
     'paramiko<2.9' \
+    'pyotp' \
     'redis==4.1.*' \
     'requests_oauthlib==1.3.*' \
     'scp==0.14.*' \

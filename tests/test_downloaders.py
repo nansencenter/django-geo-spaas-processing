@@ -5,6 +5,7 @@ import io
 import logging
 import os
 import os.path
+import pickle
 import tempfile
 import unittest
 import unittest.mock as mock
@@ -297,6 +298,41 @@ class HTTPDownloaderTestCase(unittest.TestCase):
             )
         mock_build_auth.assert_called_with('username', 'password', 'token_url', 'client_id',
                                            totp_secret='totp_secret')
+
+    def test_get_oauth2_token_with_cache(self):
+        """Test getting an OAuth2 token from the cache"""
+        fake_token = {
+            'access_token': 'foo',
+            'expires_in': 36000,
+            'refresh_expires_in': 28800,
+            'refresh_token': 'foo',
+            'token_type': 'bearer',
+            'not-before-policy': 0,
+            'session_state': 'd82c2e20-f690-474f-9d4f-51d68d2d042e',
+            'expires_at': 1616444581.1169086
+        }
+        pickled_fake_token = pickle.dumps(fake_token)
+        with mock.patch('geospaas_processing.downloaders.utils.REDIS_HOST', 'test'), \
+             mock.patch('geospaas_processing.downloaders.utils.REDIS_PORT', '6379'), \
+             mock.patch('geospaas_processing.downloaders.Redis') as mock_redis, \
+             mock.patch('geospaas_processing.downloaders.HTTPDownloader.fetch_oauth2_token',
+                        return_value=fake_token) as mock_fetch_token:
+
+            with self.subTest('Cache present, no token'):
+                mock_redis.return_value.get.return_value = None
+                result = downloaders.HTTPDownloader.get_oauth2_token(
+                    'foo', 'bar', 'baz', 'qux', 'quux')
+                mock_redis.return_value.set.assert_called_with(
+                    'fd05b6f4dcd0c72512ea0cf6e1c94a6689353678',
+                    pickled_fake_token,
+                    ex=36000)
+                self.assertEqual(result, fake_token)
+
+            with self.subTest('Cache present with token'):
+                mock_redis.return_value.get.return_value = pickled_fake_token
+                result = downloaders.HTTPDownloader.get_oauth2_token(
+                    'foo', 'bar', 'baz', 'qux', 'quux')
+                self.assertEqual(result, fake_token)
 
     def test_get_basic_auth(self):
         """Test getting a basic authentication from get_auth()"""

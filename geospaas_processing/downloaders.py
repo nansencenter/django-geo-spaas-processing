@@ -178,10 +178,9 @@ class HTTPDownloader(Downloader):
                 'password': password,
                 'client_id': client_id,
             }
-            if totp_secret:
-                session_args['totp'] = pyotp.TOTP(totp_secret).now()
-
             try:
+                if totp_secret:
+                    session_args['totp'] = pyotp.TOTP(totp_secret).now()
                 token = requests_oauthlib.OAuth2Session(client=client).fetch_token(**session_args)
             except oauthlib.oauth2.rfc6749.errors.InvalidGrantError:
                 retries -= 1

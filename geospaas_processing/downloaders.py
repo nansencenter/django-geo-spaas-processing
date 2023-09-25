@@ -9,9 +9,11 @@ The Redis instance hostname and port can be set via the following environment va
 """
 import errno
 import ftplib
+import hashlib
 import logging
 import os
 import os.path
+import pickle
 import re
 import shutil
 from urllib.parse import urlparse
@@ -163,32 +165,64 @@ class HTTPDownloader(Downloader):
     CHUNK_SIZE = 1024 * 1024
 
     @classmethod
-    def build_oauth2_authentication(cls, username, password, token_url, client_id,
-                                    totp_secret=None):
-        """Creates an OAuth2 object usable by `requests` methods"""
+    def get_oauth2_token(cls, username, password, token_url, client, totp_secret=None):
+        """Try to get a token from Redis. If this fails, fetch one from the URL"""
+        token = None
+
+        LOGGER.debug("Attempting to get an OAuth2 token")
+        if Redis is not None and utils.REDIS_HOST and utils.REDIS_PORT:  # cache available
+            cache = Redis(host=utils.REDIS_HOST, port=utils.REDIS_PORT)
+            key_hash = hashlib.sha1(bytes(token_url + username, encoding='utf-8')).hexdigest()
+            LOGGER.debug("Trying to retrieve OAuth2 token from the cache")
+            raw_token = cache.get(key_hash)
+            if raw_token is None:  # did not get the token from the cache
+                token = cls.fetch_oauth2_token(username, password, token_url, client, totp_secret)
+                LOGGER.debug("Got OAuth2 token from URL")
+                cache.set(key_hash, pickle.dumps(token), ex=token['expires_in'])
+                LOGGER.debug("Stored Oauth2 token in the cache")
+            else:  # successfully got the token from the cache
+                token = pickle.loads(raw_token)
+                LOGGER.debug("Got OAuth2 token from the cache")
+        else:  # cache not available
+            LOGGER.debug("Cache not available, getting OAuth2 token from URL")
+            token = cls.fetch_oauth2_token(username, password, token_url, client, totp_secret)
+
+        return token
+
+
+    @classmethod
+    def fetch_oauth2_token(cls, username, password, token_url, client, totp_secret=None):
+        """Fetches a new token from the URL"""
         # TOTP passwords are valid for 30 seconds, so we retry a few
         # times in case we get unlucky and the password expires between
         # the generation of the password and the authentication request
+        session_args = {
+            'token_url': token_url,
+            'username': username,
+            'password': password,
+            'client_id': client.client_id,
+        }
         retries = 5
         while retries > 0:
-            client = oauthlib.oauth2.LegacyApplicationClient(client_id=client_id)
-            session_args = {
-                'token_url': token_url,
-                'username': username,
-                'password': password,
-                'client_id': client_id,
-            }
+            if totp_secret:
+                session_args['totp'] = pyotp.TOTP(totp_secret).now()
             try:
-                if totp_secret:
-                    session_args['totp'] = pyotp.TOTP(totp_secret).now()
                 token = requests_oauthlib.OAuth2Session(client=client).fetch_token(**session_args)
             except oauthlib.oauth2.rfc6749.errors.InvalidGrantError:
                 retries -= 1
-                if retries  > 0:
+                if retries > 0:
                     continue
                 else:
                     raise
-            return requests_oauthlib.OAuth2(client_id=client_id, client=client, token=token)
+            return token
+
+    @classmethod
+    def build_oauth2_authentication(cls, username, password, token_url, client_id,
+                                    totp_secret=None):
+        """Creates an OAuth2 object usable by `requests` methods"""
+        client = oauthlib.oauth2.LegacyApplicationClient(client_id=client_id)
+        token = cls.get_oauth2_token(username, password, token_url, client, totp_secret)
+        return requests_oauthlib.OAuth2(client_id=client_id, client=client, token=token)
 
     @classmethod
     def get_auth(cls, kwargs):
@@ -211,6 +245,7 @@ class HTTPDownloader(Downloader):
 
     @classmethod
     def get_request_parameters(cls, kwargs):
+        """Retrieve and check request parameters from kwargs"""
         parameters = kwargs.get('request_parameters', {})
         if isinstance(parameters, dict):
             return parameters

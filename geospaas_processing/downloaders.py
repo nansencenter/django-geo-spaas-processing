@@ -16,6 +16,7 @@ import os.path
 import pickle
 import re
 import shutil
+import time
 from urllib.parse import urlparse
 
 import oauthlib.oauth2
@@ -173,16 +174,37 @@ class HTTPDownloader(Downloader):
         if Redis is not None and utils.REDIS_HOST and utils.REDIS_PORT:  # cache available
             cache = Redis(host=utils.REDIS_HOST, port=utils.REDIS_PORT)
             key_hash = hashlib.sha1(bytes(token_url + username, encoding='utf-8')).hexdigest()
+            lock_key = f"lock-{key_hash}"
+
             LOGGER.debug("Trying to retrieve OAuth2 token from the cache")
-            raw_token = cache.get(key_hash)
-            if raw_token is None:  # did not get the token from the cache
-                token = cls.fetch_oauth2_token(username, password, token_url, client, totp_secret)
-                LOGGER.debug("Got OAuth2 token from URL")
-                cache.set(key_hash, pickle.dumps(token), ex=token['expires_in'])
-                LOGGER.debug("Stored Oauth2 token in the cache")
-            else:  # successfully got the token from the cache
-                token = pickle.loads(raw_token)
-                LOGGER.debug("Got OAuth2 token from the cache")
+            retries = 10
+            while retries > 0:
+                raw_token = cache.get(key_hash)
+                if raw_token is None:  # did not get the token from the cache
+                    if cache.setnx(lock_key, 1):  # set a lock to avoid concurrent token fetching
+                        cache.expire(lock_key, utils.LOCK_EXPIRE)  # safety precaution
+
+                        # fetch token from the URL
+                        token = cls.fetch_oauth2_token(
+                            username, password, token_url, client, totp_secret)
+                        LOGGER.debug("Got OAuth2 token from URL")
+
+                        # save the token in the cache
+                        expires_in = int(token['expires_in'])
+                        # remove 1 second from the expiration time to account
+                        # for the processing time after the token was issued
+                        expiration = expires_in - 1 if expires_in >= 1 else 0
+                        cache.set(key_hash, pickle.dumps(token), ex=expiration)
+                        LOGGER.debug("Stored Oauth2 token in the cache")
+                        cache.delete(lock_key)
+                        retries = 0
+                    else:  # another process is fetching the token
+                        time.sleep(1)
+                        retries -= 1
+                else:  # successfully got the token from the cache
+                    token = pickle.loads(raw_token)
+                    LOGGER.debug("Got OAuth2 token from the cache")
+                    retries = 0
         else:  # cache not available
             LOGGER.debug("Cache not available, getting OAuth2 token from URL")
             token = cls.fetch_oauth2_token(username, password, token_url, client, totp_secret)

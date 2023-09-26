@@ -316,23 +316,33 @@ class HTTPDownloaderTestCase(unittest.TestCase):
              mock.patch('geospaas_processing.downloaders.utils.REDIS_PORT', '6379'), \
              mock.patch('geospaas_processing.downloaders.Redis') as mock_redis, \
              mock.patch('geospaas_processing.downloaders.HTTPDownloader.fetch_oauth2_token',
-                        return_value=fake_token) as mock_fetch_token:
+                        return_value=fake_token):
 
-            with self.subTest('Cache present, no token'):
+            with self.subTest('Cache present, no token, no lock'):
                 mock_redis.return_value.get.return_value = None
+                mock_redis.return_value.setnx.return_value = True
                 result = downloaders.HTTPDownloader.get_oauth2_token(
                     'foo', 'bar', 'baz', 'qux', 'quux')
                 mock_redis.return_value.set.assert_called_with(
                     'fd05b6f4dcd0c72512ea0cf6e1c94a6689353678',
                     pickled_fake_token,
-                    ex=36000)
+                    ex=35999)
                 self.assertEqual(result, fake_token)
+
+            with self.subTest('Cache present, no token, another process has the lock'):
+                mock_redis.return_value.get.side_effect = (None, pickled_fake_token)
+                mock_redis.return_value.setnx.return_value = False
+                result = downloaders.HTTPDownloader.get_oauth2_token(
+                    'foo', 'bar', 'baz', 'qux', 'quux')
+                self.assertEqual(result, fake_token)
+                mock_redis.return_value.get.side_effect = None
 
             with self.subTest('Cache present with token'):
                 mock_redis.return_value.get.return_value = pickled_fake_token
                 result = downloaders.HTTPDownloader.get_oauth2_token(
                     'foo', 'bar', 'baz', 'qux', 'quux')
                 self.assertEqual(result, fake_token)
+
 
     def test_get_basic_auth(self):
         """Test getting a basic authentication from get_auth()"""

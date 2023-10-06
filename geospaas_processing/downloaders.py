@@ -339,6 +339,10 @@ class HTTPDownloader(Downloader):
         return response
 
     @classmethod
+    def close_connection(cls, connection):
+        """Nothing to do since there is no connection kept alive"""
+
+    @classmethod
     def get_file_size(cls, url, connection, auth=(None, None)):
         """Try to get the file size from the response Content-Length
         header. If that does not work, try to get it from a HEAD

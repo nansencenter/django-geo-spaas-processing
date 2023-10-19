@@ -107,7 +107,7 @@ class Downloader():
         connection.close()
 
     @classmethod
-    def get_file_name(cls, url, auth, **kwargs):
+    def get_file_name(cls, url, connection, **kwargs):
         """Returns the name of the file"""
         raise NotImplementedError()
 
@@ -131,14 +131,13 @@ class Downloader():
         left to write the downloaded file.
         """
         auth = cls.get_auth(kwargs)
-
-        file_name = cls.get_file_name(url, auth, **kwargs)
-        if not file_name:
-            raise DownloadError(f"Could not find file name for '{url}'")
-        file_path = os.path.join(download_dir, file_name)
-
         connection = cls.connect(url, auth, **kwargs)
         try:
+            file_name = cls.get_file_name(url, connection, **kwargs)
+            if not file_name:
+                raise DownloadError(f"Could not find file name for '{url}'")
+            file_path = os.path.join(download_dir, file_name)
+
             file_size = cls.get_file_size(url, connection)
             if file_size:
                 LOGGER.debug("Checking there is enough free space to download %s bytes", file_size)
@@ -210,7 +209,6 @@ class HTTPDownloader(Downloader):
             token = cls.fetch_oauth2_token(username, password, token_url, client, totp_secret)
 
         return token
-
 
     @classmethod
     def fetch_oauth2_token(cls, username, password, token_url, client, totp_secret=None):
@@ -291,28 +289,14 @@ class HTTPDownloader(Downloader):
         response.raise_for_status()
 
     @classmethod
-    def get_file_name(cls, url, auth, **kwargs):
+    def get_file_name(cls, url, connection, **kwargs):
         """Extracts the file name from the Content-Disposition header
         of an HTTP response
         """
-        try:
-            response = utils.http_request(
-                'HEAD', url, auth=auth, params=cls.get_request_parameters(kwargs))
-            cls.check_response(response, kwargs)
-        except requests.RequestException:
-            try:
-                response = utils.http_request('GET', url, auth=auth, stream=True)
-                response.close()
-                cls.check_response(response, kwargs)
-            except requests.RequestException:
-                LOGGER.error("Could not get the file name by HEAD or GET request to '%s'",
-                             url, exc_info=True)
-                return ''
-
         filename_key = 'filename='
-        if 'Content-Disposition' in response.headers:
+        if 'Content-Disposition' in connection.headers:
             content_disposition = [
-                i.strip() for i in response.headers['Content-Disposition'].split(';')
+                i.strip() for i in connection.headers['Content-Disposition'].split(';')
             ]
 
             filename_attributes = [a for a in content_disposition if a.startswith(filename_key)]
@@ -322,9 +306,9 @@ class HTTPDownloader(Downloader):
             elif filename_attributes_length == 1:
                 return filename_attributes[0].replace(filename_key, '').strip('"')
 
-        elif 'Content-Type' in response.headers:
+        elif 'Content-Type' in connection.headers:
             url_file_name = url.split('/')[-1]
-            if (response.headers['Content-Type'].lower() == 'application/x-netcdf'
+            if (connection.headers['Content-Type'].lower() == 'application/x-netcdf'
                     and url_file_name.endswith('.nc')):
                 return url_file_name
 
@@ -353,6 +337,10 @@ class HTTPDownloader(Downloader):
             ) from error
 
         return response
+
+    @classmethod
+    def close_connection(cls, connection):
+        """Nothing to do since there is no connection kept alive"""
 
     @classmethod
     def get_file_size(cls, url, connection, auth=(None, None)):
@@ -403,7 +391,7 @@ class FTPDownloader(Downloader):
             raise DownloadError(f"Could not download from '{url}': {error.args}") from error
 
     @classmethod
-    def get_file_name(cls, url, auth, **kwargs):
+    def get_file_name(cls, url, connection, **kwargs):
         """Extracts the file name from the URL"""
         return urlparse(url).path.split('/')[-1] or None
 
@@ -443,7 +431,7 @@ class LocalDownloader(Downloader):
         return None
 
     @classmethod
-    def get_file_name(cls, url, auth, **kwargs):
+    def get_file_name(cls, url, connection, **kwargs):
         return os.path.basename(url)
 
     @classmethod

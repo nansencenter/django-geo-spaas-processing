@@ -115,24 +115,15 @@ def db_insert(self, args, **kwargs):
 
 
 @app.task(base=FaultTolerantTask, bind=True, track_started=True)
-def cleanup_ingested(self, date, created=False):
-    """Remove ingested files older than `date` as well as the
-    corresponding entries in the syntool and geospaas databases.
-    `created` can be:
-    - True: files ingested before the date are removed
-    - False: files whose dataset's time coverage ends before the
-             date are removed
-    The date needs to be given in UTC timezone
+def cleanup(self, criteria):
+    """Remove ingested files based on the provided criteria.
+    `criteria` is a dictionaryn of Django lookups used to select the
+    ProcessingResults to remove.
     """
     syntool_database_host, syntool_database_name = get_db_config()
-    if created:
-        processing_results = ProcessingResult.objects.filter(
-            type=ProcessingResult.ProcessingResultType.SYNTOOL,
-            created__lte=date)
-    else:
-        processing_results = ProcessingResult.objects.filter(
-            type=ProcessingResult.ProcessingResultType.SYNTOOL,
-            dataset__time_coverage_end__lte=date)
+    processing_results = ProcessingResult.objects.filter(
+        type=ProcessingResult.ProcessingResultType.SYNTOOL,
+        **criteria)
 
     results_dir = os.getenv('GEOSPAAS_PROCESSING_SYNTOOL_RESULTS_DIR', WORKING_DIRECTORY)
 

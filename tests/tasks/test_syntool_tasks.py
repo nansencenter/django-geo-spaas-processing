@@ -5,6 +5,7 @@ import unittest
 import unittest.mock as mock
 from pathlib import Path
 
+import django.test
 import celery.exceptions
 
 import geospaas_processing.tasks
@@ -136,17 +137,14 @@ class DBInsertTestCase(unittest.TestCase):
             tasks_syntool.db_insert((1, ('foo',)))
 
 
-class CleanupIngestedTestCase(unittest.TestCase):
-    """Tests for the cleanup_ingested() task"""
+class CleanupIngestedTestCase(django.test.TestCase):
+    """Tests for the cleanup() task"""
+
+    fixtures = [Path(__file__).parent.parent / 'data/test_data.json']
 
     def setUp(self):
         mock.patch('os.environ',
                    {'SYNTOOL_DATABASE_HOST': 'db', 'SYNTOOL_DATABASE_NAME': 'syntool'}).start()
-        self.mock_filter = mock.patch(
-            'geospaas_processing.tasks.syntool.ProcessingResult.objects.filter').start()
-        self.mock_filter.return_value.__iter__.return_value = [
-            mock.MagicMock(path='ingested/3413_osi_saf_ice_type_raster/'
-                                'ice_type_nh_polstere-100_multi_202302261200')]
         self.mock_rmtree = mock.patch('shutil.rmtree').start()
         self.mock_remove = mock.patch('os.remove').start()
         self.mock_run = mock.patch('subprocess.run').start()
@@ -154,61 +152,43 @@ class CleanupIngestedTestCase(unittest.TestCase):
     def tearDown(self):
         mock.patch.stopall()
 
-    def test_cleanup_ingested_created_date(self):
+    def test_cleanup(self):
         """Test standard call, deleting based on creation date"""
+        expected_path = 'ingested/product_name/granule_name/'  # see fixture
         with self.assertLogs(tasks_syntool.logger):
-            self.assertListEqual(tasks_syntool.cleanup_ingested('2023-01-01', created=False), [
-                'ingested/3413_osi_saf_ice_type_raster/'
-                'ice_type_nh_polstere-100_multi_202302261200'
-            ])
+            self.assertListEqual(tasks_syntool.cleanup({'id': 1}), [expected_path])
         self.mock_rmtree.assert_called_with(Path(
             geospaas_processing.tasks.WORKING_DIRECTORY,
-            'ingested/3413_osi_saf_ice_type_raster/'
-            'ice_type_nh_polstere-100_multi_202302261200'))
+            expected_path))
         self.mock_run.assert_called_with(
             [
                 'mysql', '-h', 'db', 'syntool', '-e',
-                "DELETE FROM `product_3413_osi_saf_ice_type_raster` WHERE dataset_name = "
-                "'ice_type_nh_polstere-100_multi_202302261200';"
+                "DELETE FROM `product_product_name` WHERE dataset_name = 'granule_name';"
             ],
             capture_output=True,
             check=True)
-        self.mock_filter.return_value.__iter__.return_value[0].delete.assert_called_once_with()
+        self.assertFalse(ProcessingResult.objects.filter(id=1).exists())
 
-    def test_cleanup_ingested_dataset_date(self):
-        """Test standard call, deleting based on creation date"""
-        with self.assertLogs(tasks_syntool.logger):
-            self.assertListEqual(tasks_syntool.cleanup_ingested('2023-01-01', created=True), [
-                'ingested/3413_osi_saf_ice_type_raster/'
-                'ice_type_nh_polstere-100_multi_202302261200'
-            ])
-
-    def test_cleanup_ingested_file_result_file(self):
+    def test_cleanup_file(self):
         """Test deleting a file (usually won't happen)"""
         self.mock_rmtree.side_effect = NotADirectoryError
+        expected_path = 'ingested/product_name/granule_name/'  # see fixture
         with self.assertLogs(tasks_syntool.logger):
-            self.assertListEqual(tasks_syntool.cleanup_ingested('2023-01-01', created=False), [
-                'ingested/3413_osi_saf_ice_type_raster/'
-                'ice_type_nh_polstere-100_multi_202302261200'
-            ])
+            self.assertListEqual(tasks_syntool.cleanup({'id': 1}), [expected_path])
 
-    def test_cleanup_ingested_file_not_found(self):
+    def test_cleanup_file_not_found(self):
         """Test behavior when the result files are already deleted
         """
         self.mock_rmtree.side_effect = FileNotFoundError
+        expected_path = 'ingested/product_name/granule_name/'  # see fixture
         with self.assertLogs(tasks_syntool.logger, level=logging.WARNING):
-            self.assertListEqual(tasks_syntool.cleanup_ingested('2023-01-01', created=False), [
-                'ingested/3413_osi_saf_ice_type_raster/'
-                'ice_type_nh_polstere-100_multi_202302261200'
-            ])
+            self.assertListEqual(tasks_syntool.cleanup({'id': 1}), [expected_path])
 
-    def test_cleanup_ingested_file_subprocess_error(self):
+    def test_cleanup_file_subprocess_error(self):
         """Test behavior when an error occurs running the mysql command
         """
+        expected_path = 'ingested/product_name/granule_name/'  # see fixture
         self.mock_run.side_effect = subprocess.CalledProcessError(1, '')
         with self.assertLogs(tasks_syntool.logger, level=logging.ERROR), \
              self.assertRaises(subprocess.CalledProcessError):
-            self.assertListEqual(tasks_syntool.cleanup_ingested('2023-01-01', created=False), [
-                'ingested/3413_osi_saf_ice_type_raster/'
-                'ice_type_nh_polstere-100_multi_202302261200'
-            ])
+            self.assertListEqual(tasks_syntool.cleanup({'id': 1}), [expected_path])

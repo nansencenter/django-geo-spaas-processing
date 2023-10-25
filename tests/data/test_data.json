@@ -293,5 +293,15 @@
             "gcmd_location": 1,
             "access_constraints": null
         }
+    },
+    {
+        "model": "geospaas_processing.processingresult",
+        "pk": 1,
+        "fields": {
+            "dataset": 4,
+            "path": "ingested/product_name/granule_name/",
+            "type": "syntool",
+            "created": "2023-10-25T15:38:47.000Z"
+        }
     }
 ]

@@ -12,6 +12,6 @@ class ProcessingResult(models.Model):
         IDF = 'idf', 'IDF file'
 
     dataset = models.ForeignKey(Dataset, on_delete=models.CASCADE)
-    path = models.FilePathField(unique=True, max_length=500)
+    path = models.CharField(unique=True, max_length=500)
     type = models.CharField(max_length=20, choices=ProcessingResultType.choices)
     created = models.DateTimeField(auto_now_add=True)

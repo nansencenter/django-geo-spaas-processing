@@ -184,6 +184,14 @@ class CleanupIngestedTestCase(django.test.TestCase):
         with self.assertLogs(tasks_syntool.logger, level=logging.WARNING):
             self.assertListEqual(tasks_syntool.cleanup({'id': 1}), [expected_path])
 
+    def test_cleanup_stale_file_handle(self):
+        """Test behavior when a stale file handle error happens
+        """
+        self.mock_rmtree.side_effect = OSError(116, '[Errno 116] Stale file handle')
+        expected_path = 'ingested/product_name/granule_name/'  # see fixture
+        with self.assertLogs(tasks_syntool.logger, level=logging.WARNING):
+            self.assertListEqual(tasks_syntool.cleanup({'id': 1}), [expected_path])
+
     def test_cleanup_file_subprocess_error(self):
         """Test behavior when an error occurs running the mysql command
         """

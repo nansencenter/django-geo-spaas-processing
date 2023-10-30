@@ -137,8 +137,10 @@ def cleanup(self, criteria):
                 shutil.rmtree(result_path)
             except NotADirectoryError:
                 os.remove(result_path)
-        except FileNotFoundError:
-            logger.warning("%s has already been deleted", result_path)
+        except (FileNotFoundError, OSError) as error:
+            if (isinstance(error, FileNotFoundError) or
+                    (isinstance(error, OSError) and error.errno == 116)):
+                logger.warning("%s has already been deleted", result_path, exc_info=True)
 
         # remove the entry from the syntool database
         match = re.search(

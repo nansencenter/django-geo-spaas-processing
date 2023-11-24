@@ -2,6 +2,7 @@
 import os
 import os.path
 import subprocess
+import sys
 import tarfile
 import unittest
 import unittest.mock as mock
@@ -56,7 +57,9 @@ class IDFConversionManagerTestCase(unittest.TestCase):
         """Test that the download happens only if not in the process of
         running unit tests
         """
-        with mock.patch('sys.modules', {}), \
+        sys_modules = sys.modules.copy()
+        del sys_modules['unittest']
+        with mock.patch('sys.modules', sys_modules), \
              mock.patch('geospaas_processing.converters.idf.converter'
                         '.IDFConversionManager.download_auxiliary_files') as mock_download:
             idf_converter.IDFConversionManager('')

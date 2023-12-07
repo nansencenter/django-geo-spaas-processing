@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=nansencenter/geospaas:latest-slim
+ARG BASE_IMAGE=nansencenter/geospaas:latest
 FROM ${BASE_IMAGE} AS base
 RUN pip install --no-cache-dir \
     freezegun==1.1.0 \

@@ -18,7 +18,7 @@ jobs:
           - {'python': '3.10', 'latest': false}
           - {'python': '3.11', 'latest': true}
     env:
-      BASE_IMAGE: "${{ vars.DOCKER_ORG }}/geospaas:0.0.3-slim-python${{ matrix.version.python }}"
+      BASE_IMAGE: "${{ vars.DOCKER_ORG }}/geospaas:0.0.4-python${{ matrix.version.python }}"
       IMAGE_NAME_WORKER: "${{ vars.DOCKER_ORG }}/geospaas_processing_worker"
       IMAGE_NAME_CLI: "${{ vars.DOCKER_ORG }}/geospaas_processing_cli"
       IDF_CONVERTER_VERSION: '0.1.324'
@@ -164,7 +164,7 @@ jobs:
              docker run --rm
              -v "$(pwd):/src"
              -e "GEOSPAAS_PROCESSING_RELEASE=${{ github.ref_name}}"
-             "${{ vars.DOCKER_ORG }}/geospaas:latest-slim"
+             "${{ vars.DOCKER_ORG }}/geospaas:latest"
              python setup.py sdist bdist_wheel
 
       - name: 'Deploy package to the Github release'

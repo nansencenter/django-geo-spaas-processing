@@ -11,20 +11,21 @@ jobs:
     runs-on: 'ubuntu-latest'
     strategy:
       matrix:
-        version:
-          - {'python': '3.7', 'latest': false}
-          - {'python': '3.8', 'latest': false}
-          - {'python': '3.9', 'latest': false}
-          - {'python': '3.10', 'latest': false}
-          - {'python': '3.11', 'latest': true}
+        python_version:
+          - '3.7'
+          - '3.8'
+          - '3.9'
+          - '3.10'
+          - '3.11'
     env:
-      BASE_IMAGE: "${{ vars.DOCKER_ORG }}/geospaas:0.0.4-python${{ matrix.version.python }}"
+      BASE_IMAGE: "${{ vars.DOCKER_ORG }}/geospaas:0.0.4-python${{ matrix.python_version }}"
       IMAGE_NAME_WORKER: "${{ vars.DOCKER_ORG }}/geospaas_processing_worker"
       IMAGE_NAME_CLI: "${{ vars.DOCKER_ORG }}/geospaas_processing_cli"
       IDF_CONVERTER_VERSION: '0.1.324'
       GEOSPAAS_DB_HOST: 'db'
       GEOSPAAS_DB_USER: 'test'
       GEOSPAAS_DB_PASSWORD: ${{ secrets.GEOSPAAS_DB_PASSWORD }}
+      latest: ${{ matrix.python_version == '3.11' && 'true' || '' }}
     steps:
       - name: 'Checkout repository'
         uses: actions/checkout@v4
@@ -117,10 +118,10 @@ jobs:
             BASE_IMAGE=${{ env.BASE_IMAGE }}
           push: ${{ github.event_name == 'release' }}
           tags: |
-            ${{ env.IMAGE_NAME_WORKER }}:${{ github.ref_name }}-python${{ matrix.version.python }}
-            ${{ matrix.version.latest && format('{0}:{1}', env.IMAGE_NAME_WORKER, github.ref_name) || '' }}
-            ${{ env.IMAGE_NAME_WORKER }}:latest-python${{ matrix.version.python }}
-            ${{ matrix.version.latest && format('{0}:latest', env.IMAGE_NAME_WORKER) || '' }}
+            ${{ env.IMAGE_NAME_WORKER }}:${{ github.ref_name }}-python${{ matrix.python_version }}
+            ${{ env.latest && format('{0}:{1}', env.IMAGE_NAME_WORKER, github.ref_name) || '' }}
+            ${{ env.IMAGE_NAME_WORKER }}:latest-python${{ matrix.python_version }}
+            ${{ env.latest && format('{0}:latest', env.IMAGE_NAME_WORKER) || '' }}
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache-new
 
@@ -134,10 +135,10 @@ jobs:
             BASE_IMAGE=${{ env.BASE_IMAGE }}
           push: ${{ github.event_name == 'release' }}
           tags: |
-            ${{ env.IMAGE_NAME_CLI }}:${{ github.ref_name }}-python${{ matrix.version.python }}
-            ${{ matrix.version.latest && format('{0}:{1}', env.IMAGE_NAME_CLI, github.ref_name) || '' }}
-            ${{ env.IMAGE_NAME_CLI }}:latest-python${{ matrix.version.python }}
-            ${{ matrix.version.latest && format('{0}:latest', env.IMAGE_NAME_CLI) || '' }}
+            ${{ env.IMAGE_NAME_CLI }}:${{ github.ref_name }}-python${{ matrix.python_version }}
+            ${{ env.latest && format('{0}:{1}', env.IMAGE_NAME_CLI, github.ref_name) || '' }}
+            ${{ env.IMAGE_NAME_CLI }}:latest-python${{ matrix.python_version }}
+            ${{ env.latest && format('{0}:latest', env.IMAGE_NAME_CLI) || '' }}
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache-new
 

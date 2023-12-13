@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=nansencenter/geospaas:latest-slim
+ARG BASE_IMAGE=nansencenter/geospaas:latest
 FROM ${BASE_IMAGE} as base
 
 RUN apt update && \
@@ -10,7 +10,7 @@ RUN pip install --upgrade --no-cache-dir \
     'django-celery-results==2.2.*' \
     'graypy==2.1.*' \
     'importlib-metadata==4.*' \
-    'netCDF4>=1.6.0' \
+    'netCDF4==1.6.4' \
     'paramiko<2.9' \
     'pyotp' \
     'redis==4.1.*' \

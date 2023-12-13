@@ -5,37 +5,30 @@ on:
     branches: ['**']
   release:
     types: [prereleased, released]
-env:
-  BASE_IMAGE_NAME: "${{ vars.DOCKER_ORG }}/geospaas:2.5.1-slim"
-  IMAGE_NAME_WORKER: "${{ vars.DOCKER_ORG }}/geospaas_processing_worker"
-  IMAGE_NAME_CLI: "${{ vars.DOCKER_ORG }}/geospaas_processing_cli"
-  IDF_CONVERTER_VERSION: '0.1.324'
 jobs:
-  setup:
-    runs-on: 'ubuntu-20.04'
-    outputs:
-      git_tag: ${{ steps.get_git_tag.outputs.version }}
-    steps:
-      - name: "Extract tag name"
-        id: get_git_tag
-        run: |
-          if [[ $GITHUB_REF == refs/tags/* ]];then
-            TAG="${GITHUB_REF#refs/tags/}"
-          else
-            TAG='tmp'
-          fi
-          echo "version=$TAG" >> $GITHUB_OUTPUT
-
-  tests:
+  tests_and_build_docker_images:
     name: Run unit tests
-    runs-on: 'ubuntu-20.04'
+    runs-on: 'ubuntu-latest'
+    strategy:
+      matrix:
+        python_version:
+          - '3.7'
+          - '3.8'
+          - '3.9'
+          - '3.10'
+          - '3.11'
     env:
+      BASE_IMAGE: "${{ vars.DOCKER_ORG }}/geospaas:2.5.2-python${{ matrix.python_version }}"
+      IMAGE_NAME_WORKER: "${{ vars.DOCKER_ORG }}/geospaas_processing_worker"
+      IMAGE_NAME_CLI: "${{ vars.DOCKER_ORG }}/geospaas_processing_cli"
+      IDF_CONVERTER_VERSION: '0.1.324'
       GEOSPAAS_DB_HOST: 'db'
       GEOSPAAS_DB_USER: 'test'
       GEOSPAAS_DB_PASSWORD: ${{ secrets.GEOSPAAS_DB_PASSWORD }}
+      latest: ${{ matrix.python_version == '3.11' && 'true' || '' }}
     steps:
       - name: 'Checkout repository'
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: 'Create test docker network'
         run: docker network create testing
@@ -73,20 +66,12 @@ jobs:
           file: Dockerfile_worker
           target: base
           build-args: |
-            BASE_IMAGE=${{ env.BASE_IMAGE_NAME }}
+            BASE_IMAGE=${{ env.BASE_IMAGE }}
           push: false
           load: true
           tags: ${{ env.IMAGE_NAME_WORKER }}
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache-new
-
-        # Temp fix
-        # https://github.com/docker/build-push-action/issues/252
-        # https://github.com/moby/buildkit/issues/1896
-      - name: Move cache
-        run: |
-          rm -rf /tmp/.buildx-cache
-          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
 
       - name: 'Run tests'
         env:
@@ -104,24 +89,17 @@ jobs:
       - name: 'Stop testing database'
         run: docker stop "$GEOSPAAS_DB_HOST"
 
-      - name: 'Install Python 3.7'
-        uses: actions/setup-python@v2
+      - name: 'Install Python 3.11'
+        uses: actions/setup-python@v4
         with:
-          python-version: '3.7'
+          python-version: '3.11'
 
       - name: 'Upload coverage to coveralls.io'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: pip install coveralls && coveralls --service=github
 
-  build_worker_image:
-    name: Build worker Docker image
-    runs-on: 'ubuntu-20.04'
-    needs: ['setup', 'tests']
-    steps:
-      - name: 'Checkout repository'
-        uses: actions/checkout@v2
-
+      ############# Build worker image #############
       - name: Get IDF converter
         env:
           API_TOKEN_GITHUB: ${{ secrets.API_TOKEN_GITHUB }}
@@ -131,96 +109,36 @@ jobs:
              -H 'Accept: application/vnd.github.v3.raw'
              "https://api.github.com/repos/nansencenter/idf-converter/contents/idf_converter-${IDF_CONVERTER_VERSION}.tar.gz"
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
-
-      - name: Cache Docker layers
-        uses: actions/cache@v2
-        with:
-          path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-buildx-worker-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-buildx-worker-
-            ${{ runner.os }}-buildx-testing-
-
-      - name: Login to DockerHub
-        uses: docker/login-action@v2
-        with:
-          username: ${{ secrets.DOCKER_USER }}
-          password: ${{ secrets.DOCKER_PASS }}
-
-      - name: "Make Docker tags"
-        id: make_docker_tags
-        run: |
-          TAGS=${{ env.IMAGE_NAME_WORKER }}:${{ needs.setup.outputs.git_tag }}
-          if [[ '${{ github.event.action }}' == released ]];then
-            TAGS="$TAGS,${{ env.IMAGE_NAME_WORKER }}:latest"
-          fi
-          echo "tags=$TAGS" >> $GITHUB_OUTPUT
-
-      - name: Build docker image
+      - name: Build worker docker image
         uses: docker/build-push-action@v5
         with:
           context: .
           file: Dockerfile_worker
           build-args: |
-            BASE_IMAGE=${{ env.BASE_IMAGE_NAME }}
+            BASE_IMAGE=${{ env.BASE_IMAGE }}
           push: ${{ github.event_name == 'release' }}
-          tags: ${{ steps.make_docker_tags.outputs.tags }}
+          tags: |
+            ${{ env.IMAGE_NAME_WORKER }}:${{ github.ref_name }}-python${{ matrix.python_version }}
+            ${{ env.latest && format('{0}:{1}', env.IMAGE_NAME_WORKER, github.ref_name) || '' }}
+            ${{ env.IMAGE_NAME_WORKER }}:latest-python${{ matrix.python_version }}
+            ${{ env.latest && format('{0}:latest', env.IMAGE_NAME_WORKER) || '' }}
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache-new
 
-        # Temp fix
-        # https://github.com/docker/build-push-action/issues/252
-        # https://github.com/moby/buildkit/issues/1896
-      - name: Move cache
-        run: |
-          rm -rf /tmp/.buildx-cache
-          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
-
-
-  build_cli_image:
-    name: Build CLI Docker image
-    runs-on: 'ubuntu-20.04'
-    needs: ['setup', 'tests']
-    steps:
-      - name: 'Checkout repository'
-        uses: actions/checkout@v2
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
-
-      - name: Cache Docker layers
-        uses: actions/cache@v2
-        with:
-          path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-buildx-cli-${{ github.sha }}
-          restore-keys: ${{ runner.os }}-buildx-cli-
-
-      - name: Login to DockerHub
-        uses: docker/login-action@v2
-        with:
-          username: ${{ secrets.DOCKER_USER }}
-          password: ${{ secrets.DOCKER_PASS }}
-
-      - name: "Make Docker tags"
-        id: make_docker_tags
-        run: |
-          TAGS=${{ env.IMAGE_NAME_CLI }}:${{ needs.setup.outputs.git_tag }}
-          if [[ '${{ github.event.action }}' == released ]];then
-            TAGS="$TAGS,${{ env.IMAGE_NAME_CLI }}:latest"
-          fi
-          echo "tags=$TAGS" >> $GITHUB_OUTPUT
-
+      ############# Build CLI image #############
       - name: Build docker image
         uses: docker/build-push-action@v5
         with:
           context: .
           file: Dockerfile_cli
           build-args: |
-            BASE_IMAGE=${{ env.BASE_IMAGE_NAME }}
+            BASE_IMAGE=${{ env.BASE_IMAGE }}
           push: ${{ github.event_name == 'release' }}
-          tags: ${{ steps.make_docker_tags.outputs.tags }}
+          tags: |
+            ${{ env.IMAGE_NAME_CLI }}:${{ github.ref_name }}-python${{ matrix.python_version }}
+            ${{ env.latest && format('{0}:{1}', env.IMAGE_NAME_CLI, github.ref_name) || '' }}
+            ${{ env.IMAGE_NAME_CLI }}:latest-python${{ matrix.python_version }}
+            ${{ env.latest && format('{0}:latest', env.IMAGE_NAME_CLI) || '' }}
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache-new
 
@@ -235,21 +153,19 @@ jobs:
 
   publish_python_package:
     name: Build Python package and publish it as a release artifact
-    runs-on: 'ubuntu-20.04'
-    needs: 'tests'
+    runs-on: 'ubuntu-latest'
+    needs: 'tests_and_build_docker_images'
     if: ${{ github.event_name == 'release' }}
-    env:
-      TAG_REF: ${{ github.ref }}
     steps:
       - name: 'Checkout repository'
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: 'Build Python package'
         run: >
              docker run --rm
              -v "$(pwd):/src"
-             -e "GEOSPAAS_PROCESSING_RELEASE=${TAG_REF#refs/tags/}"
-             "${BASE_IMAGE_NAME}"
+             -e "GEOSPAAS_PROCESSING_RELEASE=${{ github.ref_name}}"
+             "${{ vars.DOCKER_ORG }}/geospaas:latest"
              python setup.py sdist bdist_wheel
 
       - name: 'Deploy package to the Github release'

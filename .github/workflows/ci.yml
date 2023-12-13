@@ -116,6 +116,7 @@ jobs:
           file: Dockerfile_worker
           build-args: |
             BASE_IMAGE=${{ env.BASE_IMAGE }}
+            GEOSPAAS_PROCESSING_RELEASE=${{ github.ref_type == 'tag' && github.ref_name || '0.0.0' }}
           push: ${{ github.event_name == 'release' }}
           tags: |
             ${{ env.IMAGE_NAME_WORKER }}:${{ github.ref_name }}-python${{ matrix.python_version }}
@@ -133,6 +134,7 @@ jobs:
           file: Dockerfile_cli
           build-args: |
             BASE_IMAGE=${{ env.BASE_IMAGE }}
+            GEOSPAAS_PROCESSING_RELEASE=${{ github.ref_type == 'tag' && github.ref_name || '0.0.0' }}
           push: ${{ github.event_name == 'release' }}
           tags: |
             ${{ env.IMAGE_NAME_CLI }}:${{ github.ref_name }}-python${{ matrix.python_version }}

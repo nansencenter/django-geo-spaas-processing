@@ -94,7 +94,6 @@ class SyntoolConverter(Converter):
         """
         dataset = kwargs['dataset']
         config = configparser.ConfigParser()
-        config['metadata'] = {'syntool_id': 'data_access'}
         config['geospaas'] = {
             'entry_id': dataset.entry_id,
             'dataset_url': self._extract_url(dataset),
@@ -102,7 +101,7 @@ class SyntoolConverter(Converter):
         for result in results:
             features_path = Path(out_dir, result, 'features')
             features_path.mkdir(exist_ok=True)
-            with open(features_path / 'metadata.ini', 'w', encoding='utf-8') as metadata_file:
+            with open(features_path / 'data_access.ini', 'w', encoding='utf-8') as metadata_file:
                 config.write(metadata_file)
 
     @staticmethod

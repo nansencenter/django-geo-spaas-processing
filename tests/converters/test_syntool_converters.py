@@ -97,14 +97,11 @@ class SyntoolConverterTestCase(unittest.TestCase):
             result_dir.mkdir()
             syntool_converter.SyntoolConverter().post_ingest(
                 ['result'], tmp_dir, dataset=mock_dataset)
-            with open(result_dir / 'features' / 'metadata.ini', 'r', encoding='utf-8') as handle:
+            with open(result_dir / 'features' / 'data_access.ini', 'r', encoding='utf-8') as handle:
                 contents = handle.read()
             self.assertEqual(
                 contents,
                 textwrap.dedent("""\
-                [metadata]
-                syntool_id = data_access
-
                 [geospaas]
                 entry_id = foo
                 dataset_url = https://bar

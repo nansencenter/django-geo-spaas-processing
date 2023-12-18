@@ -42,6 +42,8 @@ setuptools.setup(
         '': [
             '*.yml',
             'converters/*/parameters/*',
-            'converters/*/extra_readers/*.py']
+            'converters/*/extra_readers/*.py',
+            'converters/*/extra_readers/resources/*',
+            'converters/*/extra_readers/resources/*/*']
     },
 )

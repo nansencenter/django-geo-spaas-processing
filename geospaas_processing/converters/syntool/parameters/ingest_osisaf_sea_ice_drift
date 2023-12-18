@@ -13,3 +13,4 @@
     gdal_threads=2
     min-zoom=0
     max-zoom=8
+    with-dataset-info=yes

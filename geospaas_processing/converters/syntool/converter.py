@@ -94,7 +94,6 @@ class SyntoolConverter(Converter):
         """
         dataset = kwargs['dataset']
         config = configparser.ConfigParser()
-        config['metadata'] = {'syntool_id': 'data_access'}
         config['geospaas'] = {
             'entry_id': dataset.entry_id,
             'dataset_url': self._extract_url(dataset),
@@ -102,7 +101,7 @@ class SyntoolConverter(Converter):
         for result in results:
             features_path = Path(out_dir, result, 'features')
             features_path.mkdir(exist_ok=True)
-            with open(features_path / 'metadata.ini', 'w', encoding='utf-8') as metadata_file:
+            with open(features_path / 'data_access.ini', 'w', encoding='utf-8') as metadata_file:
                 config.write(metadata_file)
 
     @staticmethod
@@ -362,6 +361,10 @@ class CustomReaderSyntoolConverter(BasicSyntoolConverter):
                         'current', 'sea_ice_velocity')),
                     ingest_file='ingest_topaz5_forecast_vector'),
             ),),
+        ParameterSelector(
+            matches=lambda d: re.match(r'^Seasonal_[a-zA-Z]{3}[0-9]{2}_[a-zA-Z]+_n[0-9]+$', d.entry_id),
+            converter_type='downscaled_ecmwf_seasonal_forecast',
+            ingest_parameter_files='ingest_geotiff_4326_tiles',),
     )
 
     def parse_converter_args(self, kwargs):

@@ -5,3 +5,4 @@
 --output-options resolution=12500x12500
                  min-zoom=0
                  max-zoom=8
+                 with-dataset-info=yes

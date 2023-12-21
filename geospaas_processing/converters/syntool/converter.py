@@ -364,7 +364,7 @@ class CustomReaderSyntoolConverter(BasicSyntoolConverter):
         ParameterSelector(
             matches=lambda d: re.match(r'^Seasonal_[a-zA-Z]{3}[0-9]{2}_[a-zA-Z]+_n[0-9]+$', d.entry_id),
             converter_type='downscaled_ecmwf_seasonal_forecast',
-            ingest_parameter_files='ingest_geotiff_3413_tiles',),
+            ingest_parameter_files='ingest_geotiff_4326_tiles',),
     )
 
     def parse_converter_args(self, kwargs):

@@ -1,17 +1,5 @@
 ---
 # Dictionary associating URLs to settings to pass to the downloaders
-'https://scihub.copernicus.eu':
-  username: !ENV 'COPERNICUS_OPEN_HUB_USERNAME'
-  password: !ENV 'COPERNICUS_OPEN_HUB_PASSWORD'
-  max_parallel_downloads: 2
-  invalid_status_codes:
-    202: 'This dataset is offline'
-'https://apihub.copernicus.eu':
-  username: !ENV 'COPERNICUS_OPEN_HUB_USERNAME'
-  password: !ENV 'COPERNICUS_OPEN_HUB_PASSWORD'
-  max_parallel_downloads: 2
-  invalid_status_codes:
-    202: 'This dataset is offline'
 'ftp://nrt.cmems-du.eu':
   username: !ENV 'CMEMS_USERNAME'
   password: !ENV 'CMEMS_PASSWORD'
@@ -43,6 +31,12 @@
   client_id: 'CLOUDFERRO_PUBLIC'
   max_parallel_downloads: 4
   totp_secret: !ENV 'CREODIAS_TOTP_SECRET'
+'https://catalogue.dataspace.copernicus.eu':
+  username: !ENV 'COPERNICUS_DATA_SPACE_USERNAME'
+  password: !ENV 'COPERNICUS_DATA_SPACE_PASSWORD'
+  authentication_type: 'oauth2'
+  token_url: 'https://identity.dataspace.copernicus.eu/auth/realms/CDSE/protocol/openid-connect/token'
+  client_id: 'cdse-public'
 'https://podaac-tools.jpl.nasa.gov/drive/files':
   username: !ENV 'PODAAC_DRIVE_USERNAME'
   password: !ENV 'PODAAC_DRIVE_PASSWORD'

@@ -153,6 +153,10 @@ class BasicSyntoolConverter(SyntoolConverter):
             matches=lambda d: d.entry_id.startswith('nrt_global_allsat_phy_l4_'),
             converter_type='current_cmems_l4',
             ingest_parameter_files='ingest_geotiff_4326_vectorfield'),
+        ParameterSelector(
+            matches=lambda d: d.entry_id.startswith('asi-AMSR2-'),
+            converter_type='amsr_sea_ice_conc',
+            ingest_parameter_files='ingest_geotiff_3411_raster'),
     )
 
     def __init__(self, **kwargs):

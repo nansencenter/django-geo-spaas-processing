@@ -27,8 +27,8 @@ RUN pip install --upgrade --no-cache-dir \
 
 FROM base as full
 
-COPY idf_converter.tar.gz /tmp/idf_converter.tar.gz
-RUN pip install /tmp/idf_converter.tar.gz
+ARG IDF_CONVERTER_VERSION='0.1.*'
+RUN pip install "idf_converter==${IDF_CONVERTER_VERSION}"
 
 WORKDIR /tmp/setup
 COPY setup.py README.md ./

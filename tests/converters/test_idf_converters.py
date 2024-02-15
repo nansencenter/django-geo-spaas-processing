@@ -211,6 +211,38 @@ class Sentinel1IDFConverterTestCase(unittest.TestCase):
                 self.converter.list_files_to_convert('')
 
 
+class Sentinel2IDFConverterTestCase(unittest.TestCase):
+    """Tests for the Sentinel2IDFConverter class"""
+
+    def setUp(self):
+        self.converter = idf_converter.Sentinel2IDFConverter([])
+
+    def test_list_files_to_convert(self):
+        """list_files_to_convert() should return all the files
+        contained in the "measurement" subdirectory of the dataset
+        directory
+        """
+        contents = ['L1C_T33TVJ_A032566_20230601T095606']
+
+        with mock.patch('os.listdir', return_value=contents):
+            self.assertListEqual(
+                ['dataset_dir/GRANULE/L1C_T33TVJ_A032566_20230601T095606'],
+                self.converter.list_files_to_convert('dataset_dir')
+            )
+
+    def test_list_files_to_convert_error(self):
+        """list_files_to_convert() should raise a ConversionError when
+        the measurement directory is not present or is not a directory
+        """
+        with mock.patch('os.listdir', side_effect=FileNotFoundError):
+            with self.assertRaises(converters_base.ConversionError):
+                self.converter.list_files_to_convert('')
+
+        with mock.patch('os.listdir', side_effect=NotADirectoryError):
+            with self.assertRaises(converters_base.ConversionError):
+                self.converter.list_files_to_convert('')
+
+
 class Sentinel3SLSTRL2WSTIDFConverterTestCase(unittest.TestCase):
     """Tests for the Sentinel3SLSTRL2WSTIDFConverter class"""
 

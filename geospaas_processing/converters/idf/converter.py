@@ -137,8 +137,12 @@ class Sentinel1IDFConverter(MultiFilesIDFConverter):
     """IDF converter for Sentinel-1 datasets"""
 
     PARAMETER_SELECTORS = (
-        ParameterSelector(matches=lambda d: re.match('^S1[AB]_[A-Z0-9]{2}_OCN.*$', d.entry_id),
-                          parameter_files=('sentinel1_l2_rvl',)),
+        ParameterSelector(
+            matches=lambda d: re.match('^S1[AB]_[A-Z0-9]{2}_OCN.*$', d.entry_id),
+            parameter_files=('sentinel1_l2_rvl',)),
+        ParameterSelector(
+            matches=lambda d: re.match('^S1[AB]_[A-Z0-9]{2}_(GRD|SLC).*$', d.entry_id),
+            parameter_files=('sentinel1_l1',)),
     )
 
     @staticmethod
@@ -155,6 +159,33 @@ class Sentinel1IDFConverter(MultiFilesIDFConverter):
         except (FileNotFoundError, NotADirectoryError) as error:
             raise ConversionError(
                 f"Could not find a measurement directory inside {dataset_file_path}") from error
+
+
+@IDFConversionManager.register()
+class Sentinel2IDFConverter(MultiFilesIDFConverter):
+    """IDF converter for Sentinel-2 datasets"""
+
+    PARAMETER_SELECTORS = (
+        ParameterSelector(
+            matches=lambda d: re.match('^S2[AB]_MSIL1C.*$', d.entry_id),
+            parameter_files=('sentinel2_l1',)),
+    )
+
+    @staticmethod
+    def list_files_to_convert(dataset_file_path):
+        """Returns the path to the granule L1C directory of the
+        dataset
+        """
+        measurement_dir = os.path.join(dataset_file_path, 'GRANULE')
+        try:
+            return [
+                os.path.join(measurement_dir, path)
+                for path in os.listdir(measurement_dir)
+                if path.startswith('L1C')
+            ]
+        except (FileNotFoundError, NotADirectoryError) as error:
+            raise ConversionError(
+                f"Could not find a GRANULE directory inside {dataset_file_path}") from error
 
 
 @IDFConversionManager.register()

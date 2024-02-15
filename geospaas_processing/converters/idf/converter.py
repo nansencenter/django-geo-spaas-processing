@@ -185,7 +185,7 @@ class Sentinel2IDFConverter(MultiFilesIDFConverter):
             ]
         except (FileNotFoundError, NotADirectoryError) as error:
             raise ConversionError(
-                f"Could not find a measurement directory inside {dataset_file_path}") from error
+                f"Could not find a GRANULE directory inside {dataset_file_path}") from error
 
 
 @IDFConversionManager.register()

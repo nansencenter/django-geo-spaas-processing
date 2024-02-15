@@ -21,7 +21,7 @@ jobs:
       BASE_IMAGE: "${{ vars.DOCKER_ORG }}/geospaas:2.5.2-python${{ matrix.python_version }}"
       IMAGE_NAME_WORKER: "${{ vars.DOCKER_ORG }}/geospaas_processing_worker"
       IMAGE_NAME_CLI: "${{ vars.DOCKER_ORG }}/geospaas_processing_cli"
-      IDF_CONVERTER_VERSION: '0.1.324'
+      IDF_CONVERTER_VERSION: '0.1.394'
       GEOSPAAS_DB_HOST: 'db'
       GEOSPAAS_DB_USER: 'test'
       GEOSPAAS_DB_PASSWORD: ${{ secrets.GEOSPAAS_DB_PASSWORD }}
@@ -100,15 +100,6 @@ jobs:
         run: pip install coveralls && coveralls --service=github
 
       ############# Build worker image #############
-      - name: Get IDF converter
-        env:
-          API_TOKEN_GITHUB: ${{ secrets.API_TOKEN_GITHUB }}
-        run: >
-             curl -L -o ./idf_converter.tar.gz
-             -H "Authorization: token ${API_TOKEN_GITHUB}"
-             -H 'Accept: application/vnd.github.v3.raw'
-             "https://api.github.com/repos/nansencenter/idf-converter/contents/idf_converter-${IDF_CONVERTER_VERSION}.tar.gz"
-
       - name: Build worker docker image
         uses: docker/build-push-action@v5
         with:
@@ -117,6 +108,7 @@ jobs:
           build-args: |
             BASE_IMAGE=${{ env.BASE_IMAGE }}
             GEOSPAAS_PROCESSING_RELEASE=${{ github.ref_type == 'tag' && github.ref_name || '0.0.0' }}
+            IDF_CONVERTER_VERSION=${{ env.IDF_CONVERTER_VERSION }}
           push: ${{ github.event_name == 'release' }}
           tags: |
             ${{ env.IMAGE_NAME_WORKER }}:${{ github.ref_name }}-python${{ matrix.python_version }}

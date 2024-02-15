@@ -37,6 +37,7 @@ setuptools.setup(
         'graylog': ['graypy'],
         'parallel_download': ['redis'],
         'worker': ['celery==4.4.*', 'django-celery-results==1.2.*'],
+        'idf': ['idf_converter'],
     },
     package_data={
         '': [

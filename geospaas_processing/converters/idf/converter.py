@@ -6,7 +6,6 @@ import os.path
 import re
 import shutil
 import subprocess
-import sys
 import tarfile
 import tempfile
 from contextlib import closing
@@ -21,6 +20,19 @@ class IDFConversionManager(ConversionManager):
     """Manager for IDF conversion"""
 
     downloaded_aux = False
+
+    @staticmethod
+    def make_symlink(source, destination):
+        """Create a symbolic link at `destination` pointing to `source`
+        If the destination already exists, it is deleted and replaced
+        with the symlink
+        """
+        if not os.path.islink(destination):
+            if os.path.isdir(destination):
+                shutil.rmtree(destination)
+            elif os.path.isfile(destination):
+                os.remove(destination)
+            os.symlink(source, destination)
 
     @classmethod
     def download_auxiliary_files(cls, auxiliary_path):
@@ -50,9 +62,12 @@ class IDFConversionManager(ConversionManager):
                 raise
             cls.downloaded_aux = True
 
+        cls.make_symlink(auxiliary_path, os.path.join(os.path.dirname(__file__), 'auxiliary'))
+
     def __init__(self, *args, **kwargs):
+        download_auxiliary = kwargs.pop('download_auxiliary', True)
         super().__init__(*args, **kwargs)
-        if 'unittest' not in sys.modules:  # pragma: no cover
+        if download_auxiliary:  # pragma: no cover
             self.download_auxiliary_files(AUXILIARY_PATH)
 
 

@@ -4,6 +4,7 @@ import os.path
 import subprocess
 import sys
 import tarfile
+import tempfile
 import unittest
 import unittest.mock as mock
 from pathlib import Path
@@ -23,9 +24,12 @@ class IDFConversionManagerTestCase(unittest.TestCase):
         is present
         """
         with mock.patch('os.path.isdir', return_value=True), \
-                mock.patch('ftplib.FTP') as mock_ftp:
+                mock.patch('ftplib.FTP') as mock_ftp, \
+                mock.patch('geospaas_processing.converters.idf.converter.IDFConversionManager'
+                           '.make_symlink') as mock_make_symlink:
             idf_converter.IDFConversionManager.download_auxiliary_files('/foo')
         mock_ftp.assert_not_called()
+        mock_make_symlink.assert_called()
 
     def test_download_auxiliary_files_if_folder_not_present(self):
         """Test that auxiliary files are downloaded if the folder is
@@ -34,10 +38,15 @@ class IDFConversionManagerTestCase(unittest.TestCase):
         with mock.patch('os.path.isdir', return_value=False), \
                 mock.patch('os.makedirs'), \
                 mock.patch('ftplib.FTP') as mock_ftp, \
-                mock.patch('tempfile.TemporaryFile'):
+                mock.patch('tempfile.TemporaryFile'), \
+                mock.patch('geospaas_processing.converters.idf.converter.IDFConversionManager'
+                           '.make_symlink') as mock_make_symlink:
             idf_converter.IDFConversionManager.download_auxiliary_files('/foo')
         mock_ftp.assert_called()
         mock_ftp.return_value.retrbinary.assert_called()
+        mock_make_symlink.assert_called_with(
+            '/foo',
+            os.path.join(os.path.dirname(idf_converter.__file__), 'auxiliary'))
 
     def test_download_auxiliary_error(self):
         """Test that partly extracted auxiliary files are removed in
@@ -53,21 +62,61 @@ class IDFConversionManagerTestCase(unittest.TestCase):
                 idf_converter.IDFConversionManager.download_auxiliary_files('/foo')
             mock_rmtree.assert_called_with('/foo')
 
-    def test_download_if_no_unittest(self):
-        """Test that the download happens only if not in the process of
-        running unit tests
+    def test_make_symlink(self):
+        """Test making a symbolic link if none exists"""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            source = tmp_path / 'foo'
+            dest = tmp_path / 'bar'
+            source.mkdir()
+            idf_converter.IDFConversionManager.make_symlink(source, dest)
+            self.assertTrue(dest.is_symlink())
+            self.assertEqual(dest.resolve(), source)
+
+    def test_make_symlink_replace_dir(self):
+        """Test making a symbolic link if a directory exists at the
+        destination
+        """
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            source = tmp_path / 'foo'
+            dest = tmp_path / 'bar'
+            source.mkdir()
+            dest.mkdir()
+            idf_converter.IDFConversionManager.make_symlink(source, dest)
+            self.assertTrue(dest.is_symlink())
+            self.assertEqual(dest.resolve(), source)
+
+    def test_make_symlink_replace_file(self):
+        """Test making a symbolic link if a file exists at the
+        destination
+        """
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            source = tmp_path / 'foo'
+            dest = tmp_path / 'bar'
+            source.mkdir()
+            dest.touch()
+            idf_converter.IDFConversionManager.make_symlink(source, dest)
+            self.assertTrue(dest.is_symlink())
+            self.assertEqual(dest.resolve(), source)
+
+
+    def test_no_download_arg(self):
+        """Test that the download does not happen if
+        `download_auxiliary` is False
         """
         sys_modules = sys.modules.copy()
         del sys_modules['unittest']
         with mock.patch('sys.modules', sys_modules), \
              mock.patch('geospaas_processing.converters.idf.converter'
                         '.IDFConversionManager.download_auxiliary_files') as mock_download:
-            idf_converter.IDFConversionManager('')
+            idf_converter.IDFConversionManager('', download_auxiliary=True)
         mock_download.assert_called()
 
         with mock.patch('geospaas_processing.converters.idf.converter'
                         '.IDFConversionManager.download_auxiliary_files') as mock_download:
-            idf_converter.IDFConversionManager('')
+            idf_converter.IDFConversionManager('', download_auxiliary=False)
         mock_download.assert_not_called()
 
 

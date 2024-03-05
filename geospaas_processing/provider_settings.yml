@@ -37,6 +37,7 @@
   authentication_type: 'oauth2'
   token_url: 'https://identity.dataspace.copernicus.eu/auth/realms/CDSE/protocol/openid-connect/token'
   client_id: 'cdse-public'
+  max_parallel_downloads: 4
 'https://podaac-tools.jpl.nasa.gov/drive/files':
   username: !ENV 'PODAAC_DRIVE_USERNAME'
   password: !ENV 'PODAAC_DRIVE_PASSWORD'

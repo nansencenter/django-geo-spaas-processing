@@ -156,6 +156,11 @@ class BasicSyntoolConverter(SyntoolConverter):
             matches=lambda d: d.entry_id.startswith('asi-AMSR2-'),
             converter_type='amsr_sea_ice_conc',
             ingest_parameter_files='ingest_geotiff_3411_raster'),
+        ParameterSelector(
+            matches=lambda d: d.source.platform.short_name == 'Argo float',
+            converter_type=None,
+            ingest_parameter_files=('ingest_erddap_json_3413_profile',
+                                    'ingest_erddap_json_3413_trajectory')),
     )
 
     def __init__(self, **kwargs):

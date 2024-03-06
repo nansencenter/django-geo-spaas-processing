@@ -150,6 +150,19 @@ class BasicSyntoolConverterTestCase(unittest.TestCase):
         with self.assertRaises(converters_base.ConversionError):
             converter.find_ingest_config('foo')
 
+    def test_find_ingest_config_type_error(self):
+        """An exception must be raised if ingest_parameter_files is
+        not a string or ParameterSelector or a list of these
+        """
+        with self.assertRaises(converters_base.ConversionError):
+            syntool_converter.BasicSyntoolConverter(
+                converter_type='foo',
+                ingest_parameter_files=1).find_ingest_config('foo')
+        with self.assertRaises(converters_base.ConversionError):
+            syntool_converter.BasicSyntoolConverter(
+                converter_type='foo',
+                ingest_parameter_files=[1, 2]).find_ingest_config('foo')
+
     def test_parse_converter_options(self):
         """Test parsing and merging converter options"""
         converter = syntool_converter.BasicSyntoolConverter(
@@ -226,6 +239,31 @@ class BasicSyntoolConverterTestCase(unittest.TestCase):
         mock_post_ingest.assert_called_once_with(['ingested_dir1', 'ingested_dir2'], 'results')
         mock_remove.assert_has_calls((mock.call('conv1.tiff'), mock.call('conv2.tiff')))
 
+    def test_run_no_converter(self):
+        """If no converter is set, convert() should return the path to
+        the input file
+        """
+        converter = syntool_converter.BasicSyntoolConverter(
+            converter_type=None,
+            ingest_parameter_files='bar')
+        with mock.patch.object(converter, 'convert',) as mock_convert, \
+             mock.patch.object(converter, 'ingest',
+                               return_value=['ingested_dir1']) as mock_ingest, \
+             mock.patch.object(converter, 'post_ingest') as mock_post_ingest, \
+             mock.patch('os.remove') as mock_remove:
+            converter.run(
+                in_file='in.nc',
+                out_dir='out',
+                results_dir='results')
+        mock_convert.assert_not_called()
+        mock_ingest.assert_called_once_with(
+            Path('out', 'in.nc'),
+            'results',
+            ['--config', Path('parameters/3413.ini'),
+             '--options-file', converter.PARAMETERS_DIR / 'bar'])
+        mock_post_ingest.assert_called_once_with(['ingested_dir1'], 'results')
+        mock_remove.assert_called_once_with('in.nc')
+
 
 class Sentinel1SyntoolConverterTestCase(unittest.TestCase):
     """Tests for the Sentinel1SyntoolConverter class"""
@@ -269,6 +307,9 @@ class Sentinel1SyntoolConverterTestCase(unittest.TestCase):
                 converter.convert(tmp_dir, 'out_dir', ['--baz'])
             for file_name in file_names:
                 mock_convert.assert_any_call(measurement_dir / file_name, 'out_dir', ['--baz'])
+
+
+
 
     def test_ingest(self):
         """Test that the subdirectories created by ingestion are copied

@@ -1,4 +1,5 @@
 """Tools for converting dataset into a format displayable by Syntool"""
+import collections.abc
 import configparser
 import logging
 import os
@@ -10,8 +11,7 @@ from pathlib import Path
 
 from geospaas.catalog.managers import LOCAL_FILE_SERVICE
 
-from ..base import ConversionError, ConversionManager, Converter, ParameterSelector
-from ...ops import crop
+from ..base import ConversionError, ConversionManager, Converter, NoMatch, ParameterSelector
 
 
 logger = logging.getLogger(__name__)
@@ -85,7 +85,6 @@ class SyntoolConverter(Converter):
                 "syntool-ingestor did not produce any file. "
                 f"stdout: {process.stdout}"
                 f"stderr: {process.stderr}"))
-        os.remove(in_file)
         return results
 
     def post_ingest(self, results, out_dir, **kwargs):
@@ -157,6 +156,11 @@ class BasicSyntoolConverter(SyntoolConverter):
             matches=lambda d: d.entry_id.startswith('asi-AMSR2-'),
             converter_type='amsr_sea_ice_conc',
             ingest_parameter_files='ingest_geotiff_3411_raster'),
+        ParameterSelector(
+            matches=lambda d: d.source.platform.short_name == 'Argo float',
+            converter_type=None,
+            ingest_parameter_files=('ingest_erddap_json_3413_profile',
+                                    'ingest_erddap_json_3413_trajectory')),
     )
 
     def __init__(self, **kwargs):
@@ -168,12 +172,31 @@ class BasicSyntoolConverter(SyntoolConverter):
 
     def find_ingest_config(self, converted_file):
         """Find the right ingestion config for a converted file"""
+        invalid_ingest_parameter_files_error = ConversionError(
+            "'ingest_parameter_files' must be a string, list of strings "
+            "or a list of ParameterSelector objects")
+
         if isinstance(self.ingest_parameter_files, str):
-            return self.ingest_parameter_files
-        for selector in self.ingest_parameter_files:
-            if selector.matches(converted_file):
-                return selector.parameters['ingest_file']
-        raise ConversionError("Ingestor not found")
+            ingest_parameter_files = [self.ingest_parameter_files]
+        elif isinstance(self.ingest_parameter_files, collections.abc.Sequence):
+            ingest_parameter_files = self.ingest_parameter_files
+        else:
+            raise invalid_ingest_parameter_files_error
+
+        results = []
+        for ingest_config in ingest_parameter_files:
+            if isinstance(ingest_config, str):
+                results.append(ingest_config)
+            elif isinstance(ingest_config, ParameterSelector):
+                if ingest_config.matches(converted_file):
+                    results.append(ingest_config.parameters['ingest_file'])
+            else:
+                raise invalid_ingest_parameter_files_error
+
+        if results:
+            return results
+        else:
+            raise ConversionError("Ingestor not found")
 
     def parse_converter_options(self, kwargs):
         """Merges the converter options defined in the Converter class
@@ -202,21 +225,26 @@ class BasicSyntoolConverter(SyntoolConverter):
         """
         results_dir = kwargs.pop('results_dir')
         # syntool-converter
-        converted_files = self.convert(in_file, out_dir,
-                                       self.parse_converter_args(kwargs),
-                                       **kwargs)
+        if self.converter_type is not None:
+            converted_files = self.convert(in_file, out_dir,
+                                           self.parse_converter_args(kwargs),
+                                           **kwargs)
+        else:
+            converted_files = (in_file,)
 
         # syntool-ingestor
         ingestor_config = Path(kwargs.pop('ingestor_config', 'parameters/3413.ini'))
         results = []
         for converted_file in converted_files:
             converted_path = Path(out_dir, converted_file)
-            results.extend(self.ingest(
-                converted_path, results_dir, [
-                    '--config', ingestor_config,
-                    '--options-file',
-                    self.PARAMETERS_DIR / self.find_ingest_config(converted_path)],
-                **kwargs))
+            for ingest_config in self.find_ingest_config(converted_path):
+                results.extend(self.ingest(
+                    converted_path, results_dir, [
+                        '--config', ingestor_config,
+                        '--options-file',
+                        self.PARAMETERS_DIR / ingest_config],
+                    **kwargs))
+            os.remove(converted_file)
 
         self.post_ingest(results, results_dir, **kwargs)
         return results
@@ -373,3 +401,4 @@ class CustomReaderSyntoolConverter(BasicSyntoolConverter):
 
     def parse_converter_args(self, kwargs):
         return ['-r', self.converter_type, *self.parse_converter_options(kwargs)]
+

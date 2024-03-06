@@ -1,0 +1,3 @@
+--input-format argo_profile_erddap_json
+--input-options projection=4326
+--output-format argo_profile

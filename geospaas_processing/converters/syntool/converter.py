@@ -244,7 +244,10 @@ class BasicSyntoolConverter(SyntoolConverter):
                         '--options-file',
                         self.PARAMETERS_DIR / ingest_config],
                     **kwargs))
-            os.remove(converted_file)
+            try:
+                os.remove(converted_path)
+            except IsADirectoryError:
+                shutil.rmtree(converted_path)
 
         self.post_ingest(results, results_dir, **kwargs)
         return results
@@ -296,7 +299,6 @@ class Sentinel1SyntoolConverter(BasicSyntoolConverter):
                     result_dir.replace(final_result_path)
                     results.append(str(final_result_path.relative_to(out_dir)))
                 base_result_path.rmdir()
-        os.rmdir(in_file)
         return results
 
 

@@ -213,11 +213,12 @@ class BasicSyntoolConverterTestCase(unittest.TestCase):
             converter_type='foo',
             ingest_parameter_files='bar')
         with mock.patch.object(converter, 'convert',
-                               return_value=['conv1.tiff', 'conv2.tiff']) as mock_convert, \
+                               return_value=['conv1.tiff', 'conv2']) as mock_convert, \
              mock.patch.object(converter, 'ingest',
                                side_effect=[['ingested_dir1'], ['ingested_dir2']]) as mock_ingest, \
              mock.patch.object(converter, 'post_ingest') as mock_post_ingest, \
-             mock.patch('os.remove') as mock_remove:
+             mock.patch('os.remove', side_effect=(None, IsADirectoryError)) as mock_remove, \
+             mock.patch('shutil.rmtree') as mock_rmtree:
             converter.run(
                 in_file='in.nc',
                 out_dir='out',
@@ -231,13 +232,16 @@ class BasicSyntoolConverterTestCase(unittest.TestCase):
                 ['--config', Path('parameters/3413.ini'),
                  '--options-file', converter.PARAMETERS_DIR / 'bar']),
             mock.call(
-                Path('out', 'conv2.tiff'),
+                Path('out', 'conv2'),
                 'results',
                 ['--config', Path('parameters/3413.ini'),
                  '--options-file', converter.PARAMETERS_DIR / 'bar']),
         ])
         mock_post_ingest.assert_called_once_with(['ingested_dir1', 'ingested_dir2'], 'results')
-        mock_remove.assert_has_calls((mock.call('conv1.tiff'), mock.call('conv2.tiff')))
+        mock_remove.assert_has_calls((
+            mock.call(Path('out', 'conv1.tiff')),
+            mock.call(Path('out', 'conv2'))))
+        mock_rmtree.assert_called_once_with(Path('out', 'conv2'))
 
     def test_run_no_converter(self):
         """If no converter is set, convert() should return the path to
@@ -262,7 +266,7 @@ class BasicSyntoolConverterTestCase(unittest.TestCase):
             ['--config', Path('parameters/3413.ini'),
              '--options-file', converter.PARAMETERS_DIR / 'bar'])
         mock_post_ingest.assert_called_once_with(['ingested_dir1'], 'results')
-        mock_remove.assert_called_once_with('in.nc')
+        mock_remove.assert_called_once_with(Path('out', 'in.nc'))
 
 
 class Sentinel1SyntoolConverterTestCase(unittest.TestCase):
@@ -307,9 +311,6 @@ class Sentinel1SyntoolConverterTestCase(unittest.TestCase):
                 converter.convert(tmp_dir, 'out_dir', ['--baz'])
             for file_name in file_names:
                 mock_convert.assert_any_call(measurement_dir / file_name, 'out_dir', ['--baz'])
-
-
-
 
     def test_ingest(self):
         """Test that the subdirectories created by ingestion are copied

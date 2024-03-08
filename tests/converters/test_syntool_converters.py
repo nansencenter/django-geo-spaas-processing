@@ -100,6 +100,9 @@ class SyntoolConverterTestCase(unittest.TestCase):
             self.assertEqual(
                 contents,
                 textwrap.dedent("""\
+                [metadata]
+                syntool_id = data_access
+
                 [geospaas]
                 entry_id = foo
                 dataset_url = https://bar

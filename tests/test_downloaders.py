@@ -277,7 +277,8 @@ class HTTPDownloaderTestCase(unittest.TestCase):
                 mock_auth
             )
         mock_build_auth.assert_called_with('username', 'password', 'token_url', 'client_id',
-                                           totp_secret=None)
+                                           totp_secret=None, token_placement=None,
+                                           token_parameter_name=None)
 
     def test_get_oauth2_auth_with_totp(self):
         """Test getting an OAuth2 authentication from get_auth()"""
@@ -297,7 +298,8 @@ class HTTPDownloaderTestCase(unittest.TestCase):
                 mock_auth
             )
         mock_build_auth.assert_called_with('username', 'password', 'token_url', 'client_id',
-                                           totp_secret='totp_secret')
+                                           totp_secret='totp_secret', token_placement=None,
+                                           token_parameter_name=None)
 
     def test_get_oauth2_token_with_cache(self):
         """Test getting an OAuth2 token from the cache"""

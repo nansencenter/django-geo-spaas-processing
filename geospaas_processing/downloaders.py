@@ -17,7 +17,7 @@ import pickle
 import re
 import shutil
 import time
-from urllib.parse import urlparse
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 import oauthlib.oauth2
 import oauthlib.oauth2.rfc6749.errors
@@ -160,6 +160,26 @@ class Downloader():
             cls.close_connection(connection)
 
 
+class URLOAuth2(requests_oauthlib.OAuth2):
+    """Custom OAuth2 class that places the token as a parameter in the URL"""
+
+    def __init__(self, *args, **kwargs):
+        self.token_parameter_name = kwargs.pop('token_parameter_name', 'access_token')
+        super().__init__(*args, **kwargs)
+
+    def __call__(self, r):
+        """Override default behavior and put the token in the url
+        """
+        if not oauthlib.oauth2.is_secure_transport(r.url):
+            raise oauthlib.oauth2.InsecureTransportError()
+        sch, net, path, par, query, fra = urlparse(r.url)
+        query_params = parse_qsl(query)
+        query_params.append(('token', self._client.access_token))
+        query = urlencode(query_params)
+        r.url = urlunparse((sch, net, path, par, query, fra))
+        return r
+
+
 class HTTPDownloader(Downloader):
     """Downloader for repositories which work over HTTP, like OpenDAP"""
     CHUNK_SIZE = 1024 * 1024
@@ -238,11 +258,20 @@ class HTTPDownloader(Downloader):
 
     @classmethod
     def build_oauth2_authentication(cls, username, password, token_url, client_id,
-                                    totp_secret=None):
+                                    totp_secret=None, token_placement=None,
+                                    token_parameter_name=None):
         """Creates an OAuth2 object usable by `requests` methods"""
         client = oauthlib.oauth2.LegacyApplicationClient(client_id=client_id)
         token = cls.get_oauth2_token(username, password, token_url, client, totp_secret)
-        return requests_oauthlib.OAuth2(client_id=client_id, client=client, token=token)
+        if token_placement is None:
+            oauth2 = requests_oauthlib.OAuth2(client_id=client_id, client=client, token=token)
+        elif token_placement == 'url':
+            oauth2 = URLOAuth2(client_id=client_id, client=client, token=token,
+                               token_parameter_name=token_parameter_name)
+        else:
+            raise DatasetDownloadError(
+                f'Unknown token_placement in configuration: {token_placement}')
+        return oauth2
 
     @classmethod
     def get_auth(cls, kwargs):
@@ -259,6 +288,8 @@ class HTTPDownloader(Downloader):
                 kwargs['token_url'],
                 kwargs['client_id'],
                 totp_secret=kwargs.get('totp_secret'),
+                token_placement=kwargs.get('token_placement'),
+                token_parameter_name=kwargs.get('token_parameter_name'),
             )
         else:
             return super().get_auth(kwargs)

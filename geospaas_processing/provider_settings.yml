@@ -31,6 +31,8 @@
   client_id: 'CLOUDFERRO_PUBLIC'
   max_parallel_downloads: 4
   totp_secret: !ENV 'CREODIAS_TOTP_SECRET'
+  token_placement: 'url'
+  token_parameter_name: 'token'
 'https://catalogue.dataspace.copernicus.eu':
   username: !ENV 'COPERNICUS_DATA_SPACE_USERNAME'
   password: !ENV 'COPERNICUS_DATA_SPACE_PASSWORD'

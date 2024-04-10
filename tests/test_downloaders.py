@@ -260,6 +260,30 @@ class HTTPDownloaderTestCase(unittest.TestCase):
                 downloaders.HTTPDownloader.build_oauth2_authentication(
                     'username', 'password', 'token_url', 'client_id', totp_secret='TOTPSECRET')
 
+    def test_build_oauth2_authentication_url_placement(self):
+        """Test that specifying a token placement in the URL produces a
+        URLOAuth2 object
+        """
+        fake_token = {'access_token': 'foo'}
+        with mock.patch('requests_oauthlib.OAuth2Session.fetch_token', return_value=fake_token):
+            oauth2 = downloaders.HTTPDownloader.build_oauth2_authentication(
+                'username', 'password', 'token_url', 'client_id',
+                token_placement='url', token_parameter_name='my-token')
+        self.assertIsInstance(oauth2, downloaders.URLOAuth2)
+        self.assertEqual(oauth2._client.access_token, 'foo')
+        self.assertEqual(oauth2.token_parameter_name, 'my-token')
+
+    def test_build_oauth2_authentication_unknown_placement(self):
+        """Test that specifying an unknown token placement raises an
+        exception
+        """
+        with mock.patch('requests_oauthlib.OAuth2Session.fetch_token'):
+            with self.assertRaises(downloaders.DownloadError):
+                downloaders.HTTPDownloader.build_oauth2_authentication(
+                    'username', 'password', 'token_url', 'client_id',
+                    token_placement='foo', token_parameter_name='token')
+
+
     def test_get_oauth2_auth_no_totp(self):
         """Test getting an OAuth2 authentication from get_auth()"""
         mock_auth = mock.Mock()
@@ -524,6 +548,27 @@ class HTTPDownloaderTestCase(unittest.TestCase):
         response.raw = io.BytesIO(b'')
         with self.assertRaises(downloaders.DownloadError):
             downloaders.HTTPDownloader.download_file(mock.Mock(), 'url', response)
+
+
+class URLOAuth2TestCase(unittest.TestCase):
+    """Tests for the URLOAuth2 class"""
+
+    def setUp(self):
+        client = oauthlib.oauth2.LegacyApplicationClient(client_id='foo')
+        token = {'access_token': 'bar'}
+        self.oauth2 = downloaders.URLOAuth2(client_id='foo', client=client, token=token,
+                                            token_parameter_name='token')
+
+    def test_token_placement(self):
+        """Test that using a URLOAuth2 object in a Request results in
+        the token being placed in the URL
+        """
+        request = requests.Request('GET', 'https://baz', auth=self.oauth2)
+        self.assertEqual(request.prepare().url, 'https://baz/?token=bar')
+
+    def test_reject_http_url(self):
+        with self.assertRaises(oauthlib.oauth2.InsecureTransportError):
+            requests.Request('GET', 'http://baz', auth=self.oauth2).prepare()
 
 
 class FTPDownloaderTestCase(unittest.TestCase):

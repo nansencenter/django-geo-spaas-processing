@@ -604,6 +604,10 @@ class HTTPTestCase(unittest.TestCase):
             self.assertFalse(session.should_strip_auth('http://scihub.copernicus.eu:80/foo/bar',
                                                        'https://scihub.copernicus.eu:443/foo/bar'))
 
+            self.assertFalse(session.should_strip_auth(
+                'https://archive.swot.podaac.earthdata.nasa.gov',
+                'https://urs.earthdata.nasa.gov/'))
+
             self.assertTrue(session.should_strip_auth('https://scihub.copernicus.eu/foo/bar',
                                                       'https://www.website.com/foo/bar'))
 

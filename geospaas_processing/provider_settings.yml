@@ -46,4 +46,7 @@
 'https://oceandata.sci.gsfc.nasa.gov':
   username: !ENV EARTHDATA_USERNAME
   password: !ENV EARTHDATA_PASSWORD
+'https://archive.swot.podaac.earthdata.nasa.gov/':
+  username: !ENV EARTHDATA_USERNAME
+  password: !ENV EARTHDATA_PASSWORD
 ...

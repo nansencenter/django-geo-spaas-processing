@@ -7,10 +7,9 @@ RUN pip install --no-cache-dir \
     redis==3.5.3 \
     requests_oauthlib==1.3
 
-WORKDIR /tmp/setup
-COPY setup.py README.md ./
-COPY geospaas_processing ./geospaas_processing
-RUN python setup.py install && cd /tmp && rm -rf /tmp/setup/
+COPY . /tmp/setup
+RUN pip install /tmp/setup && \
+    rm -rf /tmp/setup
 
 WORKDIR /
 

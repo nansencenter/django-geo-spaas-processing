@@ -30,12 +30,9 @@ FROM base as full
 ARG IDF_CONVERTER_VERSION='0.1.*'
 RUN pip install "idf_converter==${IDF_CONVERTER_VERSION}"
 
-WORKDIR /tmp/setup
-COPY setup.py README.md ./
-COPY geospaas_processing ./geospaas_processing
-RUN python setup.py bdist_wheel && \
-    pip install -v dist/geospaas_processing-*.whl && \
-    cd /tmp && rm -rf /tmp/setup/
+COPY . /tmp/setup
+RUN pip install /tmp/setup && \
+    rm -rf /tmp/setup
 
 WORKDIR /
 

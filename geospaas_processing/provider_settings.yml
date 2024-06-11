@@ -49,4 +49,7 @@
 'https://archive.swot.podaac.earthdata.nasa.gov/':
   username: !ENV EARTHDATA_USERNAME
   password: !ENV EARTHDATA_PASSWORD
+'https://tds.aviso.altimetry.fr':
+  username: !ENV AVISO_USERNAME
+  password: !ENV AVISO_PASSWORD
 ...

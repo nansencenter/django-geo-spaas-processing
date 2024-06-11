@@ -402,8 +402,8 @@ class CustomReaderSyntoolConverter(BasicSyntoolConverter):
             ingest_parameter_files='ingest_geotiff_4326_tiles',),
         ParameterSelector(
             matches=lambda d: d.entry_id.startswith('SWOT_'),
-            converter_type='swot_basic',
-            ingest_parameter_files='ingest_geotiff_4326_tiles',),
+            converter_type='swot',
+            ingest_parameter_files='ingest_geotiff_3413_tiles',),
     )
 
     def parse_converter_args(self, kwargs):

@@ -41,5 +41,5 @@ parallel_download = ['redis']
 worker = ['celery==4.4.*', 'django-celery-results==1.2.*']
 idf = ['idf_converter']
 
-[tool.setuptools]
-packages = ["geospaas_processing"]
+[tool.setuptools.packages.find]
+include = ["geospaas_processing*"]

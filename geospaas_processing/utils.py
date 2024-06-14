@@ -415,8 +415,9 @@ class TrustDomainSession(requests.Session):
         """
         old_split_hostname = urlparse(old_url).hostname.split('.')
         new_split_hostname = urlparse(new_url).hostname.split('.')
-        if (len(old_split_hostname) == len(new_split_hostname) > 2
-                and old_split_hostname[1:] == new_split_hostname[1:]):
+        if (len(old_split_hostname) > 2
+                and len(new_split_hostname) > 2
+                and old_split_hostname[-2:] == new_split_hostname[-2:]):
             return False
         else:
             return super().should_strip_auth(old_url, new_url)

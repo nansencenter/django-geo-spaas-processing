@@ -44,6 +44,12 @@
   username: !ENV 'PODAAC_DRIVE_USERNAME'
   password: !ENV 'PODAAC_DRIVE_PASSWORD'
 'https://oceandata.sci.gsfc.nasa.gov':
-  request_parameters:
-    appkey: !ENV EARTHDATA_APPKEY
+  username: !ENV EARTHDATA_USERNAME
+  password: !ENV EARTHDATA_PASSWORD
+'https://archive.swot.podaac.earthdata.nasa.gov/':
+  username: !ENV EARTHDATA_USERNAME
+  password: !ENV EARTHDATA_PASSWORD
+'https://tds.aviso.altimetry.fr':
+  username: !ENV AVISO_USERNAME
+  password: !ENV AVISO_PASSWORD
 ...

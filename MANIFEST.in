@@ -1,0 +1,4 @@
+recursive-include geospaas_processing **.yml
+include geospaas_processing/converters/*/parameters/*
+include geospaas_processing/converters/*/extra_readers/*.py
+include geospaas_processing/converters/*/extra_readers/resources/**

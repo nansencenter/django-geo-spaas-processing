@@ -160,11 +160,13 @@ jobs:
              bash -c "pip install build && python -m build"
 
       - run: |
+             mkdir /tmp/test1
+             mkdir /tmp/test2
              cd dist
-             tar -xzf geospaas_processing-*.tar.gz
-             ls -l geospaas_processing-*/geospaas_processing/converters/syntool/extra_readers/runner.py
-             unzip geospaas_processing-*.whl
-             ls -l geospaas_processing/converters/syntool/extra_readers/runner.py
+             tar -xzf geospaas_processing-*.tar.gz -C /tmp/test1
+             ls -l /tmp/test1/geospaas_processing-*/geospaas_processing/converters/syntool/extra_readers/runner.py
+             unzip geospaas_processing-*.whl -d /tmp/test2
+             ls -l /tmp/test2/geospaas_processing/converters/syntool/extra_readers/runner.py
 
       # - name: 'Deploy package to the Github release'
       #   env:

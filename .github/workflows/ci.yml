@@ -157,7 +157,7 @@ jobs:
              docker run --rm
              -v "$(pwd):/src"
              "${{ vars.DOCKER_ORG }}/geospaas:latest"
-             bash -c "pip install build && python -m build"
+             bash -c "pip install build && python -m build -s -w"
 
       - name: 'Deploy package to the Github release'
         env:

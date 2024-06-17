@@ -149,19 +149,21 @@ jobs:
     # needs: 'tests_and_build_docker_images'
     # if: ${{ github.event_name == 'release' }}
     steps:
+      - name: 'Checkout repository'
+        uses: actions/checkout@v4
+
+      - name: 'Build Python package'
+        run: >
+             docker run --rm
+             -v "$(pwd):/src"
+             "${{ vars.DOCKER_ORG }}/geospaas:latest"
+             bash -c "pip install build && python -m build -w -v"
+
       - run: |
-             df -h /tmp
-             mount
-      # - name: 'Checkout repository'
-      #   uses: actions/checkout@v4
-
-      # - name: 'Build Python package'
-      #   run: >
-      #        docker run --rm
-      #        -v "$(pwd):/src"
-      #        "${{ vars.DOCKER_ORG }}/geospaas:latest"
-      #        bash -c "pip install build && python -m build -w"
-
+             ls -l build/lib/geospaas_processing/converters/syntool/extra_readers/runner.py
+             mkdir /tmp/test
+             unzip dist/*.whl -d /tmp/test
+             ls -l /tmp/test/geospaas_processing/converters/syntool/extra_readers/runner.py
 
       # - name: 'Deploy package to the Github release'
       #   env:

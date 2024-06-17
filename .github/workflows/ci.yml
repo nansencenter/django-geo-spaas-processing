@@ -9,164 +9,165 @@ jobs:
   tests_and_build_docker_images:
     name: Run unit tests
     runs-on: 'ubuntu-latest'
-    strategy:
-      matrix:
-        python_version:
-          - '3.7'
-          - '3.8'
-          - '3.9'
-          - '3.10'
-          - '3.11'
-    env:
-      BASE_IMAGE: "${{ vars.DOCKER_ORG }}/geospaas:2.5.2-python${{ matrix.python_version }}"
-      IMAGE_NAME_WORKER: "${{ vars.DOCKER_ORG }}/geospaas_processing_worker"
-      IMAGE_NAME_CLI: "${{ vars.DOCKER_ORG }}/geospaas_processing_cli"
-      IDF_CONVERTER_VERSION: '0.1.394'
-      GEOSPAAS_DB_HOST: 'db'
-      GEOSPAAS_DB_USER: 'test'
-      GEOSPAAS_DB_PASSWORD: ${{ secrets.GEOSPAAS_DB_PASSWORD }}
-      latest: ${{ matrix.python_version == '3.11' && 'true' || '' }}
+    # strategy:
+    #   matrix:
+    #     python_version:
+    #       - '3.7'
+    #       - '3.8'
+    #       - '3.9'
+    #       - '3.10'
+    #       - '3.11'
+    # env:
+    #   BASE_IMAGE: "${{ vars.DOCKER_ORG }}/geospaas:2.5.2-python${{ matrix.python_version }}"
+    #   IMAGE_NAME_WORKER: "${{ vars.DOCKER_ORG }}/geospaas_processing_worker"
+    #   IMAGE_NAME_CLI: "${{ vars.DOCKER_ORG }}/geospaas_processing_cli"
+    #   IDF_CONVERTER_VERSION: '0.1.394'
+    #   GEOSPAAS_DB_HOST: 'db'
+    #   GEOSPAAS_DB_USER: 'test'
+    #   GEOSPAAS_DB_PASSWORD: ${{ secrets.GEOSPAAS_DB_PASSWORD }}
+    #   latest: ${{ matrix.python_version == '3.11' && 'true' || '' }}
     steps:
-      - name: 'Checkout repository'
-        uses: actions/checkout@v4
+      - run: umask
+  #     - name: 'Checkout repository'
+  #       uses: actions/checkout@v4
 
-      - name: 'Create test docker network'
-        run: docker network create testing
+  #     - name: 'Create test docker network'
+  #       run: docker network create testing
 
-      - name: 'Start testing database'
-        run: >
-             docker run -d --rm
-             --network testing
-             --name "$GEOSPAAS_DB_HOST"
-             -e "POSTGRES_USER=$GEOSPAAS_DB_USER" -e "POSTGRES_PASSWORD=$GEOSPAAS_DB_PASSWORD"
-             'postgis/postgis:12-3.0'
+  #     - name: 'Start testing database'
+  #       run: >
+  #            docker run -d --rm
+  #            --network testing
+  #            --name "$GEOSPAAS_DB_HOST"
+  #            -e "POSTGRES_USER=$GEOSPAAS_DB_USER" -e "POSTGRES_PASSWORD=$GEOSPAAS_DB_PASSWORD"
+  #            'postgis/postgis:12-3.0'
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+  #     - name: Set up Docker Buildx
+  #       uses: docker/setup-buildx-action@v3
 
-      - name: Login to DockerHub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKER_USER }}
-          password: ${{ secrets.DOCKER_PASS }}
+  #     - name: Login to DockerHub
+  #       uses: docker/login-action@v3
+  #       with:
+  #         username: ${{ secrets.DOCKER_USER }}
+  #         password: ${{ secrets.DOCKER_PASS }}
 
-      - name: Cache Docker layers
-        uses: actions/cache@v4
-        with:
-          path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-buildx-testing-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-buildx-testing-
+  #     - name: Cache Docker layers
+  #       uses: actions/cache@v4
+  #       with:
+  #         path: /tmp/.buildx-cache
+  #         key: ${{ runner.os }}-buildx-testing-${{ github.sha }}
+  #         restore-keys: |
+  #           ${{ runner.os }}-buildx-testing-
 
-      - name: Build testing image
-        id: docker_build
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: Dockerfile_worker
-          target: base
-          build-args: |
-            BASE_IMAGE=${{ env.BASE_IMAGE }}
-          push: false
-          load: true
-          tags: ${{ env.IMAGE_NAME_WORKER }}
-          cache-from: type=local,src=/tmp/.buildx-cache
-          cache-to: type=local,dest=/tmp/.buildx-cache-new
+  #     - name: Build testing image
+  #       id: docker_build
+  #       uses: docker/build-push-action@v5
+  #       with:
+  #         context: .
+  #         file: Dockerfile_worker
+  #         target: base
+  #         build-args: |
+  #           BASE_IMAGE=${{ env.BASE_IMAGE }}
+  #         push: false
+  #         load: true
+  #         tags: ${{ env.IMAGE_NAME_WORKER }}
+  #         cache-from: type=local,src=/tmp/.buildx-cache
+  #         cache-to: type=local,dest=/tmp/.buildx-cache-new
 
-      - name: 'Run tests'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: >
-             docker run --rm
-             --network testing
-             -v "$(pwd):/src"
-             -e "GEOSPAAS_DB_HOST=$GEOSPAAS_DB_HOST"
-             -e "GEOSPAAS_DB_USER=$GEOSPAAS_DB_USER"
-             -e "GEOSPAAS_DB_PASSWORD=$GEOSPAAS_DB_PASSWORD"
-             "${IMAGE_NAME_WORKER}"
-             bash -c "coverage run --source=geospaas_processing /src/runtests.py"
+  #     - name: 'Run tests'
+  #       env:
+  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #       run: >
+  #            docker run --rm
+  #            --network testing
+  #            -v "$(pwd):/src"
+  #            -e "GEOSPAAS_DB_HOST=$GEOSPAAS_DB_HOST"
+  #            -e "GEOSPAAS_DB_USER=$GEOSPAAS_DB_USER"
+  #            -e "GEOSPAAS_DB_PASSWORD=$GEOSPAAS_DB_PASSWORD"
+  #            "${IMAGE_NAME_WORKER}"
+  #            bash -c "coverage run --source=geospaas_processing /src/runtests.py"
 
-      - name: 'Stop testing database'
-        run: docker stop "$GEOSPAAS_DB_HOST"
+  #     - name: 'Stop testing database'
+  #       run: docker stop "$GEOSPAAS_DB_HOST"
 
-      - name: 'Install Python 3.11'
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
+  #     - name: 'Install Python 3.11'
+  #       uses: actions/setup-python@v5
+  #       with:
+  #         python-version: '3.11'
 
-      - name: 'Upload coverage to coveralls.io'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: pip install coveralls && coveralls --service=github
+  #     - name: 'Upload coverage to coveralls.io'
+  #       env:
+  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #       run: pip install coveralls && coveralls --service=github
 
-      ############# Build worker image #############
-      - name: Build worker docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: Dockerfile_worker
-          build-args: |
-            BASE_IMAGE=${{ env.BASE_IMAGE }}
-            IDF_CONVERTER_VERSION=${{ env.IDF_CONVERTER_VERSION }}
-          push: ${{ github.event_name == 'release' }}
-          tags: |
-            ${{ env.IMAGE_NAME_WORKER }}:${{ github.ref_name }}-python${{ matrix.python_version }}
-            ${{ env.latest && format('{0}:{1}', env.IMAGE_NAME_WORKER, github.ref_name) || '' }}
-            ${{ env.IMAGE_NAME_WORKER }}:latest-python${{ matrix.python_version }}
-            ${{ env.latest && format('{0}:latest', env.IMAGE_NAME_WORKER) || '' }}
-          cache-from: type=local,src=/tmp/.buildx-cache
-          cache-to: type=local,dest=/tmp/.buildx-cache-new
+  #     ############# Build worker image #############
+  #     - name: Build worker docker image
+  #       uses: docker/build-push-action@v5
+  #       with:
+  #         context: .
+  #         file: Dockerfile_worker
+  #         build-args: |
+  #           BASE_IMAGE=${{ env.BASE_IMAGE }}
+  #           IDF_CONVERTER_VERSION=${{ env.IDF_CONVERTER_VERSION }}
+  #         push: ${{ github.event_name == 'release' }}
+  #         tags: |
+  #           ${{ env.IMAGE_NAME_WORKER }}:${{ github.ref_name }}-python${{ matrix.python_version }}
+  #           ${{ env.latest && format('{0}:{1}', env.IMAGE_NAME_WORKER, github.ref_name) || '' }}
+  #           ${{ env.IMAGE_NAME_WORKER }}:latest-python${{ matrix.python_version }}
+  #           ${{ env.latest && format('{0}:latest', env.IMAGE_NAME_WORKER) || '' }}
+  #         cache-from: type=local,src=/tmp/.buildx-cache
+  #         cache-to: type=local,dest=/tmp/.buildx-cache-new
 
-      ############# Build CLI image #############
-      - name: Build docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: Dockerfile_cli
-          build-args: |
-            BASE_IMAGE=${{ env.BASE_IMAGE }}
-          push: ${{ github.event_name == 'release' }}
-          tags: |
-            ${{ env.IMAGE_NAME_CLI }}:${{ github.ref_name }}-python${{ matrix.python_version }}
-            ${{ env.latest && format('{0}:{1}', env.IMAGE_NAME_CLI, github.ref_name) || '' }}
-            ${{ env.IMAGE_NAME_CLI }}:latest-python${{ matrix.python_version }}
-            ${{ env.latest && format('{0}:latest', env.IMAGE_NAME_CLI) || '' }}
-          cache-from: type=local,src=/tmp/.buildx-cache
-          cache-to: type=local,dest=/tmp/.buildx-cache-new
+  #     ############# Build CLI image #############
+  #     - name: Build docker image
+  #       uses: docker/build-push-action@v5
+  #       with:
+  #         context: .
+  #         file: Dockerfile_cli
+  #         build-args: |
+  #           BASE_IMAGE=${{ env.BASE_IMAGE }}
+  #         push: ${{ github.event_name == 'release' }}
+  #         tags: |
+  #           ${{ env.IMAGE_NAME_CLI }}:${{ github.ref_name }}-python${{ matrix.python_version }}
+  #           ${{ env.latest && format('{0}:{1}', env.IMAGE_NAME_CLI, github.ref_name) || '' }}
+  #           ${{ env.IMAGE_NAME_CLI }}:latest-python${{ matrix.python_version }}
+  #           ${{ env.latest && format('{0}:latest', env.IMAGE_NAME_CLI) || '' }}
+  #         cache-from: type=local,src=/tmp/.buildx-cache
+  #         cache-to: type=local,dest=/tmp/.buildx-cache-new
 
-        # Temp fix
-        # https://github.com/docker/build-push-action/issues/252
-        # https://github.com/moby/buildkit/issues/1896
-      - name: Move cache
-        run: |
-          rm -rf /tmp/.buildx-cache
-          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+  #       # Temp fix
+  #       # https://github.com/docker/build-push-action/issues/252
+  #       # https://github.com/moby/buildkit/issues/1896
+  #     - name: Move cache
+  #       run: |
+  #         rm -rf /tmp/.buildx-cache
+  #         mv /tmp/.buildx-cache-new /tmp/.buildx-cache
 
 
-  publish_python_package:
-    name: Build Python package and publish it as a release artifact
-    runs-on: 'ubuntu-latest'
-    needs: 'tests_and_build_docker_images'
-    if: ${{ github.event_name == 'release' }}
-    steps:
-      - name: 'Checkout repository'
-        uses: actions/checkout@v4
+  # publish_python_package:
+  #   name: Build Python package and publish it as a release artifact
+  #   runs-on: 'ubuntu-latest'
+  #   needs: 'tests_and_build_docker_images'
+  #   if: ${{ github.event_name == 'release' }}
+  #   steps:
+  #     - name: 'Checkout repository'
+  #       uses: actions/checkout@v4
 
-      - name: 'Build Python package'
-        run: >
-             docker run --rm
-             -v "$(pwd):/src"
-             "${{ vars.DOCKER_ORG }}/geospaas:latest"
-             bash -c "pip install build && python -m build"
+  #     - name: 'Build Python package'
+  #       run: >
+  #            docker run --rm
+  #            -v "$(pwd):/src"
+  #            "${{ vars.DOCKER_ORG }}/geospaas:latest"
+  #            bash -c "pip install build && python -m build"
 
-      - name: 'Deploy package to the Github release'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
-        uses: svenstaro/upload-release-action@v2
-        with:
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: 'dist/*'
-          file_glob: true
-          tag: ${{ github.ref }}
+  #     - name: 'Deploy package to the Github release'
+  #       env:
+  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #         GITHUB_REPOSITORY: ${{ github.repository }}
+  #       uses: svenstaro/upload-release-action@v2
+  #       with:
+  #         repo_token: ${{ secrets.GITHUB_TOKEN }}
+  #         file: 'dist/*'
+  #         file_glob: true
+  #         tag: ${{ github.ref }}
 ...

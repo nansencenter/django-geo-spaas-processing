@@ -157,16 +157,9 @@ jobs:
              docker run --rm
              -v "$(pwd):/src"
              "${{ vars.DOCKER_ORG }}/geospaas:latest"
-             bash -c "pip install build && python -m build"
+             bash -c "pip install build && python -m build -w"
 
-      - run: |
-             mkdir /tmp/test1
-             mkdir /tmp/test2
-             cd dist
-             tar -xzf geospaas_processing-*.tar.gz -C /tmp/test1
-             ls -l /tmp/test1/geospaas_processing-*/geospaas_processing/converters/syntool/extra_readers/runner.py
-             unzip geospaas_processing-*.whl -d /tmp/test2
-             ls -l /tmp/test2/geospaas_processing/converters/syntool/extra_readers/runner.py
+      - run: ls -l build/lib/geospaas_processing/converters/syntool/extra_readers/runner.py
 
       # - name: 'Deploy package to the Github release'
       #   env:

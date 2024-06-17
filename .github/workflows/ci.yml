@@ -149,7 +149,7 @@ jobs:
     # needs: 'tests_and_build_docker_images'
     # if: ${{ github.event_name == 'release' }}
     steps:
-      - run: mount | grep tmp
+      - run: mount
       # - name: 'Checkout repository'
       #   uses: actions/checkout@v4
 

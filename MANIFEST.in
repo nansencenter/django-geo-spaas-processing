@@ -1,5 +1,0 @@
-recursive-include geospaas_processing **.yml
-include geospaas_processing/converters/*/parameters/*
-recursive-include geospaas_processing/converters/*/extra_readers **
-prune **/__pycache__/**
-global-exclude **.py[cod]

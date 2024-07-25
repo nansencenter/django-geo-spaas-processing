@@ -71,8 +71,7 @@ class SyntoolConverterTestCase(unittest.TestCase):
         """Test error handling when the sub process encounters an error"""
         converter = syntool_converter.SyntoolConverter()
         with mock.patch('subprocess.run', side_effect=subprocess.CalledProcessError(1, '')):
-            with self.assertLogs(syntool_converter.logger, level=logging.INFO), \
-                    self.assertRaises(converters_base.ConversionError):
+            with self.assertLogs(syntool_converter.logger, level=logging.WARNING):
                 converter.ingest('/bar/foo.tiff', '/bar', ['--baz'])
 
     def test_ingest_move_results_error(self):
@@ -81,8 +80,7 @@ class SyntoolConverterTestCase(unittest.TestCase):
         converter = syntool_converter.SyntoolConverter()
         with mock.patch('subprocess.run'), \
                 mock.patch.object(converter, 'move_results', return_value=[]):
-            with self.assertLogs(syntool_converter.logger, level=logging.INFO), \
-                    self.assertRaises(converters_base.ConversionError):
+            with self.assertLogs(syntool_converter.logger, level=logging.WARNING):
                 converter.ingest('/bar/foo.tiff', '/bar', ['--baz'])
 
     def test_post_ingest(self):

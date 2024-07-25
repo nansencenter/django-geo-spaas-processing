@@ -402,8 +402,48 @@ class CustomReaderSyntoolConverter(BasicSyntoolConverter):
             matches=lambda d: d.entry_id.startswith('SWOT_'),
             converter_type='swot',
             ingest_parameter_files='ingest_geotiff_3413_tiles',),
+        ParameterSelector(
+            matches=lambda d: d.entry_id.startswith('nrt_global_al_phy_l3_1hz_'),
+            converter_type='cmems_008_044',
+            converter_options={'mission': 'altika'},
+            ingest_parameter_files='ingest_geotiff_4326_trajectorytiles',
+        ),
+        ParameterSelector(
+            matches=lambda d: d.entry_id.startswith('nrt_global_c2n_phy_l3_1hz_'),
+            converter_type='cmems_008_044',
+            converter_options={'mission': 'cryosat2'},
+            ingest_parameter_files='ingest_geotiff_4326_trajectorytiles',),
+        ParameterSelector(
+            matches=lambda d: d.entry_id.startswith('nrt_global_h2b_phy_l3_1hz_'),
+            converter_type='cmems_008_044',
+            converter_options={'mission': 'hy2b'},
+            ingest_parameter_files='ingest_geotiff_4326_trajectorytiles',),
+        ParameterSelector(
+            matches=lambda d: d.entry_id.startswith('nrt_global_j3n_phy_l3_1hz_'),
+            converter_type='cmems_008_044',
+            converter_options={'mission': 'jason3'},
+            ingest_parameter_files='ingest_geotiff_4326_trajectorytiles',),
+        ParameterSelector(
+            matches=lambda d: d.entry_id.startswith('nrt_global_s3a_phy_l3_1hz_'),
+            converter_type='cmems_008_044',
+            converter_options={'mission': 'sentinel3a'},
+            ingest_parameter_files='ingest_geotiff_4326_trajectorytiles',),
+        ParameterSelector(
+            matches=lambda d: d.entry_id.startswith('nrt_global_s3b_phy_l3_1hz_'),
+            converter_type='cmems_008_044',
+            converter_options={'mission': 'sentinel3b'},
+            ingest_parameter_files='ingest_geotiff_4326_trajectorytiles',),
+        ParameterSelector(
+            matches=lambda d: d.entry_id.startswith('nrt_global_s6a_phy_l3_1hz_'),
+            converter_type='cmems_008_044',
+            converter_options={'mission': 'sentinel6'},
+            ingest_parameter_files='ingest_geotiff_4326_trajectorytiles',),
+        ParameterSelector(
+            matches=lambda d: d.entry_id.startswith('nrt_global_swon_phy_l3_1hz_'),
+            converter_type='cmems_008_044',
+            converter_options={'mission': 'swot'},
+            ingest_parameter_files='ingest_geotiff_4326_trajectorytiles',),
     )
 
     def parse_converter_args(self, kwargs):
         return ['-r', self.converter_type, *self.parse_converter_options(kwargs)]
-

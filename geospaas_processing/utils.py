@@ -428,7 +428,7 @@ def http_request(http_method, *args, **kwargs):
     inside a TrustDomainSession if authentication is provided. This
     makes it possible to follow redirections inside the same domain.
     """
-    auth = kwargs.pop('auth', None)
+    auth = kwargs.pop('auth', (None, None))
     if any(i is not None for i in auth):
         with TrustDomainSession() as session:
             session.auth = auth

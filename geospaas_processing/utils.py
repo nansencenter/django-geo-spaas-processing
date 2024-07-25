@@ -429,7 +429,7 @@ def http_request(http_method, *args, **kwargs):
     makes it possible to follow redirections inside the same domain.
     """
     auth = kwargs.pop('auth', None)
-    if auth:
+    if any(i is not None for i in auth):
         with TrustDomainSession() as session:
             session.auth = auth
             return session.request(http_method, *args, **kwargs)

@@ -72,8 +72,8 @@ class SyntoolConverter(Converter):
                     env=self.env,
                 )
             except subprocess.CalledProcessError as error:
-                raise ConversionError(
-                    f"Ingestion failed with the following message: {error.stderr}") from error
+                logger.warning("Ingestion failed with the following message: %s", error.stderr)
+                return []
             # TODO clean this up
             ingested_dir = Path(out_dir, 'ingested')
             results = [
@@ -81,10 +81,8 @@ class SyntoolConverter(Converter):
                 for result in self.move_results(tmp_dir, ingested_dir)
             ]
         if not results:
-            raise ConversionError((
-                "syntool-ingestor did not produce any file. "
-                f"stdout: {process.stdout}"
-                f"stderr: {process.stderr}"))
+            logger.warning("syntool-ingestor did not produce any file. stdout: %s;stderr:%s",
+                           process.stdout, process.stderr)
         return results
 
     def post_ingest(self, results, out_dir, **kwargs):

@@ -338,9 +338,11 @@ class HTTPDownloader(Downloader):
                 return filename_attributes[0].replace(filename_key, '').strip('"')
 
         elif 'Content-Type' in connection.headers:
-            accepted_types = ('application/x-netcdf', 'application/octet-stream')
+            accepted_types = ('/x-netcdf', '/octet-stream')
             url_file_name = url.split('/')[-1]
-            if (connection.headers['Content-Type'].lower() in accepted_types
+            content_type = connection.headers['Content-Type'].lower()
+
+            if (any(accepted_type in content_type for accepted_type in accepted_types)
                     and url_file_name.endswith('.nc')):
                 return url_file_name
 

@@ -215,7 +215,7 @@ def find_lat_limit(lat, min_lat=-90., max_lat=90.):
 
 def read_from_file(f_handler, data_ranges, min_lat, max_lat, variables_to_process=None):
     """"""
-    if variables_to_process is None:
+    if not variables_to_process:
         varnames = data_ranges.keys()
     else:
         varnames = set(data_ranges.keys()).intersection(set(variables_to_process))
@@ -370,7 +370,7 @@ def read_from_file(f_handler, data_ranges, min_lat, max_lat, variables_to_proces
 
 def convert(input_path, output_path, mission,
             min_lat=-90., max_lat=90.,
-            variables_to_process=None):
+            variables_to_process=''):
     """"""
     granule_filename = os.path.basename(input_path)
     granule_name, _ = os.path.splitext(granule_filename)

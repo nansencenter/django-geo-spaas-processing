@@ -3,3 +3,4 @@
 --output-format geojson_trajectory
 --output-options with-shape=no
                  singleFeature=true
+                 product_name=argo_trajectories

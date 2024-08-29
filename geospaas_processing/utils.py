@@ -13,6 +13,7 @@ import time
 import yaml
 import zipfile
 from contextlib import contextmanager
+from collections.abc import Sequence
 from urllib.parse import urlparse
 
 import paramiko
@@ -428,8 +429,9 @@ def http_request(http_method, *args, **kwargs):
     inside a TrustDomainSession if authentication is provided. This
     makes it possible to follow redirections inside the same domain.
     """
-    auth = kwargs.pop('auth', None)
-    if auth:
+    auth = kwargs.pop('auth', (None, None))
+    if ((isinstance(auth, Sequence) and any(i is not None for i in auth))
+            or (not isinstance(auth, Sequence) and auth)):
         with TrustDomainSession() as session:
             session.auth = auth
             return session.request(http_method, *args, **kwargs)

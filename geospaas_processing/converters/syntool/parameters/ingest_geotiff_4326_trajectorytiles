@@ -1,0 +1,6 @@
+--input-format geotiff
+--input-options projection=4326
+--output-format trajectorytiles
+--output-options min-zoom=0
+                 max-zoom=8
+                 with-dataset-info=yes

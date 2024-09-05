@@ -18,10 +18,10 @@ class RedisLockTestCase(unittest.TestCase):
     """Tests for the redis_lock context manager"""
 
     def setUp(self):
-        patcher = mock.patch.object(utils, 'Redis')
+        self.redis_patcher = mock.patch.object(utils, 'Redis')
         mock.patch.object(utils, 'REDIS_HOST', 'test').start()
         mock.patch.object(utils, 'REDIS_PORT', 6379).start()
-        self.redis_mock = patcher.start()
+        self.redis_mock = self.redis_patcher.start()
         self.addCleanup(mock.patch.stopall)
 
     def test_redis_lock_standard_usage(self):
@@ -41,6 +41,15 @@ class RedisLockTestCase(unittest.TestCase):
             self.assertFalse(acquired)
         self.redis_mock.return_value.delete.assert_not_called()
 
+    def test_redis_lock_no_redis(self):
+        """The lock should always grant access if Redis is not
+        available
+        """
+        self.redis_patcher.stop()
+        with mock.patch.object(utils, 'Redis', None):
+            with utils.redis_lock('id', 'oid') as acquired:
+                self.assertTrue(acquired)
+        self.redis_patcher.start()
 
 class UtilsTestCase(unittest.TestCase):
     """Tests for the utility functions"""

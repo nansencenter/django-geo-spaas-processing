@@ -201,6 +201,11 @@ class DownloaderTestCase(unittest.TestCase):
 class HTTPDownloaderTestCase(unittest.TestCase):
     """Tests for the HTTPDownloader"""
 
+    def setUp(self):
+        mock.patch('geospaas_processing.utils.REDIS_HOST', None).start()
+        mock.patch('geospaas_processing.utils.REDIS_PORT', None).start()
+        self.addCleanup(mock.patch.stopall)
+
     def test_build_oauth2_authentication(self):
         """Test the creation of an OAuth2 object"""
         fake_token = {

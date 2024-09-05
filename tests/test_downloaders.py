@@ -201,6 +201,11 @@ class DownloaderTestCase(unittest.TestCase):
 class HTTPDownloaderTestCase(unittest.TestCase):
     """Tests for the HTTPDownloader"""
 
+    def setUp(self):
+        mock.patch('geospaas_processing.utils.REDIS_HOST', None).start()
+        mock.patch('geospaas_processing.utils.REDIS_PORT', None).start()
+        self.addCleanup(mock.patch.stopall)
+
     def test_build_oauth2_authentication(self):
         """Test the creation of an OAuth2 object"""
         fake_token = {
@@ -845,7 +850,8 @@ class DownloadManagerTestCase(django.test.TestCase):
         download_manager = downloaders.DownloadManager()
         with mock.patch.object(downloaders.DownloadManager, 'get_provider_settings') as mock_p_s:
             mock_p_s.return_value = {}
-            with mock.patch.object(
+            with mock.patch('os.makedirs'), \
+                 mock.patch.object(
                     downloaders.HTTPDownloader, 'check_and_download_url') as mock_dl_url:
                 mock_dl_url.return_value='Dataset_1_test.nc'
                 download_manager.download_dataset(Dataset.objects.get(pk=1), '')
@@ -888,7 +894,8 @@ class DownloadManagerTestCase(django.test.TestCase):
                                                 'data/provider_settings.yml'))
         dataset = Dataset.objects.get(pk=1)
         dataset_url = dataset.dataseturi_set.first().uri
-        with mock.patch.object(downloaders.HTTPDownloader, 'check_and_download_url') as mock_dl_url:
+        with mock.patch('os.makedirs'), \
+             mock.patch.object(downloaders.HTTPDownloader, 'check_and_download_url') as mock_dl_url:
             mock_dl_url.return_value = 'dataset_1_file.h5'
             result = download_manager.download_dataset(dataset, '')
             mock_dl_url.assert_called_with(
@@ -920,7 +927,8 @@ class DownloadManagerTestCase(django.test.TestCase):
         download_manager = downloaders.DownloadManager()
         dataset = Dataset.objects.get(pk=1)
         with mock.patch.object(downloaders.DownloadLock, '__enter__') as mock_lock:
-            with mock.patch.object(
+            with mock.patch('os.makedirs'), \
+                 mock.patch.object(
                     downloaders.HTTPDownloader, 'check_and_download_url') as mock_dl_url:
                 mock_lock.return_value = False
                 with self.assertRaises(downloaders.TooManyDownloadsError):
@@ -973,7 +981,8 @@ class DownloadManagerTestCase(django.test.TestCase):
         download_manager.DOWNLOADERS = {}
         dataset = Dataset.objects.get(pk=1)
 
-        with mock.patch.object(downloaders.HTTPDownloader, 'check_and_download_url') as mock_dl_url:
+        with mock.patch('os.makedirs'), \
+             mock.patch.object(downloaders.HTTPDownloader, 'check_and_download_url') as mock_dl_url:
             with self.assertLogs(downloaders.LOGGER):
                 with self.assertRaises(KeyError):
                     download_manager.download_dataset(dataset, '')

@@ -158,8 +158,17 @@ class BasicSyntoolConverter(SyntoolConverter):
         ParameterSelector(
             matches=lambda d: d.source.platform.short_name == 'Argo float',
             converter_type=None,
-            ingest_parameter_files=('ingest_erddap_json_3413_profile',
-                                    'ingest_erddap_json_3413_trajectory')),
+            ingest_parameter_files=(
+                ParameterSelector(matches=lambda p: p.name.startswith('ArgoFloats_'),
+                                  ingest_file='ingest_erddap_json_3413_argo_profile'),
+                ParameterSelector(matches=lambda p: p.name.startswith('ArgoFloats_'),
+                                  ingest_file='ingest_erddap_json_3413_argo_trajectory'),
+                ParameterSelector(
+                    matches=lambda p: p.name.startswith('ArgoFloats-synthetic-BGC_'),
+                    ingest_file='ingest_erddap_json_3413_bioargo_profile'),
+                ParameterSelector(
+                    matches=lambda p: p.name.startswith('ArgoFloats-synthetic-BGC_'),
+                    ingest_file='ingest_erddap_json_3413_bioargo_trajectory'))),
     )
 
     def __init__(self, **kwargs):

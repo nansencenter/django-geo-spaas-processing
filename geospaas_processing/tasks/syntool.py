@@ -7,11 +7,17 @@ from pathlib import Path
 
 import celery
 
+import geospaas_processing.converters.syntool
 from geospaas.catalog.models import Dataset
 from geospaas_processing.tasks import lock_dataset_files, FaultTolerantTask, WORKING_DIRECTORY
 from ..converters.syntool.converter import SyntoolConversionManager
 from ..models import ProcessingResult
 from . import app
+
+try:
+    from . import core
+except ImportError:
+    core = None
 
 logger = celery.utils.log.get_task_logger(__name__)
 
@@ -69,6 +75,47 @@ def convert(self, args, **kwargs):  # pylint: disable=unused-argument
     save_results(dataset_id, converted_files)
     return (dataset_id, converted_files)
 
+@app.task(base=FaultTolerantTask, bind=True, track_started=True)
+def compare_profiles(self, args, **kwargs):
+    """Generate side-by-side profiles of a model and in-situ data.
+    """
+    model_id = args[0]
+    profiles_lookups = kwargs['profiles_lookups']
+
+    model_dataset = Dataset.objects.get(id=model_id)
+    profiles = Dataset.objects.filter(
+        **profiles_lookups,
+        time_coverage_start__lte=model_dataset.time_coverage_end,
+        time_coverage_end__gte=model_dataset.time_coverage_start,
+        geographic_location__geometry__contained=model_dataset.geographic_location.geometry,
+    )
+
+    _, (model_path, ) = core.download((model_id,))
+    profiles_paths = []
+    for profile in profiles:
+         profiles_paths.append(core.download((profile.id,))[1][0])
+    working_dir = Path(WORKING_DIRECTORY)
+    command = [
+        'python2',
+        str(Path(geospaas_processing.converters.syntool.__file__).parent / 'extra_readers' / 'compare_model_argo.py'),
+        str(working_dir / model_path),
+        ','.join(str(working_dir / p) for p in profiles_paths),
+        str(working_dir / 'ingested')
+    ]
+    try:
+        process = subprocess.run(command, capture_output=True)
+    except subprocess.CalledProcessError as error:
+        logger.error("Could not generate comparison profiles for dataset %s\nstdout: %s\nstderr: %s",
+                     model_dataset.entry_id,
+                     process.stdout,
+                     process.stderr)
+    stdout = str(process.stdout, 'utf-8')
+    results = []
+    if process.returncode == 0:
+        for line in stdout.splitlines():
+            if line.startswith('granule path:'):
+                results.append(line.partition(':')[2])
+    return (model_id, results)
 
 @app.task(base=FaultTolerantTask, bind=True, track_started=True)
 @lock_dataset_files

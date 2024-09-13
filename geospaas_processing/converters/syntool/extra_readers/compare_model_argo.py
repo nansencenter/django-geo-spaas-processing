@@ -269,7 +269,6 @@ def main():
 
                 with open(os.path.join(ingested_path, 'metadata.json'), 'wb') as metadata_file:
                     json.dump(metadata, metadata_file)
-                print("granule path:{}".format(relative_ingested_path))
 
 
 if __name__ == '__main__':

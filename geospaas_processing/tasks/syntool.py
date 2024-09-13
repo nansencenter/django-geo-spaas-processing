@@ -1,8 +1,9 @@
 """Tasks related to Syntool"""
 import os
+import re
 import shutil
 import subprocess
-import re
+import tempfile
 from pathlib import Path
 
 import celery
@@ -95,26 +96,29 @@ def compare_profiles(self, args, **kwargs):
     for profile in profiles:
          profiles_paths.append(core.download((profile.id,))[1][0])
     working_dir = Path(WORKING_DIRECTORY)
-    command = [
-        'python2',
-        str(Path(geospaas_processing.converters.syntool.__file__).parent / 'extra_readers' / 'compare_model_argo.py'),
-        str(working_dir / model_path),
-        ','.join(str(working_dir / p) for p in profiles_paths),
-        str(working_dir / 'ingested')
-    ]
-    try:
-        process = subprocess.run(command, capture_output=True)
-    except subprocess.CalledProcessError as error:
-        logger.error("Could not generate comparison profiles for dataset %s\nstdout: %s\nstderr: %s",
-                     model_dataset.entry_id,
-                     process.stdout,
-                     process.stderr)
-    stdout = str(process.stdout, 'utf-8')
-    results = []
-    if process.returncode == 0:
-        for line in stdout.splitlines():
-            if line.startswith('granule path:'):
-                results.append(str(Path('ingested', line.partition(':')[2])))
+    output_dir = Path(os.getenv('GEOSPAAS_PROCESSING_SYNTOOL_RESULTS_DIR', WORKING_DIRECTORY))
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        command = [
+            'python2',
+            str(Path(geospaas_processing.converters.syntool.__file__).parent / 'extra_readers' / 'compare_model_argo.py'),
+            str(working_dir / model_path),
+            ','.join(str(working_dir / p) for p in profiles_paths),
+            tmp_dir
+        ]
+        try:
+            process = subprocess.run(command, capture_output=True)
+        except subprocess.CalledProcessError as error:
+            logger.error("Could not generate comparison profiles for dataset %s\nstdout: %s\nstderr: %s",
+                         model_dataset.entry_id,
+                         process.stdout,
+                         process.stderr)
+
+        results = []
+        if process.returncode == 0:
+            shutil.copytree(tmp_dir, output_dir / 'ingested', dirs_exist_ok=True)
+            for product_dir in Path(tmp_dir).iterdir():
+                for granule_dir in product_dir.iterdir():
+                    results.append(str(Path('ingested', product_dir.name, granule_dir.name)))
     return (model_id, results)
 
 @app.task(base=FaultTolerantTask, bind=True, track_started=True)

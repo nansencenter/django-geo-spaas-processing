@@ -114,7 +114,7 @@ def compare_profiles(self, args, **kwargs):
     if process.returncode == 0:
         for line in stdout.splitlines():
             if line.startswith('granule path:'):
-                results.append(line.partition(':')[2])
+                results.append(str(Path('ingested', line.partition(':')[2])))
     return (model_id, results)
 
 @app.task(base=FaultTolerantTask, bind=True, track_started=True)

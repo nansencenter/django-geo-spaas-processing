@@ -115,8 +115,9 @@ def compare_profiles(self, args, **kwargs):
 
         results = []
         if process.returncode == 0:
-            shutil.copytree(tmp_dir, output_dir / 'ingested', dirs_exist_ok=True)
             for product_dir in Path(tmp_dir).iterdir():
+                shutil.copytree(str(product_dir), str(output_dir / 'ingested' / product_dir.name),
+                                dirs_exist_ok=True)
                 for granule_dir in product_dir.iterdir():
                     results.append(str(Path('ingested', product_dir.name, granule_dir.name)))
     return (model_id, results)

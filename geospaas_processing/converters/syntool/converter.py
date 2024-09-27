@@ -171,6 +171,11 @@ class BasicSyntoolConverter(SyntoolConverter):
             matches=lambda d: d.entry_id.startswith('bioargo_trajectory_'),
             converter_type=None,
             ingest_parameter_files='ingest_erddap_json_3413_bioargo_trajectory'),
+        ParameterSelector(
+            matches=lambda d: '-REMSS-L4_GHRSST-SSTfnd-MW_OI-GLOB-' in d.entry_id,
+            converter_type='remss_l4_mw_sst',
+            convert_options={'vmin_pal': '273', 'vmax_pal': '298'},
+            ingest_parameter_files='ingest_geotiff_4326_raster_no_shape'),
     )
 
     def __init__(self, **kwargs):

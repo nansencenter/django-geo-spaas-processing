@@ -117,6 +117,7 @@ def compare_profiles(self, args, **kwargs):
                                 dirs_exist_ok=True)
                 for granule_dir in product_dir.iterdir():
                     results.append(str(Path('ingested', product_dir.name, granule_dir.name)))
+            save_results(model_id, results)
     return (model_id, results)
 
 @app.task(base=FaultTolerantTask, bind=True, track_started=True)

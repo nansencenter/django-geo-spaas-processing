@@ -1,17 +1,22 @@
 """Tasks related to Syntool"""
 import os
+import re
 import shutil
 import subprocess
-import re
+import tempfile
+from contextlib import ExitStack
 from pathlib import Path
 
 import celery
 
+import geospaas_processing.converters.syntool
+import geospaas_processing.utils as utils
 from geospaas.catalog.models import Dataset
 from geospaas_processing.tasks import lock_dataset_files, FaultTolerantTask, WORKING_DIRECTORY
 from ..converters.syntool.converter import SyntoolConversionManager
 from ..models import ProcessingResult
-from . import app
+from . import app, DATASET_LOCK_PREFIX
+
 
 logger = celery.utils.log.get_task_logger(__name__)
 
@@ -69,6 +74,52 @@ def convert(self, args, **kwargs):  # pylint: disable=unused-argument
     save_results(dataset_id, converted_files)
     return (dataset_id, converted_files)
 
+@app.task(base=FaultTolerantTask, bind=True, track_started=True)
+def compare_profiles(self, args, **kwargs):
+    """Generate side-by-side profiles of a model and in-situ data.
+    """
+    model_id, (model_path,) = args[0]
+    profiles = args[1] # iterable of (id, (path,)) tuples
+
+    working_dir = Path(WORKING_DIRECTORY)
+    output_dir = Path(os.getenv('GEOSPAAS_PROCESSING_SYNTOOL_RESULTS_DIR', WORKING_DIRECTORY))
+
+    locks = [utils.redis_lock(f"{DATASET_LOCK_PREFIX}{model_id}", self.request.id)]
+    for profile_id, _ in profiles:
+        locks.append(utils.redis_lock(f"{DATASET_LOCK_PREFIX}{profile_id}", self.request.id))
+
+    with tempfile.TemporaryDirectory() as tmp_dir, \
+         ExitStack() as stack:
+        for lock in locks: # lock all model and profile datasets
+            stack.enter_context(lock)
+
+        command = [
+            'python2',
+            str(Path(geospaas_processing.converters.syntool.__file__).parent
+                / 'extra_readers'
+                / 'compare_model_argo.py'),
+            str(working_dir / model_path),
+            ','.join(str(working_dir / p[1][0]) for p in profiles),
+            tmp_dir
+        ]
+        try:
+            process = subprocess.run(command, capture_output=True)
+        except subprocess.CalledProcessError as error:
+            logger.error("Could not generate comparison profiles for dataset %s\nstdout: %s\nstderr: %s",
+                         model_id,
+                         error.output,
+                         error.stderr)
+            raise
+
+        results = []
+        if process.returncode == 0:
+            for product_dir in Path(tmp_dir).iterdir():
+                shutil.copytree(str(product_dir), str(output_dir / 'ingested' / product_dir.name),
+                                dirs_exist_ok=True)
+                for granule_dir in product_dir.iterdir():
+                    results.append(str(Path('ingested', product_dir.name, granule_dir.name)))
+            save_results(model_id, results)
+    return (model_id, results)
 
 @app.task(base=FaultTolerantTask, bind=True, track_started=True)
 @lock_dataset_files

@@ -8,6 +8,7 @@ from pathlib import Path
 import django.test
 import celery.exceptions
 
+import geospaas_processing.converters.syntool
 import geospaas_processing.tasks
 import geospaas_processing.tasks.syntool as tasks_syntool
 from geospaas_processing.models import ProcessingResult
@@ -81,6 +82,66 @@ class SyntoolTasksTestCase(unittest.TestCase):
             1, 'foo', results_dir=geospaas_processing.tasks.WORKING_DIRECTORY)
         mock_save_results.assert_called_once_with(1, ('bar', 'baz'))
         self.assertTupleEqual(result, (1, ('bar', 'baz')))
+
+    def test_compare_profiles(self):
+        """Test that the right calls are made in compare_profiles"""
+        with mock.patch('celery.Task.request') as mock_task_request, \
+             mock.patch('tempfile.TemporaryDirectory') as mock_tmpdir, \
+             mock.patch('subprocess.run') as mock_run, \
+             mock.patch('pathlib.Path.iterdir') as mock_iterdir, \
+             mock.patch('shutil.copytree')as mock_copytree, \
+             mock.patch('geospaas_processing.tasks.syntool.save_results') as mock_save_results, \
+             mock.patch('geospaas_processing.utils.redis_lock') as mock_lock:
+
+            with self.subTest('compare_profiles should succeed'):
+                mock_task_request.id = 'task_id'
+                mock_tmpdir.return_value.__enter__.return_value = '/tmp'
+                mock_run.return_value.returncode = 0
+                mock_iterdir.side_effect = (
+                    (Path('3413_product_1'), Path('3413_product_2')),
+                    (Path('product_1_granule_1'), Path('product_1_granule_2')),
+                    (Path('product_2_granule_1'),),
+                )
+
+                results = tasks_syntool.compare_profiles(((1, ('/foo',)),
+                                                        ((2, ('/bar',)), (3, ('/baz',)))))
+                self.assertTupleEqual(
+                    results,
+                    (1, ['ingested/3413_product_1/product_1_granule_1',
+                        'ingested/3413_product_1/product_1_granule_2',
+                        'ingested/3413_product_2/product_2_granule_1'])
+                )
+                mock_lock.assert_has_calls((
+                    mock.call('lock-1', 'task_id'),
+                    mock.call('lock-2', 'task_id'),
+                    mock.call('lock-3', 'task_id')
+                ))
+                mock_run.assert_called_once_with(
+                    [
+                        'python2',
+                        str(Path(geospaas_processing.converters.syntool.__file__).parent /
+                            Path('extra_readers', 'compare_model_argo.py')),
+                        '/foo', '/bar,/baz', '/tmp'
+                    ],
+                    capture_output=True)
+                mock_copytree.assert_has_calls((
+                    mock.call('3413_product_1', '/tmp/test_data/ingested/3413_product_1',
+                            dirs_exist_ok=True),
+                    mock.call('3413_product_2', '/tmp/test_data/ingested/3413_product_2',
+                            dirs_exist_ok=True)
+                ))
+                mock_save_results.assert_called_once_with(
+                    1,
+                    ['ingested/3413_product_1/product_1_granule_1',
+                    'ingested/3413_product_1/product_1_granule_2',
+                    'ingested/3413_product_2/product_2_granule_1']
+                )
+            with self.subTest('compare_profiles should fail'):
+                mock_run.side_effect = subprocess.CalledProcessError(returncode=1, cmd='foo')
+                with self.assertRaises(subprocess.CalledProcessError), \
+                     self.assertLogs(tasks_syntool.logger, logging.ERROR):
+                    tasks_syntool.compare_profiles(((1, ('/foo',)),
+                                                    ((2, ('/bar',)), (3, ('/baz',)))))
 
 
 class DBInsertTestCase(unittest.TestCase):

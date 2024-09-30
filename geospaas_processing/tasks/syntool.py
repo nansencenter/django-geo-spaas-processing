@@ -17,10 +17,6 @@ from ..converters.syntool.converter import SyntoolConversionManager
 from ..models import ProcessingResult
 from . import app, DATASET_LOCK_PREFIX
 
-try:
-    from . import core
-except ImportError:
-    core = None
 
 logger = celery.utils.log.get_task_logger(__name__)
 

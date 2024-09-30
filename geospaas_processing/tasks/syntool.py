@@ -107,8 +107,9 @@ def compare_profiles(self, args, **kwargs):
         except subprocess.CalledProcessError as error:
             logger.error("Could not generate comparison profiles for dataset %s\nstdout: %s\nstderr: %s",
                          model_id,
-                         process.stdout,
-                         process.stderr)
+                         error.output,
+                         error.stderr)
+            raise
 
         results = []
         if process.returncode == 0:

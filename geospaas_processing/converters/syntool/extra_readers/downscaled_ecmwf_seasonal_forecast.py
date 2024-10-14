@@ -172,7 +172,15 @@ def convert(input_path, output_path):
     resolution = 111000
     product_base_name = 'downscaled_ecmwf_seasonal_forecast'
 
-    time = f_handler.variables['time'][:]
+    time_var_name = None
+    for var_name in ('time', 'z'):
+        if var_name in f_handler.variables:
+            time_var_name = var_name
+            break
+    if time_var_name is None:
+        raise RuntimeError('Could not find time variable name')
+
+    time = f_handler.variables[time_var_name][:]
     creation_date = dateutil_parse(f_handler.__dict__['date'])
     first_month = datetime.datetime(creation_date.year, creation_date.month, day=1)
 
@@ -212,24 +220,27 @@ def convert(input_path, output_path):
     }
 
     custom_colortable = read_colortable_from_rgb(
-        os.path.join(os.path.dirname(__file__), 'resources', 'palettes', 'red_blue.rgb')
+        os.path.join(os.path.dirname(__file__), 'palettes', 'red_blue.rgb')
     )
 
-    scalar_parameters = {
-        'sda': ('Snow_Depth_Anomaly', 'Snow depth anomaly',
+    scalar_parameters = (
+        ('sda', 'Snow_Depth_Anomaly', 'Snow depth anomaly',
                 'cm of water equivalent', (-15, 15), custom_colortable),
-        'sat':('SAT_anom', 'Surface air temperature anomaly',
+        ('sat', 'SAT_anom', 'Surface air temperature anomaly',
                'degreesC', (-2, 2), custom_colortable),
-    }
+        ('sda', 'Snow Depth Anomaly [cm]', 'Snow depth anomaly',
+                'cm of water equivalent', (-3, 3), custom_colortable),
+        ('sat', 'SAT', 'Surface air temperature anomaly',
+               'degreesC', (-2, 2), custom_colortable),
+    )
 
-    for parameter_name, properties in scalar_parameters.items():
-        variable_name, description, units, (vmin, vmax), colortable = properties
+    for parameter_name, variable_name, description, units, (vmin, vmax), colortable in scalar_parameters:
         if variable_name in f_handler.variables.keys():
             variable = f_handler.variables[variable_name]
             meta['parameter'] = description
             meta['EXPORTED_variable'] = "{} [{}]".format(description, units)
 
-            if variable.dimensions == ('time', 'latitude', 'longitude'):
+            if variable.dimensions == (time_var_name, 'latitude', 'longitude'):
                 variable_data = variable[:, :, :]
                 for t in range(time.shape[0]):
                     current_month = first_month + relativedelta(months=t)

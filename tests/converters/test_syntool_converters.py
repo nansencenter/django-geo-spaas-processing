@@ -173,7 +173,7 @@ class BasicSyntoolConverterTestCase(unittest.TestCase):
         result = converter.parse_converter_options({
             'converter_options': {'quux': 'corge'}
         })
-        self.assertListEqual(result, ['-opt', 'quux=corge', 'bar=baz'])
+        self.assertListEqual(result, ['-opt', 'bar=baz', 'quux=corge'])
 
     def test_parse_converter_options_no_default(self):
         """Test parsing converter options when the converter does not
@@ -206,7 +206,7 @@ class BasicSyntoolConverterTestCase(unittest.TestCase):
             ingest_parameter_files='qux')
         self.assertListEqual(
             converter.parse_converter_args({'converter_options': {'ham': 'egg'}}),
-            ['-t', 'foo', '-opt', 'ham=egg', 'bar=baz'])
+            ['-t', 'foo', '-opt', 'bar=baz', 'ham=egg'])
 
     def test_run(self):
         """Test running the conversion and ingestion"""

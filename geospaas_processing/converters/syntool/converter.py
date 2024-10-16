@@ -121,7 +121,7 @@ class BasicSyntoolConverter(SyntoolConverter):
         ParameterSelector(
             matches=lambda d: re.match(r'^S3[AB]_OL_2_WFR.*$', d.entry_id),
             converter_type='sentinel3_olci_l2',
-            convert_options={'channels': 'CHL_OC4ME'},
+            converter_options={'channels': 'CHL_OC4ME'},
             ingest_parameter_files='ingest_geotiff_4326_tiles'),
         ParameterSelector(
             matches=lambda d: re.match(r'^S3[AB]_SL_1_RBT.*$', d.entry_id),
@@ -174,7 +174,7 @@ class BasicSyntoolConverter(SyntoolConverter):
         ParameterSelector(
             matches=lambda d: '-REMSS-L4_GHRSST-SSTfnd-MW_OI-GLOB-' in d.entry_id,
             converter_type='remss_l4_mw_sst',
-            convert_options={'vmin_pal': '273', 'vmax_pal': '298'},
+            converter_options={'vmin_pal': '273', 'vmax_pal': '298'},
             ingest_parameter_files='ingest_geotiff_4326_raster_no_shape'),
     )
 

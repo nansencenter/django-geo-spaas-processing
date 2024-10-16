@@ -218,10 +218,10 @@ class BasicSyntoolConverter(SyntoolConverter):
         and in the keyword arguments into a list ready to be passed to
         the conversion command
         """
-        converter_options = kwargs.pop('converter_options', {})
+        converter_options = self.converter_options.copy()
         converter_options_list = []
         if self.converter_options:
-            converter_options.update(self.converter_options)
+            converter_options.update(kwargs.pop('converter_options', {}))
         if converter_options:
             converter_options_list.append('-opt')
             for key, value in converter_options.items():

@@ -180,7 +180,7 @@ class BasicSyntoolConverter(SyntoolConverter):
 
     def __init__(self, **kwargs):
         self.converter_type = kwargs.pop('converter_type')
-        self.converter_options = kwargs.pop('converter_options', None)
+        self.converter_options = kwargs.pop('converter_options', {})
         # Should be a string or list of ParameterSelectors
         self.ingest_parameter_files = kwargs.pop('ingest_parameter_files')
         super().__init__(**kwargs)
@@ -220,8 +220,7 @@ class BasicSyntoolConverter(SyntoolConverter):
         """
         converter_options = self.converter_options.copy()
         converter_options_list = []
-        if self.converter_options:
-            converter_options.update(kwargs.pop('converter_options', {}))
+        converter_options.update(kwargs.pop('converter_options', {}))
         if converter_options:
             converter_options_list.append('-opt')
             for key, value in converter_options.items():

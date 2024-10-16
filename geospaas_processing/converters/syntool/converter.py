@@ -121,7 +121,7 @@ class BasicSyntoolConverter(SyntoolConverter):
         ParameterSelector(
             matches=lambda d: re.match(r'^S3[AB]_OL_2_WFR.*$', d.entry_id),
             converter_type='sentinel3_olci_l2',
-            convert_options={'channels': 'CHL_OC4ME'},
+            converter_options={'channels': 'CHL_OC4ME'},
             ingest_parameter_files='ingest_geotiff_4326_tiles'),
         ParameterSelector(
             matches=lambda d: re.match(r'^S3[AB]_SL_1_RBT.*$', d.entry_id),
@@ -174,13 +174,13 @@ class BasicSyntoolConverter(SyntoolConverter):
         ParameterSelector(
             matches=lambda d: '-REMSS-L4_GHRSST-SSTfnd-MW_OI-GLOB-' in d.entry_id,
             converter_type='remss_l4_mw_sst',
-            convert_options={'vmin_pal': '273', 'vmax_pal': '298'},
+            converter_options={'vmin_pal': '273', 'vmax_pal': '298'},
             ingest_parameter_files='ingest_geotiff_4326_raster_no_shape'),
     )
 
     def __init__(self, **kwargs):
         self.converter_type = kwargs.pop('converter_type')
-        self.converter_options = kwargs.pop('converter_options', None)
+        self.converter_options = kwargs.pop('converter_options', {})
         # Should be a string or list of ParameterSelectors
         self.ingest_parameter_files = kwargs.pop('ingest_parameter_files')
         super().__init__(**kwargs)
@@ -218,10 +218,9 @@ class BasicSyntoolConverter(SyntoolConverter):
         and in the keyword arguments into a list ready to be passed to
         the conversion command
         """
-        converter_options = kwargs.pop('converter_options', {})
+        converter_options = self.converter_options.copy()
         converter_options_list = []
-        if self.converter_options:
-            converter_options.update(self.converter_options)
+        converter_options.update(kwargs.pop('converter_options', {}))
         if converter_options:
             converter_options_list.append('-opt')
             for key, value in converter_options.items():

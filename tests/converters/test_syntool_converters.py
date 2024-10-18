@@ -198,6 +198,18 @@ class BasicSyntoolConverterTestCase(unittest.TestCase):
         result = converter.parse_converter_options({})
         self.assertListEqual(result, ['-opt', 'bar=baz'])
 
+    def test_parse_converter_options_not_dict(self):
+        """Test parsing converter options when the converter_options
+        kwarg is not a dictionary
+        """
+        converter = syntool_converter.BasicSyntoolConverter(
+            converter_type='foo',
+            converter_options={'bar': 'baz'},
+            ingest_parameter_files='qux')
+        with self.assertLogs(level=logging.WARNING):
+            result = converter.parse_converter_options({'converter_options': None})
+        self.assertListEqual(result, ['-opt', 'bar=baz'])
+
     def test_parse_converter_args(self):
         """Test parsing converter arguments"""
         converter = syntool_converter.BasicSyntoolConverter(

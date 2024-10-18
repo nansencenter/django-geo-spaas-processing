@@ -220,7 +220,11 @@ class BasicSyntoolConverter(SyntoolConverter):
         """
         converter_options = self.converter_options.copy()
         converter_options_list = []
-        converter_options.update(kwargs.pop('converter_options', {}))
+        kwargs_converter_options = kwargs.pop('converter_options', {})
+        if not isinstance(kwargs_converter_options, dict):
+            logger.warning("'converter_options' should be a dictionary")
+            kwargs_converter_options = {}
+        converter_options.update(kwargs_converter_options)
         if converter_options:
             converter_options_list.append('-opt')
             for key, value in converter_options.items():

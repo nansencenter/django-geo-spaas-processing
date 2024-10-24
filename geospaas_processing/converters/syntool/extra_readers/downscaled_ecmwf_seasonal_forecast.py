@@ -220,7 +220,7 @@ def convert(input_path, output_path):
     }
 
     custom_colortable = read_colortable_from_rgb(
-        os.path.join(os.path.dirname(__file__), 'palettes', 'red_blue.rgb')
+        os.path.join(os.path.dirname(__file__), 'resources', 'palettes', 'red_blue.rgb')
     )
 
     scalar_parameters = (

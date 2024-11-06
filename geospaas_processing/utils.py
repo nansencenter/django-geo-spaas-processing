@@ -326,6 +326,18 @@ def redis_lock(lock_key, lock_value):
         yield True
 
 
+def redis_any_lock(lock_key_prefix='lock'):
+    """Returns True if any lock is set in Redis.
+    Returns False if no lock is set or if Redis is not available.
+    """
+    if Redis is not None and REDIS_HOST and REDIS_PORT:
+        cache = Redis(host=REDIS_HOST, port=REDIS_PORT)
+        for key in cache.keys():
+            if key.startswith(bytes(lock_key_prefix, 'utf-8')):
+                return True
+    return False
+
+
 def gunzip(archive_path, out_dir):
     """Extracts the gzip archive contents to `out_dir`"""
     file_name = re.sub(r'\.gz$', '', os.path.basename(archive_path))

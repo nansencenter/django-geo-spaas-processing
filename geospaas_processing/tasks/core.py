@@ -189,7 +189,7 @@ def crop(self, args, bounding_box=None):
 def cleanup_workdir(self):
     """Remove everything in the working directory if no job is running
     """
-    if utils.redis_any_lock(DATASET_LOCK_PREFIX):
+    if utils.redis_any_lock(DATASET_LOCK_PREFIX) or utils.redis_any_lock(utils.Storage.LOCK_PREFIX):
         self.retry(countdown=90, max_retries=5)
     else:
         deleted = []

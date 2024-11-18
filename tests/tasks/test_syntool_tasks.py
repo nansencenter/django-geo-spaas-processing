@@ -3,6 +3,7 @@ import logging
 import subprocess
 import unittest
 import unittest.mock as mock
+from datetime import timedelta
 from pathlib import Path
 
 import django.test
@@ -43,6 +44,34 @@ class SyntoolTasksTestCase(unittest.TestCase):
                 type=ProcessingResult.ProcessingResultType.SYNTOOL,
                 ttl=None),
         ))
+
+    def test_save_results_ttl(self):
+        """Test saving processing results with a TTL"""
+        with mock.patch(
+                'geospaas_processing.models.ProcessingResult.objects.get_or_create'
+                ) as mock_get_or_create, \
+             mock.patch('geospaas.catalog.models.Dataset.objects.get') as mock_get_dataset:
+            tasks_syntool.save_results(1, ('foo',), ttl=timedelta(days=10))
+            tasks_syntool.save_results(1, ('bar',), ttl={'days': 15})
+        mock_get_or_create.assert_has_calls((
+            mock.call(
+                dataset=mock_get_dataset.return_value,
+                path='foo',
+                type=ProcessingResult.ProcessingResultType.SYNTOOL,
+                ttl=timedelta(days=10)),
+            mock.call(
+                dataset=mock_get_dataset.return_value,
+                path='bar',
+                type=ProcessingResult.ProcessingResultType.SYNTOOL,
+                ttl=timedelta(days=15)),
+        ))
+
+    def test_save_results_ttl_error(self):
+        """A ValueError should be raised if the ttl argument has
+        the wrong type
+        """
+        with self.assertRaises(ValueError):
+            tasks_syntool.save_results(1, ('foo',), ttl='10 days')
 
     def test_check_ingested_already_exist(self):
         """If ingested files already exist for the current dataset,

@@ -4,7 +4,9 @@ import re
 import shutil
 import subprocess
 import tempfile
+from collections.abc import Mapping
 from contextlib import ExitStack
+from datetime import timedelta
 from pathlib import Path
 
 import celery
@@ -29,13 +31,20 @@ def get_db_config():
         os.getenv('SYNTOOL_DATABASE_NAME'))
 
 
-def save_results(dataset_id, result_files):
+def save_results(dataset_id, result_files, ttl=None):
     """Write the resulting files to the database"""
+    if ttl is not None:
+        if isinstance(ttl, Mapping):
+            ttl = timedelta(**ttl)
+        elif not isinstance(ttl, timedelta):
+            raise ValueError(
+                "ttl should be a timedelta or dict of arguments for timedelta creation")
     for file_path in result_files:
         ProcessingResult.objects.get_or_create(
             dataset=Dataset.objects.get(id=dataset_id),
             path=file_path,
             type=ProcessingResult.ProcessingResultType.SYNTOOL,
+            ttl=ttl
         )
 
 
@@ -71,8 +80,9 @@ def convert(self, args, **kwargs):  # pylint: disable=unused-argument
         dataset_id, dataset_files_paths, results_dir=results_dir, **kwargs)
     logger.info("Successfully converted '%s' to Syntool format. The results directories are '%s'",
                 dataset_files_paths, converted_files)
-    save_results(dataset_id, converted_files)
+    save_results(dataset_id, converted_files, ttl=kwargs.get('ttl', None))
     return (dataset_id, converted_files)
+
 
 @app.task(base=FaultTolerantTask, bind=True, track_started=True)
 def compare_profiles(self, args, **kwargs):
@@ -105,7 +115,8 @@ def compare_profiles(self, args, **kwargs):
         try:
             process = subprocess.run(command, capture_output=True)
         except subprocess.CalledProcessError as error:
-            logger.error("Could not generate comparison profiles for dataset %s\nstdout: %s\nstderr: %s",
+            logger.error("Could not generate comparison profiles for dataset "
+                         "%s\nstdout: %s\nstderr: %s",
                          model_id,
                          error.output,
                          error.stderr)
@@ -118,7 +129,7 @@ def compare_profiles(self, args, **kwargs):
                                 dirs_exist_ok=True)
                 for granule_dir in product_dir.iterdir():
                     results.append(str(Path('ingested', product_dir.name, granule_dir.name)))
-            save_results(model_id, results)
+            save_results(model_id, results, ttl=kwargs.get('ttl', None))
     return (model_id, results)
 
 @app.task(base=FaultTolerantTask, bind=True, track_started=True)

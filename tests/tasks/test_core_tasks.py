@@ -253,3 +253,32 @@ class CropTestCase(unittest.TestCase):
             result = tasks_core.crop((1, ('foo.nc',)))
         mock_crop.assert_not_called()
         self.assertEqual(result, (1, ('foo.nc',)))
+
+
+class CleanupTestCase(unittest.TestCase):
+    """Tests for cleanup tasks"""
+
+    def setUp(self):
+        self.temp_directory = tempfile.TemporaryDirectory()
+        self.temp_dir_path = Path(self.temp_directory.name)
+        mock.patch('geospaas_processing.tasks.core.WORKING_DIRECTORY',
+                   str(self.temp_dir_path)).start()
+        self.addCleanup(mock.patch.stopall)
+
+    def create_test_files(self):
+        (self.temp_dir_path / 'test1').touch()
+        (self.temp_dir_path / 'testdir').mkdir()
+        (self.temp_dir_path / 'testdir' / 'test2').touch()
+
+    def test_cleanup_workdir(self):
+        """Test cleanup working directory"""
+        self.create_test_files()
+        with mock.patch('geospaas_processing.utils.redis_any_lock', return_value=False):
+            tasks_core.cleanup_workdir()
+        self.assertListEqual(list(self.temp_dir_path.iterdir()), [])
+
+    def test_cleanup_workdiur_retry(self):
+        """cleanup workdir should retry if any lock is set"""
+        with mock.patch('geospaas_processing.utils.redis_any_lock', return_value=True):
+            with self.assertRaises(celery.exceptions.Retry):
+                tasks_core.cleanup_workdir()

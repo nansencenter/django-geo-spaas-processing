@@ -17,7 +17,7 @@ from geospaas_processing.tasks import (lock_dataset_files,
                                        PROVIDER_SETTINGS_PATH)
 from ..downloaders import DownloadManager, TooManyDownloadsError
 
-from . import app
+from . import app, DATASET_LOCK_PREFIX
 
 
 logger = celery.utils.log.get_task_logger(__name__)
@@ -183,3 +183,21 @@ def crop(self, args, bounding_box=None):
             bounding_box)
         cropped_file_paths.append(cropped_file_path)
     return (dataset_id, cropped_file_paths)
+
+
+@app.task(base=FaultTolerantTask, bind=True, track_started=True)
+def cleanup_workdir(self):
+    """Remove everything in the working directory if no job is running
+    """
+    if utils.redis_any_lock(DATASET_LOCK_PREFIX) or utils.redis_any_lock(utils.Storage.LOCK_PREFIX):
+        self.retry(countdown=90, max_retries=5)
+    else:
+        deleted = []
+        for entry in os.listdir(WORKING_DIRECTORY):
+            entry_path = os.path.join(WORKING_DIRECTORY, entry)
+            if os.path.isdir(entry_path):
+                shutil.rmtree(entry_path)
+            else:
+                os.remove(entry_path)
+            deleted.append(entry)
+    return deleted

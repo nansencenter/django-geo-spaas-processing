@@ -39,6 +39,8 @@ class CleanUpError(Exception):
 class Storage():
     """Represents a storage location"""
 
+    LOCK_PREFIX = 'lock_cleanup_'
+
     def __init__(self, **kwargs):
         """"""
         self.path = kwargs['path']
@@ -183,7 +185,7 @@ class Storage():
         countdown = 20
         retries = 0
         while retries < max_retries:
-            with redis_lock(f"lock_cleanup_{self.path}", '') as acquired:
+            with redis_lock(f"{self.LOCK_PREFIX}{self.path}", '') as acquired:
                 if acquired:
                     current_free_space = self.get_free_space()
                     removable_files = self._sort_by_mtime(self._get_removable_files())
@@ -324,6 +326,18 @@ def redis_lock(lock_key, lock_value):
         # if the redis lib is not available or no connection information is provided,
         # always acquire the lock
         yield True
+
+
+def redis_any_lock(lock_key_prefix='lock'):
+    """Returns True if any lock is set in Redis.
+    Returns False if no lock is set or if Redis is not available.
+    """
+    if Redis is not None and REDIS_HOST and REDIS_PORT:
+        cache = Redis(host=REDIS_HOST, port=REDIS_PORT)
+        for key in cache.keys():
+            if key.startswith(bytes(lock_key_prefix, 'utf-8')):
+                return True
+    return False
 
 
 def gunzip(archive_path, out_dir):

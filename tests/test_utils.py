@@ -15,7 +15,7 @@ import geospaas_processing.utils as utils
 
 
 class RedisLockTestCase(unittest.TestCase):
-    """Tests for the redis_lock context manager"""
+    """Tests for locking utilities that use Redis"""
 
     def setUp(self):
         self.redis_patcher = mock.patch.object(utils, 'Redis')
@@ -50,6 +50,20 @@ class RedisLockTestCase(unittest.TestCase):
             with utils.redis_lock('id', 'oid') as acquired:
                 self.assertTrue(acquired)
         self.redis_patcher.start()
+
+    def test_redis_any_lock(self):
+        """Should return True if any lock is set"""
+        self.redis_mock.return_value.keys.return_value =  (b'lock-1',)
+        self.assertTrue(utils.redis_any_lock('lock-'))
+        self.assertFalse(utils.redis_any_lock('foo'))
+
+    def test_redis_any_lock_no_redis(self):
+        """Should return False if no redis instance is available"""
+        self.redis_patcher.stop()
+        with mock.patch.object(utils, 'Redis', None):
+            self.assertFalse(utils.redis_any_lock())
+        self.redis_patcher.start()
+
 
 class UtilsTestCase(unittest.TestCase):
     """Tests for the utility functions"""

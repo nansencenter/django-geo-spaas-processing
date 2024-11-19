@@ -3,6 +3,7 @@ import logging
 import subprocess
 import unittest
 import unittest.mock as mock
+from datetime import timedelta
 from pathlib import Path
 
 import django.test
@@ -35,12 +36,42 @@ class SyntoolTasksTestCase(unittest.TestCase):
             mock.call(
                 dataset=mock_get_dataset.return_value,
                 path='foo',
-                type=ProcessingResult.ProcessingResultType.SYNTOOL),
+                type=ProcessingResult.ProcessingResultType.SYNTOOL,
+                ttl=None),
             mock.call(
                 dataset=mock_get_dataset.return_value,
                 path='bar',
-                type=ProcessingResult.ProcessingResultType.SYNTOOL),
+                type=ProcessingResult.ProcessingResultType.SYNTOOL,
+                ttl=None),
         ))
+
+    def test_save_results_ttl(self):
+        """Test saving processing results with a TTL"""
+        with mock.patch(
+                'geospaas_processing.models.ProcessingResult.objects.get_or_create'
+                ) as mock_get_or_create, \
+             mock.patch('geospaas.catalog.models.Dataset.objects.get') as mock_get_dataset:
+            tasks_syntool.save_results(1, ('foo',), ttl=timedelta(days=10))
+            tasks_syntool.save_results(1, ('bar',), ttl={'days': 15})
+        mock_get_or_create.assert_has_calls((
+            mock.call(
+                dataset=mock_get_dataset.return_value,
+                path='foo',
+                type=ProcessingResult.ProcessingResultType.SYNTOOL,
+                ttl=timedelta(days=10)),
+            mock.call(
+                dataset=mock_get_dataset.return_value,
+                path='bar',
+                type=ProcessingResult.ProcessingResultType.SYNTOOL,
+                ttl=timedelta(days=15)),
+        ))
+
+    def test_save_results_ttl_error(self):
+        """A ValueError should be raised if the ttl argument has
+        the wrong type
+        """
+        with self.assertRaises(ValueError):
+            tasks_syntool.save_results(1, ('foo',), ttl='10 days')
 
     def test_check_ingested_already_exist(self):
         """If ingested files already exist for the current dataset,
@@ -80,7 +111,7 @@ class SyntoolTasksTestCase(unittest.TestCase):
         mock_conversion_manager.assert_called_once_with(geospaas_processing.tasks.WORKING_DIRECTORY)
         mock_conversion_manager.return_value.convert.assert_called_once_with(
             1, 'foo', results_dir=geospaas_processing.tasks.WORKING_DIRECTORY)
-        mock_save_results.assert_called_once_with(1, ('bar', 'baz'))
+        mock_save_results.assert_called_once_with(1, ('bar', 'baz'), ttl=None)
         self.assertTupleEqual(result, (1, ('bar', 'baz')))
 
     def test_compare_profiles(self):
@@ -134,7 +165,8 @@ class SyntoolTasksTestCase(unittest.TestCase):
                     1,
                     ['ingested/3413_product_1/product_1_granule_1',
                     'ingested/3413_product_1/product_1_granule_2',
-                    'ingested/3413_product_2/product_2_granule_1']
+                    'ingested/3413_product_2/product_2_granule_1'],
+                    ttl=None,
                 )
             with self.subTest('compare_profiles should fail'):
                 mock_run.side_effect = subprocess.CalledProcessError(returncode=1, cmd='foo')

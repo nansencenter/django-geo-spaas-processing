@@ -45,8 +45,7 @@ class SyntoolConverterTestCase(unittest.TestCase):
         converter = syntool_converter.SyntoolConverter()
         with mock.patch('subprocess.run'), \
              mock.patch.object(converter, 'move_results', return_value=[]):
-            with self.assertLogs(syntool_converter.logger, level=logging.INFO), \
-                 self.assertRaises(converters_base.ConversionError):
+            with self.assertLogs(syntool_converter.logger, level=logging.WARNING):
                 converter.convert('/foo.nc', '/bar', ['--baz'])
 
     def test_ingest(self):

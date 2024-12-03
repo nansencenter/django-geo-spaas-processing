@@ -346,6 +346,8 @@ class HTTPDownloader(Downloader):
                     and url_file_name.endswith('.nc')):
                 return url_file_name
 
+        LOGGER.error("Could not find file name from HTTP response for %s: %s, %s, %s",
+                     url, connection.status_code, connection.reason, connection.headers)
         return ''
 
     @classmethod

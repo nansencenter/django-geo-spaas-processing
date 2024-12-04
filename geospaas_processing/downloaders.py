@@ -43,6 +43,10 @@ class DownloadError(Exception):
     """Download failed"""
 
 
+class RetriableDownloadError(Exception):
+    """Download failed but might work if retried"""
+
+
 class ObsoleteURLError(DownloadError):
     """The URL no longer points to a downloadable dataset"""
 
@@ -367,6 +371,8 @@ class HTTPDownloader(Downloader):
             raise DownloadError(
                 f"Could not download from '{url}'; response: {details}"
             ) from error
+        except (requests.ConnectionError, requests.Timeout) as error:
+            raise RetriableDownloadError(f"Failed to connect to {url}") from error
         except requests.RequestException as error:
             raise DownloadError(
                 f"Could not download from '{url}'"
@@ -401,14 +407,17 @@ class HTTPDownloader(Downloader):
         `connection` argument
         """
         chunk = None
-        for chunk in connection.iter_content(chunk_size=cls.CHUNK_SIZE):
-            file.write(chunk)
-        else:
-            # This executes after the loop and raises an error if the
-            # response is unexpectedly empty like it sometimes happens
-            # with scihub
-            if chunk is None:
-                raise DownloadError(f"Getting an empty file from '{url}'")
+        try:
+            for chunk in connection.iter_content(chunk_size=cls.CHUNK_SIZE):
+                file.write(chunk)
+            else:
+                # This executes after the loop and raises an error if the
+                # response is unexpectedly empty like it sometimes happens
+                # with scihub
+                if chunk is None:
+                    raise DownloadError(f"Getting an empty file from '{url}'")
+        except requests.exceptions.ChunkedEncodingError as error:
+            raise RetriableDownloadError(f"Download from {url} was interrupted") from error
 
 
 class FTPDownloader(Downloader):

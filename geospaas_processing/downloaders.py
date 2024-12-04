@@ -410,14 +410,10 @@ class HTTPDownloader(Downloader):
         try:
             for chunk in connection.iter_content(chunk_size=cls.CHUNK_SIZE):
                 file.write(chunk)
-            else:
-                # This executes after the loop and raises an error if the
-                # response is unexpectedly empty like it sometimes happens
-                # with scihub
-                if chunk is None:
-                    raise DownloadError(f"Getting an empty file from '{url}'")
         except requests.exceptions.ChunkedEncodingError as error:
             raise RetriableDownloadError(f"Download from {url} was interrupted") from error
+        if chunk is None:
+            raise DownloadError(f"Getting an empty file from '{url}'")
 
 
 class FTPDownloader(Downloader):

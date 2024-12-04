@@ -43,6 +43,10 @@ class DownloadError(Exception):
     """Download failed"""
 
 
+class RetriableDownloadError(Exception):
+    """Download failed but might work if retried"""
+
+
 class ObsoleteURLError(DownloadError):
     """The URL no longer points to a downloadable dataset"""
 
@@ -346,6 +350,8 @@ class HTTPDownloader(Downloader):
                     and url_file_name.endswith('.nc')):
                 return url_file_name
 
+        LOGGER.error("Could not find file name from HTTP response for %s: %s, %s, %s",
+                     url, connection.status_code, connection.reason, connection.headers)
         return ''
 
     @classmethod
@@ -365,6 +371,8 @@ class HTTPDownloader(Downloader):
             raise DownloadError(
                 f"Could not download from '{url}'; response: {details}"
             ) from error
+        except (requests.ConnectionError, requests.Timeout) as error:
+            raise RetriableDownloadError(f"Failed to connect to {url}") from error
         except requests.RequestException as error:
             raise DownloadError(
                 f"Could not download from '{url}'"
@@ -399,14 +407,13 @@ class HTTPDownloader(Downloader):
         `connection` argument
         """
         chunk = None
-        for chunk in connection.iter_content(chunk_size=cls.CHUNK_SIZE):
-            file.write(chunk)
-        else:
-            # This executes after the loop and raises an error if the
-            # response is unexpectedly empty like it sometimes happens
-            # with scihub
-            if chunk is None:
-                raise DownloadError(f"Getting an empty file from '{url}'")
+        try:
+            for chunk in connection.iter_content(chunk_size=cls.CHUNK_SIZE):
+                file.write(chunk)
+        except requests.exceptions.ChunkedEncodingError as error:
+            raise RetriableDownloadError(f"Download from {url} was interrupted") from error
+        if chunk is None:
+            raise DownloadError(f"Getting an empty file from '{url}'")
 
 
 class FTPDownloader(Downloader):
@@ -605,6 +612,51 @@ class DownloadManager():
                 return True
         return False
 
+    def _download_from_uri(self, dataset_uri, directory):
+        """Download the file(s) from `dataset_uri` to `directory`"""
+        # Get the extra settings for the provider
+        dataset_uri_prefix = "://".join(requests.utils.urlparse(dataset_uri.uri)[0:2])
+        # Find provider settings
+        extra_settings = self.get_provider_settings(dataset_uri_prefix)
+        if extra_settings:
+            LOGGER.debug("Loaded extra settings for provider %s: %s",
+                         dataset_uri_prefix, extra_settings)
+        # Launch download if the maximum number of parallel downloads has not been reached
+        with DownloadLock(dataset_uri_prefix,
+                          extra_settings.get('max_parallel_downloads'),
+                          utils.REDIS_HOST, utils.REDIS_PORT) as acquired:
+            if not acquired:
+                raise TooManyDownloadsError(
+                    f"Too many downloads in progress for {dataset_uri_prefix}")
+            # Try to find a downloader
+            try:
+                downloader = self.DOWNLOADERS[dataset_uri.service]
+            except KeyError:
+                LOGGER.error("No downloader found for %s service",
+                            dataset_uri.service, exc_info=True)
+                raise
+
+            LOGGER.debug("Attempting to download from '%s'", dataset_uri.uri)
+            file_name = None
+            download_error = None
+            try:
+                file_name = downloader.check_and_download_url(
+                    url=dataset_uri.uri, download_dir=directory,
+                    **extra_settings)
+            except DownloadError as error:
+                LOGGER.warning(
+                    ("Failed to download dataset %s from %s. "
+                     "Another URL will be tried if possible"),
+                    dataset_uri.dataset.pk, dataset_uri.uri, exc_info=True)
+                download_error = error
+                shutil.rmtree(directory, ignore_errors=True)
+            except (FileNotFoundError, IsADirectoryError) as error:
+                shutil.rmtree(directory, ignore_errors=True)
+                raise DownloadError(
+                    f"Could not write the downloaded file to {error.filename}") from error
+
+            return file_name, download_error
+
     def download_dataset(self, dataset, download_directory):
         """
         Attempt to download a dataset by trying its URIs one by one. For each `DatasetURI`, it
@@ -625,49 +677,15 @@ class DownloadManager():
         else:
             os.makedirs(full_dataset_directory, exist_ok=True)
             for dataset_uri in dataset.dataseturi_set.all():
-                # Get the extra settings for the provider
-                dataset_uri_prefix = "://".join(requests.utils.urlparse(dataset_uri.uri)[0:2])
-                # Find provider settings
-                extra_settings = self.get_provider_settings(dataset_uri_prefix)
-                if extra_settings:
-                    LOGGER.debug("Loaded extra settings for provider %s: %s",
-                                dataset_uri_prefix, extra_settings)
-                # Launch download if the maximum number of parallel downloads has not been reached
-                with DownloadLock(dataset_uri_prefix,
-                                extra_settings.get('max_parallel_downloads'),
-                                utils.REDIS_HOST, utils.REDIS_PORT) as acquired:
-                    if not acquired:
-                        raise TooManyDownloadsError(
-                            f"Too many downloads in progress for {dataset_uri_prefix}")
-                    # Try to find a downloader
-                    try:
-                        downloader = self.DOWNLOADERS[dataset_uri.service]
-                    except KeyError:
-                        LOGGER.error("No downloader found for %s service",
-                                    dataset_uri.service, exc_info=True)
-                        raise
-
-                    LOGGER.debug("Attempting to download from '%s'", dataset_uri.uri)
-                    try:
-                        file_name = downloader.check_and_download_url(
-                            url=dataset_uri.uri, download_dir=full_dataset_directory,
-                            **extra_settings)
-                    except DownloadError as error:
-                        LOGGER.warning(
-                            ("Failed to download dataset %s from %s. "
-                            "Another URL will be tried if possible"),
-                            dataset.pk, dataset_uri.uri, exc_info=True)
-                        errors.append(error)
-                        shutil.rmtree(full_dataset_directory, ignore_errors=True)
-                    except (FileNotFoundError, IsADirectoryError) as error:
-                        shutil.rmtree(full_dataset_directory, ignore_errors=True)
-                        raise DownloadError(
-                            f"Could not write the downloaded file to {error.filename}") from error
-                    else:
-                        dataset_path = os.path.join(dataset_directory, file_name)
-                        LOGGER.info("Successfully downloaded dataset %d to %s",
-                                    dataset.pk, dataset_path)
-                        break
+                file_name, download_error = self._download_from_uri(dataset_uri,
+                                                                    full_dataset_directory)
+                if file_name:
+                    dataset_path = os.path.join(dataset_directory, file_name)
+                    LOGGER.info("Successfully downloaded dataset %d to %s",
+                                dataset_uri.dataset.pk, dataset_path)
+                    break
+                if download_error:
+                    errors.append(download_error)
 
         if file_name:
             if self.save_path:

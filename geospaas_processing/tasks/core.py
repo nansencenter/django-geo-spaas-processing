@@ -15,7 +15,7 @@ from geospaas_processing.tasks import (lock_dataset_files,
                                        FaultTolerantTask,
                                        WORKING_DIRECTORY,
                                        PROVIDER_SETTINGS_PATH)
-from ..downloaders import DownloadManager, TooManyDownloadsError
+from ..downloaders import DownloadManager, RetriableDownloadError, TooManyDownloadsError
 
 from . import app, DATASET_LOCK_PREFIX
 
@@ -38,7 +38,7 @@ def download(self, args):
     except IndexError:
         logger.error("Nothing was downloaded for dataset %s", dataset_id, exc_info=True)
         raise
-    except TooManyDownloadsError:
+    except (TooManyDownloadsError, RetriableDownloadError):
         # Stop retrying after 24 hours
         self.retry((args,), countdown=90, max_retries=960)
     except OSError as error:

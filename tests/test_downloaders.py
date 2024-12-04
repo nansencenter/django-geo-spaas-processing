@@ -288,7 +288,6 @@ class HTTPDownloaderTestCase(unittest.TestCase):
                     'username', 'password', 'token_url', 'client_id',
                     token_placement='foo', token_parameter_name='token')
 
-
     def test_get_oauth2_auth_no_totp(self):
         """Test getting an OAuth2 authentication from get_auth()"""
         mock_auth = mock.Mock()
@@ -446,7 +445,8 @@ class HTTPDownloaderTestCase(unittest.TestCase):
         """
         response = requests.Response()
         response.status_code = 200
-        self.assertEqual(downloaders.HTTPDownloader.get_file_name('url', response), '')
+        with self.assertLogs(level=logging.ERROR):
+            self.assertEqual(downloaders.HTTPDownloader.get_file_name('url', response), '')
 
     def test_get_file_name_no_filename_in_header(self):
         """`get_file_name()` must return an empty string if the
@@ -455,7 +455,8 @@ class HTTPDownloaderTestCase(unittest.TestCase):
         response = requests.Response()
         response.status_code = 202
         response.headers['Content-Disposition'] = ''
-        self.assertEqual(downloaders.HTTPDownloader.get_file_name('url', response), '')
+        with self.assertLogs(level=logging.ERROR):
+            self.assertEqual(downloaders.HTTPDownloader.get_file_name('url', response), '')
 
     def test_get_file_name_multiple_possibilities(self):
         """An error must be raised if several file names are found in the header"""
@@ -497,12 +498,22 @@ class HTTPDownloaderTestCase(unittest.TestCase):
                 downloaders.HTTPDownloader.connect('url')
         self.assertIsInstance(error.exception.__cause__, requests.HTTPError)
 
-    def test_connect_request_exception(self):
-        """An exception must be raised if an error prevents the
-        connection from happening
+
+    def test_connect_connection_exception(self):
+        """A RetriableDownloadError must be raised if an error prevents
+        the connection from happening
         """
         with mock.patch('geospaas_processing.utils.http_request',
                         side_effect=requests.ConnectionError):
+            with self.assertRaises(downloaders.RetriableDownloadError):
+                downloaders.HTTPDownloader.connect('url')
+
+    def test_connect_request_exception(self):
+        """An DownloadError must be raised if an other error prevents
+        the connection from happening
+        """
+        with mock.patch('geospaas_processing.utils.http_request',
+                        side_effect=requests.TooManyRedirects):
             with self.assertRaises(downloaders.DownloadError):
                 downloaders.HTTPDownloader.connect('url')
 
@@ -552,6 +563,14 @@ class HTTPDownloaderTestCase(unittest.TestCase):
         response = requests.Response()
         response.raw = io.BytesIO(b'')
         with self.assertRaises(downloaders.DownloadError):
+            downloaders.HTTPDownloader.download_file(mock.Mock(), 'url', response)
+
+    def test_download_interrupted_connection(self):
+        """An exception must be raised if the connection is interrupted
+        """
+        response = mock.Mock()
+        response.iter_content.side_effect = requests.exceptions.ChunkedEncodingError
+        with self.assertRaises(downloaders.RetriableDownloadError):
             downloaders.HTTPDownloader.download_file(mock.Mock(), 'url', response)
 
 

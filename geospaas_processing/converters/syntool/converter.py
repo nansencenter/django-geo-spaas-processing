@@ -117,11 +117,6 @@ class BasicSyntoolConverter(SyntoolConverter):
 
     PARAMETER_SELECTORS = (
         ParameterSelector(
-            matches=lambda d: re.match(r'^S3[AB]_OL_2_WFR.*$', d.entry_id),
-            converter_type='sentinel3_olci_l2',
-            converter_options={'channels': 'CHL_OC4ME'},
-            ingest_parameter_files='ingest_geotiff_4326_tiles'),
-        ParameterSelector(
             matches=lambda d: re.match(r'^S3[AB]_SL_1_RBT.*$', d.entry_id),
             converter_type='sentinel3_slstr_bt',
             ingest_parameter_files='ingest_geotiff_4326_tiles'),
@@ -320,6 +315,39 @@ class Sentinel1SyntoolConverter(BasicSyntoolConverter):
                     result_dir.replace(final_result_path)
                     results.append(str(final_result_path.relative_to(out_dir)))
                 base_result_path.rmdir()
+        return results
+
+
+@SyntoolConversionManager.register()
+class Sentinel3OLCISyntoolConverter(BasicSyntoolConverter):
+    """Syntool converter for Sentinel-3 datasets"""
+    PARAMETER_SELECTORS = (
+        ParameterSelector(
+            matches=lambda d: re.match(r'^S3[AB]_OL_2_WFR.*$', d.entry_id),
+            converter_type='sentinel3_olci_l2',
+            converter_options={'channels': ['CHL_OC4ME', 'true_rgb', 'false_rgb']},
+            ingest_parameter_files='ingest_geotiff_4326_tiles'),
+    )
+
+    def run_conversion(self, in_file, out_dir, kwargs):
+        """Allow to give a list of channels, which will cause the
+        conversion to be executed for each channel
+        """
+        channels = kwargs['converter_options']['channels']
+        results = []
+        if isinstance(channels, str):
+            channels = [channels]
+        for channel in channels:
+            edited_kwargs = kwargs.copy()
+            edited_kwargs['converter_options']['channels'] = channel
+            try:
+                results.extend(super().run_conversion(in_file, out_dir, edited_kwargs))
+            except SystemExit:
+                # The sentinel3_olci_l2 converter exits without error
+                # message if the data quality is not satisfactory.
+                # We allow the conversion to continue for other bands.
+                logger.warning("Syntool conversion failed for %s", in_file, exc_info=True)
+                continue
         return results
 
 

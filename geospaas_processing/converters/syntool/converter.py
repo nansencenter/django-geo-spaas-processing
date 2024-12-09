@@ -342,12 +342,13 @@ class Sentinel3OLCISyntoolConverter(BasicSyntoolConverter):
             edited_kwargs['converter_options']['channels'] = channel
             try:
                 results.extend(super().run_conversion(in_file, out_dir, edited_kwargs))
-            except SystemExit:
-                # The sentinel3_olci_l2 converter exits without error
-                # message if the data quality is not satisfactory.
-                # We allow the conversion to continue for other bands.
-                logger.warning("Syntool conversion failed for %s", in_file, exc_info=True)
-                continue
+            except ConversionError as error:
+                if isinstance(error.__cause__, SystemExit):
+                    # The sentinel3_olci_l2 converter exits without error
+                    # message if the data quality is not satisfactory.
+                    # We allow the conversion to continue for other bands.
+                    logger.warning("Syntool conversion failed for %s", in_file, exc_info=True)
+                    continue
         return results
 
 

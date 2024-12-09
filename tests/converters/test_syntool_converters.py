@@ -374,6 +374,49 @@ class Sentinel1SyntoolConverterTestCase(unittest.TestCase):
 class Sentinel3OLCISyntoolConverterTestCase(unittest.TestCase):
     """Tests for the Sentinel1SyntoolConverter class"""
 
+    def test_run_conversion_multi_channels(self):
+        """Test that the converter is run for every channel in
+        converter options
+        """
+        converter = syntool_converter.Sentinel3OLCISyntoolConverter(
+            converter_type='foo',
+            ingest_parameter_files='bar')
+        with mock.patch.object(converter, 'convert',
+                               side_effect=[['conv1.tiff'], ['conv2.tiff']]) as mock_convert:
+            results = converter.run_conversion('in.nc', 'out',
+                                               {'converter_options': {'channels': ['baz', 'qux']}})
+        mock_convert.assert_has_calls((
+            mock.call('in.nc', 'out', ['-t', 'foo', '-opt', 'channels=baz']),
+            mock.call('in.nc', 'out', ['-t', 'foo', '-opt', 'channels=qux'])
+        ))
+        self.assertListEqual(results, [Path('out', 'conv1.tiff'), Path('out', 'conv2.tiff')])
+
+    def test_run_conversion_single_channels(self):
+        """Test that the converter is run once if channels is a string
+        """
+        converter = syntool_converter.Sentinel3OLCISyntoolConverter(
+            converter_type='foo',
+            ingest_parameter_files='bar')
+        with mock.patch.object(converter, 'convert',
+                               return_value=['conv1.tiff', 'conv2.tiff']) as mock_convert:
+            results = converter.run_conversion('in.nc', 'out',
+                                               {'converter_options': {'channels': 'baz,qux'}})
+        mock_convert.assert_called_with('in.nc', 'out', ['-t', 'foo', '-opt', 'channels=baz,qux'])
+        self.assertListEqual(results, [Path('out', 'conv1.tiff'), Path('out', 'conv2.tiff')])
+
+    def test_run_conversion_system_exit(self):
+        """Test that SystemExit exceptions do not interrupt the
+        conversion process but simply return empty results
+        """
+        converter = syntool_converter.Sentinel3OLCISyntoolConverter(
+            converter_type='foo',
+            ingest_parameter_files='bar')
+        with mock.patch.object(converter, 'convert', side_effect=[SystemExit, ['conv2.tiff']]):
+            with self.assertLogs(level=logging.WARNING):
+                results = converter.run_conversion(
+                    'in.nc', 'out', {'converter_options': {'channels': ['baz', 'qux']}})
+        self.assertListEqual(results, [Path('out', 'conv2.tiff')])
+
 
 class CustomReaderSyntoolConverterTestCase(unittest.TestCase):
     """Tests for the CustomReaderSyntoolConverter class"""

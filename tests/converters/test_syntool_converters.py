@@ -408,10 +408,12 @@ class Sentinel3OLCISyntoolConverterTestCase(unittest.TestCase):
         """Test that SystemExit exceptions do not interrupt the
         conversion process but simply return empty results
         """
+        error = syntool_converter.ConversionError()
+        error.__cause__ = SystemExit()
         converter = syntool_converter.Sentinel3OLCISyntoolConverter(
             converter_type='foo',
             ingest_parameter_files='bar')
-        with mock.patch.object(converter, 'convert', side_effect=[SystemExit, ['conv2.tiff']]):
+        with mock.patch.object(converter, 'convert', side_effect=[error, ['conv2.tiff']]):
             with self.assertLogs(level=logging.WARNING):
                 results = converter.run_conversion(
                     'in.nc', 'out', {'converter_options': {'channels': ['baz', 'qux']}})

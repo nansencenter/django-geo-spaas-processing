@@ -83,7 +83,7 @@ class SyntoolConverter(Converter):
                            process.stdout, process.stderr)
         return results
 
-    def post_ingest(self, results, out_dir, **kwargs):
+    def post_ingest(self, results, out_dir, kwargs):
         """Post-ingestion step, the default is to create a "features"
         directory containing some metadata about what was generated
         """
@@ -116,11 +116,6 @@ class BasicSyntoolConverter(SyntoolConverter):
     """Syntool converter using pre-set configuration files"""
 
     PARAMETER_SELECTORS = (
-        ParameterSelector(
-            matches=lambda d: re.match(r'^S3[AB]_OL_2_WFR.*$', d.entry_id),
-            converter_type='sentinel3_olci_l2',
-            converter_options={'channels': 'CHL_OC4ME'},
-            ingest_parameter_files='ingest_geotiff_4326_tiles'),
         ParameterSelector(
             matches=lambda d: re.match(r'^S3[AB]_SL_1_RBT.*$', d.entry_id),
             converter_type='sentinel3_slstr_bt',
@@ -235,24 +230,21 @@ class BasicSyntoolConverter(SyntoolConverter):
         converter_args.extend(self.parse_converter_options(kwargs))
         return converter_args
 
-    def run(self, in_file, out_dir, **kwargs):
-        """Transforms a file into a Syntool-displayable format using
-        the syntool-converter and syntool-ingestor tools
-        """
-        results_dir = kwargs.pop('results_dir')
-        # syntool-converter
+    def run_conversion(self, in_file, out_dir, kwargs):
+        """Run the Syntool converter on the input file"""
         if self.converter_type is not None:
             converted_files = self.convert(in_file, out_dir,
                                            self.parse_converter_args(kwargs),
                                            **kwargs)
         else:
             converted_files = (in_file,)
+        return [Path(out_dir, converted_file) for converted_file in converted_files]
 
-        # syntool-ingestor
+    def run_ingestion(self, converted_paths, results_dir, kwargs):
+        """Run the Syntool ingestor on the conversion results"""
         ingestor_config = Path(kwargs.pop('ingestor_config', 'parameters/3413.ini'))
         results = []
-        for converted_file in converted_files:
-            converted_path = Path(out_dir, converted_file)
+        for converted_path in converted_paths:
             for ingest_config in self.find_ingest_config(converted_path):
                 results.extend(self.ingest(
                     converted_path, results_dir, [
@@ -264,8 +256,16 @@ class BasicSyntoolConverter(SyntoolConverter):
                 os.remove(converted_path)
             except IsADirectoryError:
                 shutil.rmtree(converted_path)
+        return results
 
-        self.post_ingest(results, results_dir, **kwargs)
+    def run(self, in_file, out_dir, **kwargs):
+        """Transforms a file into a Syntool-displayable format using
+        the syntool-converter and syntool-ingestor tools
+        """
+        results_dir = kwargs.pop('results_dir')
+        converted_paths = self.run_conversion(in_file, out_dir, kwargs)
+        results = self.run_ingestion(converted_paths, results_dir, kwargs)
+        self.post_ingest(results, results_dir, kwargs)
         return results
 
 
@@ -315,6 +315,40 @@ class Sentinel1SyntoolConverter(BasicSyntoolConverter):
                     result_dir.replace(final_result_path)
                     results.append(str(final_result_path.relative_to(out_dir)))
                 base_result_path.rmdir()
+        return results
+
+
+@SyntoolConversionManager.register()
+class Sentinel3OLCISyntoolConverter(BasicSyntoolConverter):
+    """Syntool converter for Sentinel-3 datasets"""
+    PARAMETER_SELECTORS = (
+        ParameterSelector(
+            matches=lambda d: re.match(r'^S3[AB]_OL_2_WFR.*$', d.entry_id),
+            converter_type='sentinel3_olci_l2',
+            converter_options={'channels': ['CHL_OC4ME', 'true_rgb', 'false_rgb']},
+            ingest_parameter_files='ingest_geotiff_4326_tiles'),
+    )
+
+    def run_conversion(self, in_file, out_dir, kwargs):
+        """Allow to give a list of channels, which will cause the
+        conversion to be executed for each channel
+        """
+        channels = kwargs['converter_options']['channels']
+        results = []
+        if isinstance(channels, str):
+            channels = [channels]
+        for channel in channels:
+            edited_kwargs = kwargs.copy()
+            edited_kwargs['converter_options']['channels'] = channel
+            try:
+                results.extend(super().run_conversion(in_file, out_dir, edited_kwargs))
+            except ConversionError as error:
+                if isinstance(error.__cause__, SystemExit):
+                    # The sentinel3_olci_l2 converter exits without error
+                    # message if the data quality is not satisfactory.
+                    # We allow the conversion to continue for other bands.
+                    logger.warning("Syntool conversion failed for %s", in_file, exc_info=True)
+                    continue
         return results
 
 

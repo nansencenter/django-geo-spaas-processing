@@ -214,7 +214,7 @@ def read_from_file(f_handler):
             'variables': [
                 # ('mdt', 'mdt', 'mean dynamic topography', -50., 50., -.5, .5, 'matplotlib_gist_rainbow_r'),
                 ('ssha_noiseless', 'ssha', 'denoised sea surface height anomaly', -10., 10., -.3, .3, 'matplotlib_Spectral_r'),
-                # ('sigma0', 'sigma0', 'SAR backscatter', -100., 100., -10, 40, 'matplotlib_gray'),
+                # ('sigma0', 'sigma0', 'SAR backscatter', -100., 100., -10, 40, 'matplotlib_gray_r'),
             ],
         },
         'swot_l2_2000m': {
@@ -222,14 +222,14 @@ def read_from_file(f_handler):
             'variables': [
                 ('ssh_karin_2', 'ssh', 'sea surface height', -100., 100., -10., 70., 'matplotlib_gist_rainbow_r'),
                 ('ssha_karin_2', 'ssha', 'sea surface height anomaly', -50., 50., -4., 4., 'matplotlib_Spectral_r'),
-                ('sig0_karin_2', 'sigma0', 'SAR backscatter', -100., 100., -10, 40, 'matplotlib_gray'),
+                ('sig0_karin_2', 'sigma0', 'SAR backscatter', -100., 100., -10, 40, 'matplotlib_gray_r'),
             ],
         },
         'swot_l2_250m': {
             'groups': ['left', 'right'],
             'variables': [
                 # ('ssh_karin_2', 'ssh', 'sea surface height',-100., 100., -10., 70., 'matplotlib_gist_rainbow_r'),
-                ('sig0_karin_2', 'sigma0', 'SAR backscatter', -100., 100., -15, 55, 'matplotlib_gray'),
+                ('sig0_karin_2', 'sigma0', 'SAR backscatter', -100., 100., -15, 55, 'matplotlib_gray_r'),
             ],
         },
     }
@@ -264,7 +264,10 @@ def read_from_file(f_handler):
             data_slices.append(slice(i, min(i + slice_size, lat.shape[0])))
 
         for key, name, description, threshold_min, threshold_max, vmin, vmax, colortable_name in product_config['variables']:
-            extra = {'product_name': product_name_base + extra_name + '_' + name}
+            extra = {
+                'product_name': product_name_base + extra_name + '_' + name,
+                'extra_name': extra_name.strip('_')
+            }
 
             variable = dataset.variables[key][desc_slice][extent_slice]
             if level == 2:
@@ -312,7 +315,7 @@ def read_from_file(f_handler):
 
 
 def convert(input_path, output_path):
-    """"""
+    """Entrypoint"""
     granule_filename = os.path.basename(input_path)
     granule_prefix, _ = os.path.splitext(granule_filename)
     f_handler = netCDF4.Dataset(input_path, 'r')
@@ -327,7 +330,8 @@ def convert(input_path, output_path):
         # It is mandatory to append the datetime here because the input file
         # contain several granules and they would overwrite each other if they
         # all had the same name.
-        meta['name'] = "{}_{}".format(granule_prefix, extra['granule_number'])
+        meta['name'] = "{}_{}_{}".format(
+            granule_prefix, extra['granule_number'], extra['extra_name'])
         meta['product_name'] = extra['product_name']
         # Set the URI of the input file
         meta['source_URI'] = input_path

@@ -1,11 +1,17 @@
 """Base classes for dataset conversion management"""
+import ftplib
 import logging
 import os
+import requests
 import shutil
-
-from geospaas.catalog.models import Dataset
+import tarfile
+import tempfile
+from contextlib import closing
+from pathlib import Path
 
 import geospaas_processing.utils as utils
+from geospaas.catalog.models import Dataset
+
 
 
 logger = logging.getLogger(__name__)
@@ -23,8 +29,16 @@ class ConversionManager():
 
     converters = None
 
-    def __init__(self, working_directory):
+    downloaded_aux = False
+    auxiliary_version = os.getenv('GEOSPAAS_PROCESSING_AUXILIARY_VERSION', '0.0.1')
+    auxiliary_url = ('https://github.com/nansencenter/django-geo-spaas-processing-auxiliary/'
+                     'archive/refs/tags/{}.tar.gz')
+    auxiliary_path = Path('~', '.geospaas', 'auxiliary').expanduser()
+
+    def __init__(self, working_directory, download_auxiliary=True):
         self.working_directory = working_directory
+        if download_auxiliary:
+            self.download_auxiliary_files()
 
     @classmethod
     def register(cls):
@@ -50,6 +64,53 @@ class ConversionManager():
             except NoMatch:
                 continue
         raise ConversionError(f"Could not find a converter for dataset {dataset.id}")
+
+    @staticmethod
+    def make_symlink(source, destination):
+        """Create a symbolic link at `destination` pointing to `source`
+        If the destination already exists, it is deleted and replaced
+        with the symlink
+        """
+        if not os.path.islink(destination):
+            if os.path.isdir(destination):
+                shutil.rmtree(destination)
+            elif os.path.isfile(destination):
+                os.remove(destination)
+            os.symlink(source, destination)
+
+    @classmethod
+    def download_auxiliary_files(cls):
+        """Download the auxiliary files necessary for IDF conversion.
+        They are too big to be included in the package.
+        """
+        url = cls.auxiliary_url.format(cls.auxiliary_version)
+        auxiliary_archive_path = cls.auxiliary_path / 'auxiliary.tar.gz'
+        if not (cls.downloaded_aux or cls.auxiliary_path.is_dir()):
+            logger.info("Downloading auxiliary files for conversions, this may take a while")
+            os.makedirs(cls.auxiliary_path)
+            try:
+                # download archive
+                with utils.http_request('GET', url, stream=True) as response, \
+                     open(auxiliary_archive_path, 'wb') as archive_file:
+                    for chunk in response.iter_content(chunk_size=None):
+                        archive_file.write(chunk)
+
+                # extract files from archive
+                with tarfile.open(auxiliary_archive_path, 'r:gz') as tar_file:
+                    tar_file.extractall(cls.auxiliary_path)
+                extracted_files_path = Path(
+                    cls.auxiliary_path,
+                    f"django-geo-spaas-processing-auxiliary-{cls.auxiliary_version}")
+                for item in extracted_files_path.iterdir():
+                    shutil.move(item, cls.auxiliary_path)
+                extracted_files_path.rmdir()
+                auxiliary_archive_path.unlink()
+            except (requests.RequestException, tarfile.ExtractError):
+                # in case of error, we just remove everything
+                shutil.rmtree(cls.auxiliary_path)
+                raise
+            cls.downloaded_aux = True
+        cls.make_symlink(cls.auxiliary_path, Path(__file__).parent / 'auxiliary')
 
     def convert(self, dataset_id, file_name, **kwargs):
         """Converts a file using the right converter class"""

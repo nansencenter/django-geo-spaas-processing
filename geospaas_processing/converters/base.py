@@ -101,7 +101,7 @@ class ConversionManager():
                     cls.auxiliary_path,
                     f"django-geo-spaas-processing-auxiliary-{cls.auxiliary_version}")
                 for item in extracted_files_path.iterdir():
-                    shutil.move(item, cls.auxiliary_path)
+                    shutil.move(str(item), str(cls.auxiliary_path))
                 extracted_files_path.rmdir()
                 auxiliary_archive_path.unlink()
             except (requests.RequestException, tarfile.ExtractError):

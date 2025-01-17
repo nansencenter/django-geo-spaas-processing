@@ -1,12 +1,9 @@
 """Base classes for dataset conversion management"""
-import ftplib
 import logging
 import os
 import requests
 import shutil
 import tarfile
-import tempfile
-from contextlib import closing
 from pathlib import Path
 
 import geospaas_processing.utils as utils

@@ -86,7 +86,9 @@ class ConversionManager():
         url = cls.auxiliary_url.format(cls.auxiliary_version)
         auxiliary_archive_path = cls.auxiliary_path / 'auxiliary.tar.gz'
         if not (cls.downloaded_aux or cls.auxiliary_path.is_dir()):
-            logger.info("Downloading auxiliary files for conversions, this may take a while")
+            logger.info(
+                "Downloading auxiliary files for conversions, this may take a while. "
+                "Download path: %s", str(cls.auxiliary_path))
             os.makedirs(cls.auxiliary_path)
             try:
                 # download archive

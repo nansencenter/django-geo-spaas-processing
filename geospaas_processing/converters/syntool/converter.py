@@ -215,6 +215,25 @@ class BasicSyntoolConverter(SyntoolConverter):
                     converter_options={'channels': 'false_rgb'},
                     ingest_parameter_files='ingest_geotiff_4326_tiles'),
             ]),
+        ParameterSelector(
+            matches=lambda d: re.match(r'^S3[AB]_SL_1_RBT.*$', d.entry_id),
+            configs=[
+                SyntoolConversionConfig(
+                    name='ocean_color',
+                    converter_type='sentinel3_slstr_rad',
+                    ingest_parameter_files='ingest_geotiff_4326_tiles'),
+                SyntoolConversionConfig(
+                    name='sst',
+                    converter_type='sentinel3_slstr_sst',
+                    converter_options={
+                        'coeff_path': str(
+                            ConversionManager.auxiliary_path /
+                            ('sst_coefficient/'
+                             'S3A_SL_2_N2_CAX_20160216T000000_20991231T235959_20170330T120000'
+                             '___________________MPC_O_AL_004.SEN3/SL_2_N2_CAX.v4.3.1.nc'))},
+                    ingest_parameter_files='ingest_geotiff_4326_tiles'),
+            ]
+        ),
     )
 
     def __init__(self, **kwargs):

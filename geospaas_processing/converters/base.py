@@ -86,7 +86,7 @@ class ConversionManager():
         auxiliary_archive_path = cls.auxiliary_path / 'auxiliary.tar.gz'
         if (force_download or
             not (cls.downloaded_aux or
-                 (cls.auxiliary_path.is_dir() and list(cls.auxiliary_path.iterdir())))):
+                 (cls.auxiliary_path.is_dir() and bool(list(cls.auxiliary_path.iterdir()))))):
             logger.info(
                 "Downloading auxiliary files for conversions, this may take a while. "
                 "Download path: %s", str(cls.auxiliary_path))

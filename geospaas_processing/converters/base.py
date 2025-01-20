@@ -30,7 +30,9 @@ class ConversionManager():
     auxiliary_version = os.getenv('GEOSPAAS_PROCESSING_AUXILIARY_VERSION', '0.0.1')
     auxiliary_url = ('https://github.com/nansencenter/django-geo-spaas-processing-auxiliary/'
                      'archive/refs/tags/{}.tar.gz')
-    auxiliary_path = Path('~', '.geospaas', 'auxiliary').expanduser()
+    auxiliary_path = Path(
+        os.getenv('GEOSPAAS_PROCESSING_AUXILIARY_PATH', str(Path('~', '.geospaas', 'auxiliary')))
+    ).expanduser()
 
     def __init__(self, working_directory, download_auxiliary=True):
         self.working_directory = working_directory

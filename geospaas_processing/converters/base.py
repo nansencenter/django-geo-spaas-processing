@@ -90,7 +90,7 @@ class ConversionManager():
             logger.info(
                 "Downloading auxiliary files for conversions, this may take a while. "
                 "Download path: %s", str(cls.auxiliary_path))
-            os.makedirs(cls.auxiliary_path)
+            os.makedirs(cls.auxiliary_path, exist_ok=True)
             try:
                 # download archive
                 with utils.http_request('GET', url, stream=True) as response, \

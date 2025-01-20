@@ -117,11 +117,12 @@ class ConversionManagerTestCase(django.test.TestCase):
 class AuxiliaryDownloadTestCase(unittest.TestCase):
     """Test the download of auxiliary files"""
 
-    def test_do_not_download_auxiliary_files_if_folder_present(self):
+    def test_do_not_download_auxiliary_files_if_folder_not_empty(self):
         """Test that auxiliary files are not downloaded if the folder
         is present
         """
         with mock.patch('pathlib.Path.is_dir', return_value=True), \
+             mock.patch('pathlib.Path.iterdir', return_value=iter(['baz'])), \
                 mock.patch('geospaas_processing.utils.http_request') as mock_http_request, \
                 mock.patch.object(TestConversionManager, 'make_symlink') as mock_make_symlink:
             TestConversionManager.download_auxiliary_files()

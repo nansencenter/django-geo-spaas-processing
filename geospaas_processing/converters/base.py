@@ -78,13 +78,15 @@ class ConversionManager():
             os.symlink(source, destination)
 
     @classmethod
-    def download_auxiliary_files(cls):
+    def download_auxiliary_files(cls, force_download=False):
         """Download the auxiliary files necessary for IDF conversion.
         They are too big to be included in the package.
         """
         url = cls.auxiliary_url.format(cls.auxiliary_version)
         auxiliary_archive_path = cls.auxiliary_path / 'auxiliary.tar.gz'
-        if not (cls.downloaded_aux or cls.auxiliary_path.is_dir()):
+        if (force_download or
+            not (cls.downloaded_aux or
+                 (cls.auxiliary_path.is_dir() and list(cls.auxiliary_path.iterdir())))):
             logger.info(
                 "Downloading auxiliary files for conversions, this may take a while. "
                 "Download path: %s", str(cls.auxiliary_path))

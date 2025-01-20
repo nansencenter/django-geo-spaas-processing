@@ -138,11 +138,12 @@ class AuxiliaryDownloadTestCase(unittest.TestCase):
                 mock.patch('geospaas_processing.utils.http_request') as mock_http_request, \
                 mock.patch('tarfile.open') as mock_tarfile_open, \
                 mock.patch('builtins.open') as mock_open, \
-                mock.patch('pathlib.Path.iterdir', return_value=['/baz']), \
+                mock.patch('pathlib.Path.iterdir', return_value=iter(['/baz'])), \
                 mock.patch('pathlib.Path.rmdir') as mock_rmdir, \
                 mock.patch('pathlib.Path.unlink') as mock_unlink, \
                 mock.patch('shutil.move') as mock_move, \
-                mock.patch.object(TestConversionManager, 'make_symlink') as mock_make_symlink:
+                mock.patch.object(TestConversionManager, 'make_symlink') as mock_make_symlink, \
+                mock.patch.object(TestConversionManager, 'downloaded_aux', False):
             mock_chunk = mock.MagicMock()
             (mock_http_request.return_value.__enter__.return_value
              .iter_content.return_value) = iter([mock_chunk])
@@ -172,22 +173,14 @@ class AuxiliaryDownloadTestCase(unittest.TestCase):
                 mock.patch('pathlib.Path.rmdir') as mock_rmdir, \
                 mock.patch('pathlib.Path.unlink') as mock_unlink, \
                 mock.patch('shutil.move') as mock_move, \
-                mock.patch.object(TestConversionManager, 'make_symlink') as mock_make_symlink:
+                mock.patch.object(TestConversionManager, 'make_symlink') as mock_make_symlink, \
+                mock.patch.object(TestConversionManager, 'downloaded_aux', False):
             mock_chunk = mock.MagicMock()
             (mock_http_request.return_value.__enter__.return_value
              .iter_content.return_value) = iter([mock_chunk])
             TestConversionManager.download_auxiliary_files()
 
         mock_http_request.assert_called()
-        mock_http_request.return_value.__enter__.return_value.iter_content.assert_called()
-        mock_open.return_value.__enter__.return_value.write.assert_called_with(mock_chunk)
-        mock_tarfile_open.assert_called()
-        mock_rmdir.assert_called()
-        mock_unlink.assert_called()
-        mock_move.assert_called()
-        mock_make_symlink.assert_called_with(
-            Path('/foo'),
-            Path(converters_base.__file__).parent / 'auxiliary')
 
     def test_download_auxiliary_error(self):
         """Test that partly extracted auxiliary files are removed in

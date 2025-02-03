@@ -5,8 +5,9 @@ import os.path
 import shutil
 import unittest
 import unittest.mock as mock
+import sys
+import tarfile
 import tempfile
-import zipfile
 from pathlib import Path
 
 import django.test
@@ -20,6 +21,10 @@ import geospaas_processing.converters.base as converters_base
 
 class TestConversionManager(converters_base.ConversionManager):
     """Conversion manager class used for tests"""
+
+    auxiliary_version = '0.0.1'
+    auxiliary_url = ('https://uri/{}.tar.gz')
+    auxiliary_path = Path('/foo')
 
 
 @TestConversionManager.register()
@@ -58,7 +63,8 @@ class ConversionManagerTestCase(django.test.TestCase):
         self.test_file_path = self.temp_dir_path / 'dataset_1.nc'
         self.test_file_path.touch()
 
-        self.conversion_manager = TestConversionManager(self.temp_directory.name)
+        self.conversion_manager = TestConversionManager(self.temp_directory.name,
+                                                        download_auxiliary=False)
 
     def tearDown(self):
         self.temp_directory.cleanup()
@@ -71,7 +77,7 @@ class ConversionManagerTestCase(django.test.TestCase):
 
     def test_get_converter(self):
         """Test creating a converter of the right class with the right
-        arguments
+        argumentstest_download_auxiliary_files_if_folder_not_present
         """
         dataset = mock.Mock()
         dataset.entry_id = 'prefix_2_dataset'
@@ -106,6 +112,145 @@ class ConversionManagerTestCase(django.test.TestCase):
                 {'dataset': Dataset.objects.get(id=1)}
             )
         )
+
+
+class AuxiliaryDownloadTestCase(unittest.TestCase):
+    """Test the download of auxiliary files"""
+
+    def test_do_not_download_auxiliary_files_if_folder_not_empty(self):
+        """Test that auxiliary files are not downloaded if the folder
+        is present
+        """
+        with mock.patch('pathlib.Path.is_dir', return_value=True), \
+             mock.patch('pathlib.Path.iterdir', return_value=iter(['baz'])), \
+                mock.patch('geospaas_processing.utils.http_request') as mock_http_request, \
+                mock.patch.object(TestConversionManager, 'make_symlink') as mock_make_symlink:
+            TestConversionManager.download_auxiliary_files()
+        mock_http_request.assert_not_called()
+        mock_make_symlink.assert_called()
+
+    def test_download_auxiliary_files_if_folder_not_present(self):
+        """Test that auxiliary files are downloaded if the folder is
+        not present
+        """
+        with mock.patch('pathlib.Path.is_dir', return_value=False), \
+                mock.patch('os.makedirs'), \
+                mock.patch('geospaas_processing.utils.http_request') as mock_http_request, \
+                mock.patch('tarfile.open') as mock_tarfile_open, \
+                mock.patch('builtins.open') as mock_open, \
+                mock.patch('pathlib.Path.iterdir', return_value=iter(['/baz'])), \
+                mock.patch('pathlib.Path.rmdir') as mock_rmdir, \
+                mock.patch('pathlib.Path.unlink') as mock_unlink, \
+                mock.patch('shutil.move') as mock_move, \
+                mock.patch.object(TestConversionManager, 'make_symlink') as mock_make_symlink, \
+                mock.patch.object(TestConversionManager, 'downloaded_aux', False):
+            mock_chunk = mock.MagicMock()
+            (mock_http_request.return_value.__enter__.return_value
+             .iter_content.return_value) = iter([mock_chunk])
+            TestConversionManager.download_auxiliary_files()
+
+        mock_http_request.assert_called()
+        mock_http_request.return_value.__enter__.return_value.iter_content.assert_called()
+        mock_open.return_value.__enter__.return_value.write.assert_called_with(mock_chunk)
+        mock_tarfile_open.assert_called()
+        mock_rmdir.assert_called()
+        mock_unlink.assert_called()
+        mock_move.assert_called()
+        mock_make_symlink.assert_called_with(
+            Path('/foo'),
+            Path(converters_base.__file__).parent / 'auxiliary')
+
+    def test_download_auxiliary_files_if_folder_empty(self):
+        """Test that auxiliary files are downloaded if the folder is
+        not present
+        """
+        with mock.patch('pathlib.Path.is_dir', return_value=True), \
+                mock.patch('os.makedirs'), \
+                mock.patch('geospaas_processing.utils.http_request') as mock_http_request, \
+                mock.patch('tarfile.open') as mock_tarfile_open, \
+                mock.patch('builtins.open') as mock_open, \
+                mock.patch('pathlib.Path.iterdir', side_effect=(iter([]), iter(['/baz']))), \
+                mock.patch('pathlib.Path.rmdir') as mock_rmdir, \
+                mock.patch('pathlib.Path.unlink') as mock_unlink, \
+                mock.patch('shutil.move') as mock_move, \
+                mock.patch.object(TestConversionManager, 'make_symlink') as mock_make_symlink, \
+                mock.patch.object(TestConversionManager, 'downloaded_aux', False):
+            mock_chunk = mock.MagicMock()
+            (mock_http_request.return_value.__enter__.return_value
+             .iter_content.return_value) = iter([mock_chunk])
+            TestConversionManager.download_auxiliary_files()
+
+        mock_http_request.assert_called()
+
+    def test_download_auxiliary_error(self):
+        """Test that partly extracted auxiliary files are removed in
+        case of error
+        """
+        with mock.patch('os.path.isdir', return_value=False), \
+                mock.patch('os.makedirs'), \
+                mock.patch('geospaas_processing.utils.http_request'), \
+                mock.patch('tarfile.open', side_effect=tarfile.ExtractError), \
+                mock.patch('builtins.open'), \
+                mock.patch('shutil.rmtree') as mock_rmtree:
+            with self.assertRaises(tarfile.ExtractError):
+                TestConversionManager.download_auxiliary_files()
+            mock_rmtree.assert_called_with(Path('/foo'))
+
+    def test_make_symlink(self):
+        """Test making a symbolic link if none exists"""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            source = tmp_path / 'foo'
+            dest = tmp_path / 'bar'
+            source.mkdir()
+            TestConversionManager.make_symlink(source, dest)
+            self.assertTrue(dest.is_symlink())
+            self.assertEqual(dest.resolve(), source)
+
+    def test_make_symlink_replace_dir(self):
+        """Test making a symbolic link if a directory exists at the
+        destination
+        """
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            source = tmp_path / 'foo'
+            dest = tmp_path / 'bar'
+            source.mkdir()
+            dest.mkdir()
+            TestConversionManager.make_symlink(source, dest)
+            self.assertTrue(dest.is_symlink())
+            self.assertEqual(dest.resolve(), source)
+
+    def test_make_symlink_replace_file(self):
+        """Test making a symbolic link if a file exists at the
+        destination
+        """
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            source = tmp_path / 'foo'
+            dest = tmp_path / 'bar'
+            source.mkdir()
+            dest.touch()
+            TestConversionManager.make_symlink(source, dest)
+            self.assertTrue(dest.is_symlink())
+            self.assertEqual(dest.resolve(), source)
+
+    def test_no_download_arg(self):
+        """Test that the download does not happen if
+        `download_auxiliary` is False
+        """
+        sys_modules = sys.modules.copy()
+        del sys_modules['unittest']
+        with mock.patch('sys.modules', sys_modules), \
+             mock.patch('geospaas_processing.converters.base'
+                        '.ConversionManager.download_auxiliary_files') as mock_download:
+            TestConversionManager('', download_auxiliary=True)
+        mock_download.assert_called()
+
+        with mock.patch('geospaas_processing.converters.base'
+                        '.ConversionManager.download_auxiliary_files') as mock_download:
+            TestConversionManager('', download_auxiliary=False)
+        mock_download.assert_not_called()
 
 
 class ConverterTestCase(unittest.TestCase):

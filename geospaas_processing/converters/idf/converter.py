@@ -1,74 +1,20 @@
 """Tools for dataset conversion to IDF"""
-import ftplib
 import logging
 import os
 import os.path
 import re
 import shutil
 import subprocess
-import tarfile
 import tempfile
-from contextlib import closing
 
 from ..base import ConversionError, ConversionManager, Converter, ParameterSelector
 
-AUXILIARY_PATH = os.path.join(os.path.expanduser('~'), '.geospaas', 'auxiliary')
+
 logger = logging.getLogger(__name__)
 
 
 class IDFConversionManager(ConversionManager):
     """Manager for IDF conversion"""
-
-    downloaded_aux = False
-
-    @staticmethod
-    def make_symlink(source, destination):
-        """Create a symbolic link at `destination` pointing to `source`
-        If the destination already exists, it is deleted and replaced
-        with the symlink
-        """
-        if not os.path.islink(destination):
-            if os.path.isdir(destination):
-                shutil.rmtree(destination)
-            elif os.path.isfile(destination):
-                os.remove(destination)
-            os.symlink(source, destination)
-
-    @classmethod
-    def download_auxiliary_files(cls, auxiliary_path):
-        """Download the auxiliary files necessary for IDF conversion.
-        They are too big to be included in the package.
-        """
-        if not (cls.downloaded_aux or os.path.isdir(auxiliary_path)):
-            logger.info("Downloading auxiliary files for IDF conversion, this may take a while")
-            os.makedirs(auxiliary_path)
-            try:
-                with closing(ftplib.FTP('ftp.nersc.no')) as ftp:
-                    ftp.login()
-                    # we write the archive to a tmp file...
-                    with tempfile.TemporaryFile() as tmp_file:
-                        ftp.retrbinary(
-                            'RETR /pub/Adrien/idf_converter_auxiliary.tar', tmp_file.write)
-                        # ...then set the cursor back at the beginning of
-                        # the file...
-                        tmp_file.seek(0)
-                        # ...and finally extract the contents of the
-                        # archive to the auxiliary folder
-                        with tarfile.TarFile(fileobj=tmp_file) as tar_file:
-                            tar_file.extractall(auxiliary_path)
-            except (*ftplib.all_errors, tarfile.ExtractError):
-                # in case of error, we just remove everything
-                shutil.rmtree(auxiliary_path)
-                raise
-            cls.downloaded_aux = True
-
-        cls.make_symlink(auxiliary_path, os.path.join(os.path.dirname(__file__), 'auxiliary'))
-
-    def __init__(self, *args, **kwargs):
-        download_auxiliary = kwargs.pop('download_auxiliary', True)
-        super().__init__(*args, **kwargs)
-        if download_auxiliary:  # pragma: no cover
-            self.download_auxiliary_files(AUXILIARY_PATH)
 
 
 class IDFConverter(Converter):

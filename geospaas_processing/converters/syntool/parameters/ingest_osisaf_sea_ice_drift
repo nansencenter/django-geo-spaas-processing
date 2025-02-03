@@ -12,5 +12,5 @@
     resolution=15625
     gdal_threads=2
     min-zoom=0
-    max-zoom=8
+    max-zoom=7
     with-dataset-info=yes

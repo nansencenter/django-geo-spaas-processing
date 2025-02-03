@@ -35,8 +35,7 @@ class SyntoolConverterTestCase(unittest.TestCase):
         """Test error handling when the sub process encounters an error"""
         converter = syntool_converter.SyntoolConverter()
         with mock.patch('subprocess.run', side_effect=subprocess.CalledProcessError(1, '')):
-            with self.assertLogs(syntool_converter.logger, level=logging.INFO), \
-                 self.assertRaises(converters_base.ConversionError):
+            with self.assertLogs(syntool_converter.logger, level=logging.WARNING):
                 converter.convert('/foo.nc', '/bar', ['--baz'])
 
     def test_convert_move_results_error(self):
@@ -117,16 +116,17 @@ class BasicSyntoolConverterTestCase(unittest.TestCase):
 
     def test_find_ingest_config_str(self):
         """Test getting the ingester parameters file from a string"""
-        converter = syntool_converter.BasicSyntoolConverter(
+        config = syntool_converter.SyntoolConversionConfig(
             converter_type='foo',
             ingest_parameter_files='bar')
-        self.assertEqual(converter.find_ingest_config('baz'), ['bar'])
+        converter = syntool_converter.BasicSyntoolConverter(configs=[config])
+        self.assertEqual(converter.find_ingest_config('baz', config), ['bar'])
 
     def test_find_ingest_config_list(self):
         """Test getting the ingester parameters file from a list of
         selectors
         """
-        converter = syntool_converter.BasicSyntoolConverter(
+        config = syntool_converter.SyntoolConversionConfig(
             converter_type='foo',
             ingest_parameter_files=[
                 converters_base.ParameterSelector(
@@ -136,40 +136,47 @@ class BasicSyntoolConverterTestCase(unittest.TestCase):
                     matches=lambda f: f.startswith('a'),
                     ingest_file='qux'),
             ])
-        self.assertEqual(converter.find_ingest_config('baz'), ['bar'])
+        converter = syntool_converter.BasicSyntoolConverter(configs=[config])
+        self.assertEqual(converter.find_ingest_config('baz', config), ['bar'])
 
     def test_find_ingest_config_error(self):
         """An exception must be raised if no config is found"""
-        converter = syntool_converter.BasicSyntoolConverter(
-            converter_type='foo',
-            ingest_parameter_files=[
-                converters_base.ParameterSelector(
-                    matches=lambda f: f.startswith('b'),
-                    ingest_file='bar'),
-            ])
+        config = syntool_converter.SyntoolConversionConfig(
+        converter_type='foo',
+        ingest_parameter_files=[
+            converters_base.ParameterSelector(
+                matches=lambda f: f.startswith('b'),
+                ingest_file='bar'),
+        ])
+        converter = syntool_converter.BasicSyntoolConverter(configs=[config])
         with self.assertRaises(converters_base.ConversionError):
-            converter.find_ingest_config('foo')
+            converter.find_ingest_config('foo', config)
 
     def test_find_ingest_config_type_error(self):
         """An exception must be raised if ingest_parameter_files is
         not a string or ParameterSelector or a list of these
         """
+        config1 = syntool_converter.SyntoolConversionConfig(
+            converter_type='foo',
+            ingest_parameter_files=1)
+        config2 = syntool_converter.SyntoolConversionConfig(
+            converter_type='foo',
+            ingest_parameter_files=[1, 2])
         with self.assertRaises(converters_base.ConversionError):
-            syntool_converter.BasicSyntoolConverter(
-                converter_type='foo',
-                ingest_parameter_files=1).find_ingest_config('foo')
+            syntool_converter.BasicSyntoolConverter(configs=[config1]
+                                                    ).find_ingest_config('foo', config1)
         with self.assertRaises(converters_base.ConversionError):
-            syntool_converter.BasicSyntoolConverter(
-                converter_type='foo',
-                ingest_parameter_files=[1, 2]).find_ingest_config('foo')
+            syntool_converter.BasicSyntoolConverter(configs=[config2]
+                                                    ).find_ingest_config('foo', config2)
 
     def test_parse_converter_options(self):
         """Test parsing and merging converter options"""
-        converter = syntool_converter.BasicSyntoolConverter(
-            converter_type='foo',
-            converter_options={'bar': 'baz'},
-            ingest_parameter_files='qux')
-        result = converter.parse_converter_options({
+        config = syntool_converter.SyntoolConversionConfig(
+                converter_type='foo',
+                converter_options={'bar': 'baz'},
+                ingest_parameter_files='qux')
+        converter = syntool_converter.BasicSyntoolConverter(configs=[config])
+        result = converter.parse_converter_options(config, {
             'converter_options': {'quux': 'corge'}
         })
         self.assertListEqual(result, ['-opt', 'bar=baz', 'quux=corge'])
@@ -178,10 +185,11 @@ class BasicSyntoolConverterTestCase(unittest.TestCase):
         """Test parsing converter options when the converter does not
         have options defined
         """
-        converter = syntool_converter.BasicSyntoolConverter(
+        config = syntool_converter.SyntoolConversionConfig(
             converter_type='foo',
             ingest_parameter_files='bar')
-        result = converter.parse_converter_options({
+        converter = syntool_converter.BasicSyntoolConverter(configs=[config])
+        result = converter.parse_converter_options(config, {
             'converter_options': {'quux': 'corge'}
         })
         self.assertListEqual(result, ['-opt', 'quux=corge'])
@@ -190,44 +198,48 @@ class BasicSyntoolConverterTestCase(unittest.TestCase):
         """Test parsing converter options when the key word arguments
         do not have options defined
         """
-        converter = syntool_converter.BasicSyntoolConverter(
-            converter_type='foo',
-            converter_options={'bar': 'baz'},
-            ingest_parameter_files='qux')
-        result = converter.parse_converter_options({})
+        config = syntool_converter.SyntoolConversionConfig(
+                converter_type='foo',
+                converter_options={'bar': 'baz'},
+                ingest_parameter_files='qux')
+        converter = syntool_converter.BasicSyntoolConverter(configs=[config])
+        result = converter.parse_converter_options(config, {})
         self.assertListEqual(result, ['-opt', 'bar=baz'])
 
     def test_parse_converter_options_not_dict(self):
         """Test parsing converter options when the converter_options
         kwarg is not a dictionary
         """
-        converter = syntool_converter.BasicSyntoolConverter(
+        config = syntool_converter.SyntoolConversionConfig(
             converter_type='foo',
             converter_options={'bar': 'baz'},
             ingest_parameter_files='qux')
+        converter = syntool_converter.BasicSyntoolConverter(configs=[config])
         with self.assertLogs(level=logging.WARNING):
-            result = converter.parse_converter_options({'converter_options': None})
+            result = converter.parse_converter_options(config, {'converter_options': None})
         self.assertListEqual(result, ['-opt', 'bar=baz'])
 
     def test_parse_converter_args(self):
         """Test parsing converter arguments"""
-        converter = syntool_converter.BasicSyntoolConverter(
+        config = syntool_converter.SyntoolConversionConfig(
             converter_type='foo',
             converter_options={'bar': 'baz'},
             ingest_parameter_files='qux')
+        converter = syntool_converter.BasicSyntoolConverter(configs=[config])
         self.assertListEqual(
-            converter.parse_converter_args({'converter_options': {'ham': 'egg'}}),
+            converter.parse_converter_args(config, {'converter_options': {'ham': 'egg'}}),
             ['-t', 'foo', '-opt', 'bar=baz', 'ham=egg'])
 
     def test_run_conversion(self):
         """Test calling the Syntool converter on the input file"""
-        converter = syntool_converter.BasicSyntoolConverter(
+        config = syntool_converter.SyntoolConversionConfig(
             converter_type='foo',
             ingest_parameter_files='bar')
+        converter = syntool_converter.BasicSyntoolConverter(configs=[config])
         with mock.patch.object(converter, 'convert',
                                return_value=['conv1.tiff', 'conv2']) as mock_convert:
             results = converter.run_conversion('in.nc', 'out',
-                                               {'converter_options': {'baz': 'quz'}})
+                                               config, {'converter_options': {'baz': 'quz'}})
         mock_convert.assert_called_once_with('in.nc', 'out', ['-t', 'foo', '-opt', 'baz=quz'])
         self.assertListEqual(results, [Path('out', 'conv1.tiff'), Path('out', 'conv2')])
 
@@ -235,11 +247,12 @@ class BasicSyntoolConverterTestCase(unittest.TestCase):
         """If no converter is set, run_conversion() should return the path to
         the input file
         """
-        converter = syntool_converter.BasicSyntoolConverter(
+        config = syntool_converter.SyntoolConversionConfig(
             converter_type=None,
             ingest_parameter_files='bar')
+        converter = syntool_converter.BasicSyntoolConverter(configs=[config])
         with mock.patch.object(converter, 'convert',) as mock_convert:
-            results = converter.run_conversion('in.nc', 'out', {})
+            results = converter.run_conversion('in.nc', 'out', config, {})
         mock_convert.assert_not_called()
         self.assertListEqual(results, [Path('out', 'in.nc')])
 
@@ -247,15 +260,16 @@ class BasicSyntoolConverterTestCase(unittest.TestCase):
         """Test calling the Syntool ingestor on the conversion output
         file(s)
         """
-        converter = syntool_converter.BasicSyntoolConverter(
+        config = syntool_converter.SyntoolConversionConfig(
             converter_type='foo',
             ingest_parameter_files='bar')
+        converter = syntool_converter.BasicSyntoolConverter(configs=[config])
         with mock.patch.object(converter, 'ingest',
                                side_effect=[['ingested_dir1'], ['ingested_dir2']]) as mock_ingest, \
              mock.patch('os.remove', side_effect=(None, IsADirectoryError)) as mock_remove, \
              mock.patch('shutil.rmtree') as mock_rmtree:
             converter.run_ingestion(
-                [Path('out', 'conv1.tiff'), Path('out', 'conv2')], 'results', {})
+                [Path('out', 'conv1.tiff'), Path('out', 'conv2')], 'results', config, {})
         mock_ingest.assert_has_calls([
             mock.call(
                 Path('out', 'conv1.tiff'),
@@ -275,9 +289,10 @@ class BasicSyntoolConverterTestCase(unittest.TestCase):
 
     def test_run(self):
         """Test running the conversion and ingestion"""
-        converter = syntool_converter.BasicSyntoolConverter(
+        config = syntool_converter.SyntoolConversionConfig(
             converter_type='foo',
             ingest_parameter_files='bar')
+        converter = syntool_converter.BasicSyntoolConverter(configs=[config])
         with mock.patch.object(converter, 'run_conversion',
                                return_value=[Path('out', 'conv1.tiff'),
                                              Path('out', 'conv2')]) as mock_conversion, \
@@ -290,13 +305,14 @@ class BasicSyntoolConverterTestCase(unittest.TestCase):
                 results_dir='results',
                 converter_options={'baz': 'quz'})
         self.assertListEqual(results, ['ingested_dir1', 'ingested_dir2'])
-        mock_conversion.assert_called_with('in.nc', 'out', {'converter_options': {'baz': 'quz'}})
+        mock_conversion.assert_called_with('in.nc', 'out',
+                                           config, {'converter_options': {'baz': 'quz'}})
         mock_ingestion.assert_called_with(
             [Path('out', 'conv1.tiff'), Path('out', 'conv2')],
-            'results',
-            {'converter_options': {'baz': 'quz'}})
+            'results', config, {'converter_options': {'baz': 'quz'}})
         mock_post_ingest.assert_called_with(
-            ['ingested_dir1', 'ingested_dir2'], 'results', {'converter_options': {'baz': 'quz'}})
+            ['ingested_dir1', 'ingested_dir2'], 'results',
+            {'converter_options': {'baz': 'quz'}})
 
 
 class Sentinel1SyntoolConverterTestCase(unittest.TestCase):
@@ -326,9 +342,11 @@ class Sentinel1SyntoolConverterTestCase(unittest.TestCase):
         """Test that the convert method is called on all the files in
         the measurement directory
         """
-        converter = syntool_converter.Sentinel1SyntoolConverter(
-            converter_type='foo',
-            ingest_parameter_files='bar')
+        converter = syntool_converter.Sentinel1SyntoolConverter(configs=[
+            syntool_converter.SyntoolConversionConfig(
+                converter_type='foo',
+                ingest_parameter_files='bar')
+        ])
         with tempfile.TemporaryDirectory() as tmp_dir:
             measurement_dir = Path(tmp_dir, 'measurement')
             measurement_dir.mkdir()
@@ -346,9 +364,11 @@ class Sentinel1SyntoolConverterTestCase(unittest.TestCase):
         """Test that the subdirectories created by ingestion are copied
         to the ingested results folder
         """
-        converter = syntool_converter.Sentinel1SyntoolConverter(
-            converter_type='foo',
-            ingest_parameter_files='bar')
+        converter = syntool_converter.Sentinel1SyntoolConverter(configs=[
+            syntool_converter.SyntoolConversionConfig(
+                converter_type='foo',
+                ingest_parameter_files='bar')
+        ])
         with tempfile.TemporaryDirectory() as out_dir:
             # prepare directory structure...
             # ...conversion results
@@ -371,63 +391,15 @@ class Sentinel1SyntoolConverterTestCase(unittest.TestCase):
                 [ingested_dir / 'ingested_hh'])
 
 
-class Sentinel3OLCISyntoolConverterTestCase(unittest.TestCase):
-    """Tests for the Sentinel1SyntoolConverter class"""
-
-    def test_run_conversion_multi_channels(self):
-        """Test that the converter is run for every channel in
-        converter options
-        """
-        converter = syntool_converter.Sentinel3OLCISyntoolConverter(
-            converter_type='foo',
-            ingest_parameter_files='bar')
-        with mock.patch.object(converter, 'convert',
-                               side_effect=[['conv1.tiff'], ['conv2.tiff']]) as mock_convert:
-            results = converter.run_conversion('in.nc', 'out',
-                                               {'converter_options': {'channels': ['baz', 'qux']}})
-        mock_convert.assert_has_calls((
-            mock.call('in.nc', 'out', ['-t', 'foo', '-opt', 'channels=baz']),
-            mock.call('in.nc', 'out', ['-t', 'foo', '-opt', 'channels=qux'])
-        ))
-        self.assertListEqual(results, [Path('out', 'conv1.tiff'), Path('out', 'conv2.tiff')])
-
-    def test_run_conversion_single_channels(self):
-        """Test that the converter is run once if channels is a string
-        """
-        converter = syntool_converter.Sentinel3OLCISyntoolConverter(
-            converter_type='foo',
-            ingest_parameter_files='bar')
-        with mock.patch.object(converter, 'convert',
-                               return_value=['conv1.tiff', 'conv2.tiff']) as mock_convert:
-            results = converter.run_conversion('in.nc', 'out',
-                                               {'converter_options': {'channels': 'baz,qux'}})
-        mock_convert.assert_called_with('in.nc', 'out', ['-t', 'foo', '-opt', 'channels=baz,qux'])
-        self.assertListEqual(results, [Path('out', 'conv1.tiff'), Path('out', 'conv2.tiff')])
-
-    def test_run_conversion_system_exit(self):
-        """Test that SystemExit exceptions do not interrupt the
-        conversion process but simply return empty results
-        """
-        error = syntool_converter.ConversionError()
-        error.__cause__ = SystemExit()
-        converter = syntool_converter.Sentinel3OLCISyntoolConverter(
-            converter_type='foo',
-            ingest_parameter_files='bar')
-        with mock.patch.object(converter, 'convert', side_effect=[error, ['conv2.tiff']]):
-            with self.assertLogs(level=logging.WARNING):
-                results = converter.run_conversion(
-                    'in.nc', 'out', {'converter_options': {'channels': ['baz', 'qux']}})
-        self.assertListEqual(results, [Path('out', 'conv2.tiff')])
-
-
 class CustomReaderSyntoolConverterTestCase(unittest.TestCase):
     """Tests for the CustomReaderSyntoolConverter class"""
 
     def test_parse_converter_args(self):
         """Check that the -r option to runner.py is added"""
-        converter = syntool_converter.CustomReaderSyntoolConverter(
+        config = syntool_converter.SyntoolConversionConfig(
             converter_type='foo',
             ingest_parameter_files='bar')
+        converter = syntool_converter.CustomReaderSyntoolConverter(configs=[config])
         self.assertListEqual(
-            converter.parse_converter_args({'converter_options': {'baz': 'quz'}}),
+            converter.parse_converter_args(config, {'converter_options': {'baz': 'quz'}}),
             ['-r', 'foo', '-opt', 'baz=quz'])

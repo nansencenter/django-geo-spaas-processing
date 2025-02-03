@@ -4,5 +4,5 @@
 --output-format vectorfield
 --output-options resolution=800x800
                  min-zoom=0
-                 max-zoom=8
+                 max-zoom=7
                  with-dataset-info=yes

@@ -162,9 +162,19 @@ class BasicSyntoolConverter(SyntoolConverter):
                 ingest_parameter_files='ingest_osisaf_sea_ice_drift')]),
         ParameterSelector(
             matches=lambda d: d.entry_id.startswith('nrt_global_allsat_phy_l4_'),
+            configs=[
+                # TODO: needs cropping to work in projection 3413
+                # SyntoolConversionConfig(
+                #     converter_type='current_cmems_l4',
+                #     ingest_parameter_files='ingest_geotiff_4326_vectorfield'),
+                SyntoolConversionConfig(
+                    converter_type='cmems_008_047',
+                    ingest_parameter_files='ingest_geotiff_4326_raster')]),
+        ParameterSelector(
+            matches=lambda d: '-IFR-L4_GHRSST-SSTfnd-ODYSSEA-GLOB_' in d.entry_id,
             configs=[SyntoolConversionConfig(
-                converter_type='current_cmems_l4',
-                ingest_parameter_files='ingest_geotiff_4326_vectorfield')]),
+                converter_type='odyssea_sst',
+                ingest_parameter_files='ingest_geotiff_4326_raster')]),
         ParameterSelector(
             matches=lambda d: d.entry_id.startswith('asi-AMSR2-'),
             configs=[SyntoolConversionConfig(

@@ -142,7 +142,8 @@ class BasicSyntoolConverter(SyntoolConverter):
                         ParameterSelector(
                             matches=lambda p: ('sea_ice_concentration' in str(p) or
                                                'sea_ice_thickness' in str(p) or
-                                               'snow_thickness' in str(p)),
+                                               'snow_thickness' in str(p) or
+                                               'sea_ice_ridge_ratio' in str(p)),
                             ingest_file='ingest_geotiff_3413_raster'),
                         ParameterSelector(
                             matches=lambda p: 'sea_ice_drift_velocity' in str(p),

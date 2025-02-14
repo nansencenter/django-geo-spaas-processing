@@ -149,13 +149,20 @@ def read_from_file(f_handler):
 
     if level == 3:
         date_format = '%Y-%m-%dT%H:%M:%SZ'
-        time_start_key = 'time_coverage_begin'
     else:
         date_format = '%Y-%m-%dT%H:%M:%S.%f'
-        time_start_key = 'time_coverage_start'
 
-    time_coverage_start = datetime.datetime.strptime(
-        f_handler.__dict__[time_start_key], date_format)
+    time_start_keys = ('time_coverage_begin', 'time_coverage_start')
+    time_coverage_start = None
+    for time_start_key in time_start_keys:
+        try:
+            time_coverage_start = datetime.datetime.strptime(
+                f_handler.__dict__[time_start_key], date_format)
+        except KeyError:
+            pass
+    if time_coverage_start is None:
+        raise RuntimeError("Could not find time_coverage_start for {}".format(file_name))
+
     time_coverage_end = datetime.datetime.strptime(
         f_handler.__dict__['time_coverage_end'], date_format)
     time_half_diff = (time_coverage_end - time_coverage_start) / 2
@@ -213,7 +220,7 @@ def read_from_file(f_handler):
             'groups': [],
             'variables': [
                 # ('mdt', 'mdt', 'mean dynamic topography', -50., 50., -.5, .5, 'matplotlib_gist_rainbow_r'),
-                ('ssha_noiseless', 'ssha', 'denoised sea surface height anomaly', -10., 10., -.3, .3, 'matplotlib_Spectral_r'),
+                ('ssha_unfiltered', 'ssha', 'denoised sea surface height anomaly', -10., 10., -.3, .3, 'matplotlib_Spectral_r'),
                 # ('sigma0', 'sigma0', 'SAR backscatter', -100., 100., -10, 40, 'matplotlib_gray_r'),
             ],
         },
@@ -331,7 +338,7 @@ def convert(input_path, output_path):
         # contain several granules and they would overwrite each other if they
         # all had the same name.
         meta['name'] = "{}_{}_{}".format(
-            granule_prefix, extra['granule_number'], extra['extra_name'])
+            granule_prefix, extra['granule_number'], extra['extra_name']).strip('_')
         meta['product_name'] = extra['product_name']
         # Set the URI of the input file
         meta['source_URI'] = input_path

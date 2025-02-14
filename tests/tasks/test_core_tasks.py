@@ -181,11 +181,11 @@ class CopyTestCase(unittest.TestCase):
         with self.assertLogs(tasks_core.logger, level=logging.INFO):
             result = tasks_core.copy((1, dataset_files), copy_to=str(self.target_dir_path))
         #check they're in the target directory
-        self.assertTupleEqual(
+        self.assertCountEqual(
             tuple(p.name for p in self.target_dir_path.iterdir()),
             dataset_files)
         # check they're still in the working directory
-        self.assertTupleEqual(
+        self.assertCountEqual(
             tuple(p.name for p in self.working_dir_path.iterdir()),
             dataset_files)
         # check the task returns its arguments
@@ -203,7 +203,7 @@ class CopyTestCase(unittest.TestCase):
         #check no file was copied
         self.assertFalse(tuple(self.target_dir_path.iterdir()))
         # check they're still in the working directory
-        self.assertTupleEqual(
+        self.assertCountEqual(
             tuple(p.name for p in self.working_dir_path.iterdir()),
             dataset_files)
         # check the task returns its arguments
@@ -220,7 +220,7 @@ class CopyTestCase(unittest.TestCase):
                 self.assertLogs(tasks_core.logger, level=logging.INFO):
             result = tasks_core.copy((1, dataset_files), copy_to=str(self.target_dir_path))
         # check the files are still in the working directory
-        self.assertTupleEqual(
+        self.assertCountEqual(
             tuple(p.name for p in self.working_dir_path.iterdir()),
             dataset_files)
         # check the task returns its arguments

@@ -124,7 +124,8 @@ def copy(self, args, copy_to=None):  # pylint: disable=unused-argument
         if copy_to is not None:
             created = []
             for dataset_file_path in dataset_files_paths:
-                created.append(shutil.copy(os.path.join(WORKING_DIRECTORY, dataset_file_path), copy_to))
+                created.append(
+                    shutil.copy(os.path.join(WORKING_DIRECTORY, dataset_file_path), copy_to))
             logger.info("Copied files for dataset %s. Created files: %s", dataset_id, created)
         else:
             logger.info("Did not copy files for dataset %s", dataset_id)

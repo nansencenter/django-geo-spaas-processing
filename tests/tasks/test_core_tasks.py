@@ -155,6 +155,78 @@ class UnarchiveTestCase(unittest.TestCase):
         self.assertFalse((self.temp_dir_path / corrupted_archive_name).exists())
 
 
+class CopyTestCase(unittest.TestCase):
+    """Tests for the copy task"""
+
+    def setUp(self):
+        self.working_dir = tempfile.TemporaryDirectory()
+        self.working_dir_path = Path(self.working_dir.name)
+        mock.patch('geospaas_processing.tasks.core.WORKING_DIRECTORY',
+                   str(self.working_dir_path)).start()
+
+        self.target_dir = tempfile.TemporaryDirectory()
+        self.target_dir_path = Path(self.target_dir.name)
+        self.addCleanup(mock.patch.stopall)
+
+    def tearDown(self):
+        self.working_dir.cleanup()
+
+    def test_copy(self):
+        """Test copying dataset files"""
+        # prepare test files
+        dataset_files = ('foo.nc', 'bar.nc')
+        for dataset_file in dataset_files:
+            (self.working_dir_path / dataset_file).touch()
+        # copy them
+        with self.assertLogs(tasks_core.logger, level=logging.INFO):
+            result = tasks_core.copy((1, dataset_files), copy_to=str(self.target_dir_path))
+        #check they're in the target directory
+        self.assertCountEqual(
+            tuple(p.name for p in self.target_dir_path.iterdir()),
+            dataset_files)
+        # check they're still in the working directory
+        self.assertCountEqual(
+            tuple(p.name for p in self.working_dir_path.iterdir()),
+            dataset_files)
+        # check the task returns its arguments
+        self.assertTupleEqual(result, (1, dataset_files))
+
+    def test_no_copy(self):
+        """Test behavior when no copy_to arg is given"""
+        # prepare test files
+        dataset_files = ('foo.nc', 'bar.nc')
+        for dataset_file in dataset_files:
+            (self.working_dir_path / dataset_file).touch()
+        # copy nothing
+        with self.assertLogs(tasks_core.logger, level=logging.INFO):
+            result = tasks_core.copy((1, dataset_files))
+        #check no file was copied
+        self.assertFalse(tuple(self.target_dir_path.iterdir()))
+        # check they're still in the working directory
+        self.assertCountEqual(
+            tuple(p.name for p in self.working_dir_path.iterdir()),
+            dataset_files)
+        # check the task returns its arguments
+        self.assertTupleEqual(result, (1, dataset_files))
+
+    def test_copy_error(self):
+        """Test error when copying dataset files"""
+        # prepare test files
+        dataset_files = ('foo.nc', 'bar.nc')
+        for dataset_file in dataset_files:
+            (self.working_dir_path / dataset_file).touch()
+        # copy them
+        with mock.patch('shutil.copy', side_effect=OSError), \
+                self.assertLogs(tasks_core.logger, level=logging.INFO):
+            result = tasks_core.copy((1, dataset_files), copy_to=str(self.target_dir_path))
+        # check the files are still in the working directory
+        self.assertCountEqual(
+            tuple(p.name for p in self.working_dir_path.iterdir()),
+            dataset_files)
+        # check the task returns its arguments
+        self.assertTupleEqual(result, (1, dataset_files))
+
+
 class PublishTestCase(unittest.TestCase):
     """Tests for the publish() task"""
 

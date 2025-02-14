@@ -115,6 +115,29 @@ def unarchive(self, args):  # pylint: disable=unused-argument
 
 @app.task(base=FaultTolerantTask, bind=True, track_started=True)
 @lock_dataset_files
+def copy(self, args, copy_to=None):  # pylint: disable=unused-argument
+    """Copy the file (tree) located at `args[1]` to the FTP server (using SCP)"""
+    try: # this task should not interrupt a processing chain when failing
+        dataset_id = args[0]
+        dataset_files_paths = args[1] or []
+
+        if copy_to is not None:
+            created = []
+            for dataset_file_path in dataset_files_paths:
+                created.append(
+                    shutil.copy(os.path.join(WORKING_DIRECTORY, dataset_file_path), copy_to))
+            logger.info("Copied files for dataset %s. Created files: %s", dataset_id, created)
+        else:
+            logger.info("Did not copy files for dataset %s", dataset_id)
+    except Exception: # pylint: disable=broad-exception-caught
+        logger.error("Error while copying downloaded files to alternate location (args: %s)", args,
+                     exc_info=True)
+
+    return args
+
+
+@app.task(base=FaultTolerantTask, bind=True, track_started=True)
+@lock_dataset_files
 def publish(self, args):  # pylint: disable=unused-argument
     """Copy the file (tree) located at `args[1]` to the FTP server (using SCP)"""
     dataset_id = args[0]

@@ -245,6 +245,13 @@ class BasicSyntoolConverter(SyntoolConverter):
                     ingest_parameter_files='ingest_geotiff_4326_tiles'),
             ]
         ),
+        ParameterSelector(
+            matches=lambda d: 'L4_GHRSST-SSTfnd-OSTIA-GLOB-' in d.entry_id,
+            configs=[SyntoolConversionConfig(
+                converter_type='ostia',
+                converter_options={'vmin': '271.15', 'vmax': '283.15',
+                                   'colortable': 'arctic_temp_bins'},
+                ingest_parameter_files='ingest_geotiff_4326_raster')]),
     )
 
     def __init__(self, **kwargs):

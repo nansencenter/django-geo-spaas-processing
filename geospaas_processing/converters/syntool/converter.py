@@ -164,13 +164,14 @@ class BasicSyntoolConverter(SyntoolConverter):
         ParameterSelector(
             matches=lambda d: d.entry_id.startswith('nrt_global_allsat_phy_l4_'),
             configs=[
-                # TODO: needs cropping to work in projection 3413
-                # SyntoolConversionConfig(
-                #     converter_type='current_cmems_l4',
-                #     ingest_parameter_files='ingest_geotiff_4326_vectorfield'),
+                # needs cropping beforehand to work in projection 3413
+                SyntoolConversionConfig(
+                    converter_type='current_cmems_l4',
+                    ingest_parameter_files='ingest_geotiff_4326_vectorfield'),
                 SyntoolConversionConfig(
                     converter_type='cmems_008_047',
-                    ingest_parameter_files='ingest_geotiff_4326_raster')]),
+                    ingest_parameter_files='ingest_geotiff_4326_raster')
+            ]),
         ParameterSelector(
             matches=lambda d: '-IFR-L4_GHRSST-SSTfnd-ODYSSEA-GLOB_' in d.entry_id,
             configs=[SyntoolConversionConfig(

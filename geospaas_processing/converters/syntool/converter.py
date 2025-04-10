@@ -164,13 +164,14 @@ class BasicSyntoolConverter(SyntoolConverter):
         ParameterSelector(
             matches=lambda d: d.entry_id.startswith('nrt_global_allsat_phy_l4_'),
             configs=[
-                # TODO: needs cropping to work in projection 3413
-                # SyntoolConversionConfig(
-                #     converter_type='current_cmems_l4',
-                #     ingest_parameter_files='ingest_geotiff_4326_vectorfield'),
+                # needs cropping beforehand to work in projection 3413
+                SyntoolConversionConfig(
+                    converter_type='current_cmems_l4',
+                    ingest_parameter_files='ingest_geotiff_4326_vectorfield'),
                 SyntoolConversionConfig(
                     converter_type='cmems_008_047',
-                    ingest_parameter_files='ingest_geotiff_4326_raster')]),
+                    ingest_parameter_files='ingest_geotiff_4326_raster')
+            ]),
         ParameterSelector(
             matches=lambda d: '-IFR-L4_GHRSST-SSTfnd-ODYSSEA-GLOB_' in d.entry_id,
             configs=[SyntoolConversionConfig(
@@ -245,6 +246,11 @@ class BasicSyntoolConverter(SyntoolConverter):
                     ingest_parameter_files='ingest_geotiff_4326_tiles'),
             ]
         ),
+        ParameterSelector(
+            matches=lambda d: 'L4_GHRSST-SSTfnd-OSTIA-GLOB-' in d.entry_id,
+            configs=[SyntoolConversionConfig(
+                converter_type='ostia',
+                ingest_parameter_files='ingest_geotiff_4326_raster')]),
     )
 
     def __init__(self, **kwargs):
@@ -351,12 +357,12 @@ class Sentinel1SyntoolConverter(BasicSyntoolConverter):
     """Syntool converter for Sentinel 1"""
     PARAMETER_SELECTORS = (
         ParameterSelector(
-            matches=lambda d: re.match(r'^S1[AB]_.*_(GRD[A-Z]?|SLC)_.*$', d.entry_id),
+            matches=lambda d: re.match(r'^S1[ABC]_.*_(GRD[A-Z]?|SLC)_.*$', d.entry_id),
             configs=[SyntoolConversionConfig(
                 converter_type='sar_roughness',
                 ingest_parameter_files='ingest_geotiff_4326_tiles',)]),
         ParameterSelector(
-            matches=lambda d: re.match(r'^S1[AB]_.*_OCN_.*$', d.entry_id),
+            matches=lambda d: re.match(r'^S1[ABC]_.*_OCN_.*$', d.entry_id),
             configs=[SyntoolConversionConfig(
                 converter_type='sar_wind',
                 ingest_parameter_files='ingest_geotiff_4326_tiles',)]),

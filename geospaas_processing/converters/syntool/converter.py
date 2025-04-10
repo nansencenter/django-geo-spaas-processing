@@ -357,12 +357,12 @@ class Sentinel1SyntoolConverter(BasicSyntoolConverter):
     """Syntool converter for Sentinel 1"""
     PARAMETER_SELECTORS = (
         ParameterSelector(
-            matches=lambda d: re.match(r'^S1[AB]_.*_(GRD[A-Z]?|SLC)_.*$', d.entry_id),
+            matches=lambda d: re.match(r'^S1[ABC]_.*_(GRD[A-Z]?|SLC)_.*$', d.entry_id),
             configs=[SyntoolConversionConfig(
                 converter_type='sar_roughness',
                 ingest_parameter_files='ingest_geotiff_4326_tiles',)]),
         ParameterSelector(
-            matches=lambda d: re.match(r'^S1[AB]_.*_OCN_.*$', d.entry_id),
+            matches=lambda d: re.match(r'^S1[ABC]_.*_OCN_.*$', d.entry_id),
             configs=[SyntoolConversionConfig(
                 converter_type='sar_wind',
                 ingest_parameter_files='ingest_geotiff_4326_tiles',)]),

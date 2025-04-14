@@ -21,7 +21,7 @@ jobs:
       BASE_IMAGE: "${{ vars.DOCKER_ORG }}/geospaas:2.5.2-python${{ matrix.python_version }}"
       IMAGE_NAME_WORKER: "${{ vars.DOCKER_ORG }}/geospaas_processing_worker"
       IMAGE_NAME_CLI: "${{ vars.DOCKER_ORG }}/geospaas_processing_cli"
-      IDF_CONVERTER_VERSION: '0.1.394'
+      IDF_CONVERTER_VERSION: '0.1.426'
       GEOSPAAS_DB_HOST: 'db'
       GEOSPAAS_DB_USER: 'test'
       GEOSPAAS_DB_PASSWORD: ${{ secrets.GEOSPAAS_DB_PASSWORD }}

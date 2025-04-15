@@ -248,9 +248,18 @@ class PublishTestCase(unittest.TestCase):
                             return_value=None), \
                  mock.patch('geospaas_processing.utils.RemoteStorage.__del__',
                             return_value=None):
-                tasks_core.publish((1, [file_name]))  # pylint: disable=no-value-for-parameter
+                tasks_core.publish((1, [file_name]), publish_mode='ftp')  # pylint: disable=no-value-for-parameter
             mock_free_space.assert_called()
             mock_put.assert_called()
+    
+    def test_publish_in_place(self):
+        """Test publishing 'in place'"""
+        previous_task_results = ['foo.nc', 'bar.nc']
+        prefix = 'http://baz/'
+        with mock.patch('os.getenv', return_value=prefix):
+            self.assertEqual(
+                tasks_core.publish((1, previous_task_results), publish_mode='in_place'),
+                (1, ['http://baz/foo.nc', 'http://baz/bar.nc']))
 
     def test_error_if_no_ftp_info(self):
         """An error must be raised if either of the FTP_ variables is not defined"""
@@ -258,7 +267,7 @@ class PublishTestCase(unittest.TestCase):
         del os.environ['GEOSPAAS_PROCESSING_FTP_ROOT']
         del os.environ['GEOSPAAS_PROCESSING_FTP_PATH']
         with self.assertRaises(RuntimeError):
-            tasks_core.publish((1, 'dataset.nc.tar.gz'))  # pylint: disable=no-value-for-parameter
+            tasks_core.publish((1, 'dataset.nc.tar.gz'), publish_mode='ftp')  # pylint: disable=no-value-for-parameter
 
     def test_no_space_left_error(self):
         """
@@ -280,7 +289,7 @@ class PublishTestCase(unittest.TestCase):
                  mock.patch('geospaas_processing.utils.RemoteStorage.__del__',
                             return_value=None):
                 with self.assertRaises(celery.exceptions.Retry):
-                    tasks_core.publish((1, [file_name]))  # pylint: disable=no-value-for-parameter
+                    tasks_core.publish((1, [file_name]), publish_mode='ftp')  # pylint: disable=no-value-for-parameter
             mock_remove.assert_called()
 
     def test_scp_error(self):
@@ -296,7 +305,7 @@ class PublishTestCase(unittest.TestCase):
                     mock.patch.object(utils.RemoteStorage, '__init__', return_value=None), \
                     mock.patch.object(utils.RemoteStorage, '__del__', return_value=None):
                 with self.assertRaises(scp.SCPException):
-                    tasks_core.publish((1, [file_name]))  # pylint: disable=no-value-for-parameter
+                    tasks_core.publish((1, [file_name]), publish_mode='ftp')  # pylint: disable=no-value-for-parameter
 
 
 class CropTestCase(unittest.TestCase):

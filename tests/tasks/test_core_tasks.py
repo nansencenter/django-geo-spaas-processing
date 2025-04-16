@@ -320,18 +320,14 @@ class CropTestCase(unittest.TestCase):
         mock_crop.assert_has_calls((
             mock.call(
                 '/tmp/test_data/foo.nc',
-                '/tmp/test_data/foo_cropped.nc',
+                '/tmp/test_data/cropped_1_2_3_4/foo.nc',
                 [1, 2, 3, 4]),
             mock.call(
                 '/tmp/test_data/bar.nc',
-                '/tmp/test_data/bar_cropped.nc',
+                '/tmp/test_data/cropped_1_2_3_4/bar.nc',
                 [1, 2, 3, 4]),
         ))
-        mock_rename.assert_has_calls([
-            mock.call('/tmp/test_data/foo_cropped.nc', '/tmp/test_data/foo.nc'),
-            mock.call('/tmp/test_data/bar_cropped.nc', '/tmp/test_data/bar.nc')
-        ])
-        self.assertEqual(result, (1, ['foo.nc', 'bar.nc']))
+        self.assertEqual(result, (1, ['cropped_1_2_3_4/foo.nc', 'cropped_1_2_3_4/bar.nc']))
 
     def test_crop_noop(self):
         """Nothing is done if no bounding box is provided"""

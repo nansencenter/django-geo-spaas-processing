@@ -198,18 +198,21 @@ def crop(self, args, bounding_box=None):
     if bounding_box is None:
         return args
     dataset_id = args[0]
+    bounding_box_str = '_'.join(str(i) for i in bounding_box)
     cropped_file_paths = []
     for dataset_file_path in args[1]:
         logger.debug("Cropping dataset %s file '%s'", dataset_id, dataset_file_path)
-        dataset_file_name, extension = os.path.splitext(os.path.basename(dataset_file_path))
-        cropped_file_path = os.path.join(
+        cropped_dir = os.path.join(
             os.path.dirname(dataset_file_path),
-            f"{dataset_file_name}_cropped{extension}")
+            f"cropped_{bounding_box_str}")
+        os.makedirs(os.path.join(WORKING_DIRECTORY, cropped_dir), exist_ok=True)
+        cropped_file_path = os.path.join(
+            cropped_dir,
+            os.path.basename(dataset_file_path))
         full_dataset_path = os.path.join(WORKING_DIRECTORY, dataset_file_path)
         full_cropped_path = os.path.join(WORKING_DIRECTORY, cropped_file_path)
         ops.crop(full_dataset_path, full_cropped_path, bounding_box)
-        os.rename(full_cropped_path, full_dataset_path)
-        cropped_file_paths.append(dataset_file_path)
+        cropped_file_paths.append(cropped_file_path)
     return (dataset_id, cropped_file_paths)
 
 

@@ -37,6 +37,7 @@ logger = logging.getLogger(__name__)
 import warnings
 warnings.filterwarnings("ignore")
 
+
 def find_first_valid_index(arrays):
     """Find the first index which has valid data in all arrays"""
     if any([arrays[0].shape != masked_array.shape for masked_array in arrays]):
@@ -90,13 +91,13 @@ def find_lat_limit(lat, min_lat=50.):
     return slice(last_line + 1)
 
 
-def make_geolocation(lon, lat, gcps_along_track=200):
+def make_geolocation(lon, lat, dst_srs, gcps_along_track=200):
     """Creates GCPs along the borders of the swath"""
     if lat.shape != lon.shape:
         raise RuntimeError("lon.shape {} != lat.shape {}".format(lon.shape, lat.shape))
     shape = lat.shape
 
-    crs = pyproj.CRS(3413)
+    crs = pyproj.CRS(dst_srs)
     transformer = pyproj.Transformer.from_crs(crs.geodetic_crs, crs)
 
     gcp_lines_spacing = int(math.floor(float(shape[0]) / gcps_along_track))
@@ -137,7 +138,7 @@ def adjust_lon_interval(lon):
     return (lon + 180.) % 360. -180.
 
 
-def read_from_file(f_handler):
+def read_from_file(f_handler, dst_srs):
     """"""
     file_name = os.path.basename(f_handler.filepath())
     if file_name.startswith('SWOT_L3_'):
@@ -218,15 +219,18 @@ def read_from_file(f_handler):
     products = {
         'swot_l3_2000m': {
             'groups': [],
-            'variables': [
+            'raster_variables': [
                 # ('mdt', 'mdt', 'mean dynamic topography', -50., 50., -.5, .5, 'matplotlib_gist_rainbow_r'),
                 ('ssha_unfiltered', 'ssha', 'denoised sea surface height anomaly', -10., 10., -.3, .3, 'matplotlib_Spectral_r'),
                 # ('sigma0', 'sigma0', 'SAR backscatter', -100., 100., -10, 40, 'matplotlib_gray_r'),
             ],
+            'vector_variables': [
+                ('ugos_filtered', 'vgos_filtered', 'geos_current', 'geostrophic current velocity', -2., 2., 'm/s'),
+            ]
         },
         'swot_l2_2000m': {
             'groups': [],
-            'variables': [
+            'raster_variables': [
                 ('ssh_karin_2', 'ssh', 'sea surface height', -100., 100., -10., 70., 'matplotlib_gist_rainbow_r'),
                 ('ssha_karin_2', 'ssha', 'sea surface height anomaly', -50., 50., -4., 4., 'matplotlib_Spectral_r'),
                 ('sig0_karin_2', 'sigma0', 'SAR backscatter', -100., 100., -10, 40, 'matplotlib_gray_r'),
@@ -234,7 +238,7 @@ def read_from_file(f_handler):
         },
         'swot_l2_250m': {
             'groups': ['left', 'right'],
-            'variables': [
+            'raster_variables': [
                 # ('ssh_karin_2', 'ssh', 'sea surface height',-100., 100., -10., 70., 'matplotlib_gist_rainbow_r'),
                 ('sig0_karin_2', 'sigma0', 'SAR backscatter', -100., 100., -15, 55, 'matplotlib_gray_r'),
             ],
@@ -266,45 +270,47 @@ def read_from_file(f_handler):
 
         # splitting the dataset in several chunks improves geolocation with GCPs
         slice_size = int(1.5e6 / resolution) # data slices are ~1500 km long
-        data_slices = []
-        for i in range(0, lat.shape[0], slice_size):
-            data_slices.append(slice(i, min(i + slice_size, lat.shape[0])))
-
-        for key, name, description, threshold_min, threshold_max, vmin, vmax, colortable_name in product_config['variables']:
-            extra = {
-                'product_name': product_name_base + extra_name + '_' + name,
-                'extra_name': extra_name.strip('_')
-            }
-
-            variable = dataset.variables[key][desc_slice][extent_slice]
-            if level == 2:
-                variable_qual = dataset.variables[key + '_qual'][desc_slice][extent_slice]
-            else:
+        for i, start in enumerate(range(0, lat.shape[0], slice_size)):
+            data_slice = slice(start, min(start + slice_size, lat.shape[0]))
+            geolocation = make_geolocation(lon[data_slice], lat[data_slice], dst_srs, 20)
+            if level == 3:
                 variable_qual = dataset.variables['quality_flag'][desc_slice][extent_slice]
-            mask = (variable.mask |
-                    (variable > threshold_max) |
-                    (variable < threshold_min) |
-                    (variable_qual >= quality_threshold))
 
-            if vmin is None:
-                vmin = scoreatpercentile(variable[~mask], .1)
-            if vmax is None:
-                vmax = scoreatpercentile(variable[~mask], 99.9)
+            for raster_variable in product_config['raster_variables']:
+                (key, name, description,
+                 threshold_min, threshold_max,
+                 vmin, vmax,
+                 colortable_name) = raster_variable
+                extra = {
+                    'product_name': product_name_base + extra_name + '_' + name,
+                    'extra_name': extra_name.strip('_'),
+                    'granule_number': str(i),
+                }
 
-            vmin_pal = vmin
-            vmax_pal = vmax
-            colortable = stfmt.format_colortable(colortable_name,
-                                                 vmin=vmin, vmax=vmax,
-                                                 vmin_pal=vmin_pal,
-                                                 vmax_pal=vmax_pal)
+                variable = dataset.variables[key][desc_slice][extent_slice][data_slice]
+                if level == 2:
+                    variable_qual = dataset.variables[key + '_qual'][desc_slice][extent_slice]
 
-            for i, data_slice in enumerate(data_slices):
-                extra['granule_number'] = str(i)
-                geolocation = make_geolocation(lon[data_slice], lat[data_slice], 20)
+                mask = (variable.mask |
+                        (variable > threshold_max) |
+                        (variable < threshold_min) |
+                        (variable_qual[data_slice] >= quality_threshold))
+
+                if vmin is None:
+                    vmin = scoreatpercentile(variable[~mask], .1)
+                if vmax is None:
+                    vmax = scoreatpercentile(variable[~mask], 99.9)
+
+                vmin_pal = vmin
+                vmax_pal = vmax
+                colortable = stfmt.format_colortable(colortable_name,
+                                                    vmin=vmin, vmax=vmax,
+                                                    vmin_pal=vmin_pal,
+                                                    vmax_pal=vmax_pal)
 
                 # Pack values as unsigned bytes between 0 and 254
-                array, offset, scale = pack.ubytes_0_254(variable[data_slice], vmin, vmax)
-                array[mask[data_slice]] = 255
+                array, offset, scale = pack.ubytes_0_254(variable, vmin, vmax)
+                array[mask] = 255
 
                 # Add packed module data to the result
                 data = [{
@@ -320,8 +326,73 @@ def read_from_file(f_handler):
                 }]
                 yield (meta, geolocation, data, extra)
 
+            for vector_variable in product_config['vector_variables']:
+                (eastward_key, northward_key,
+                 name, description,
+                 vmin, vmax, units) = vector_variable
+                extra = {
+                    'product_name': product_name_base + extra_name + '_' + name,
+                    'extra_name': extra_name.strip('_'),
+                    'granule_number': str(i),
+                }
+                u = dataset.variables[eastward_key][desc_slice][extent_slice][data_slice]
+                v = dataset.variables[northward_key][desc_slice][extent_slice][data_slice]
+                if level == 2:
+                    variable_qual = dataset.variables[key + '_qual'][desc_slice][extent_slice]
+                mask = (u.mask | v.mask | (variable_qual[data_slice] >= quality_threshold))
 
-def convert(input_path, output_path):
+                crs = pyproj.CRS(dst_srs)
+                transformer = pyproj.Transformer.from_crs(crs.geodetic_crs, crs, always_xy=True)
+                geod = pyproj.Geod(ellps='WGS84')
+
+                lon0 = lon[data_slice]
+                lat0 = lat[data_slice]
+                lon1, lat1, _ = geod.fwd(lon0, lat0, np.rad2deg(np.arctan2(u, v)), np.hypot(u, v))
+                x0_target, y0_target = transformer.transform(lon0, lat0)
+                x1_target, y1_target = transformer.transform(lon1, lat1)
+                x_component_target = x1_target - x0_target
+                y_component_target = y1_target - y0_target
+
+                vector_norm = np.hypot(x_component_target, y_component_target)
+                vector_direction = np.mod(
+                    np.rad2deg(np.arctan2(y_component_target,x_component_target)), 360.0)
+
+                # Pack values as unsigned bytes between 0 and 254
+                array, offset, scale = pack.ubytes_0_254(vector_norm, vmin, vmax)
+                # Set masked values to 255
+                array[mask] = 255
+                # Add packed module data to the result
+                data = []
+                data.append({
+                    'name': '{}_norm'.format(name),
+                    'array': array,
+                    'scale': scale,
+                    'offset': offset,
+                    'description': '{} norm'.format(description),
+                    'unittype': str(units),
+                    'nodatavalue': 255,
+                    'parameter_range': [vmin, vmax]})
+
+                vmin = 0.0
+                vmax = 360.0
+                # Pack values as unsigned bytes between 0 and 254
+                array, offset, scale = pack.ubytes_0_254(vector_direction, vmin, vmax)
+                # Set masked values to 255
+                array[mask[data_slice]] = 255
+                # Add packed module data to the result
+                data.append({
+                    'name': '{}_direction'.format(name),
+                    'array': array,
+                    'scale': scale,
+                    'offset': offset,
+                    'description': '{} direction'.format(description),
+                    'unittype': 'degrees',
+                    'nodatavalue': 255,
+                    'parameter_range': [vmin, vmax]})
+                yield (meta, geolocation, data, extra)
+
+
+def convert(input_path, output_path, dst_srs=3413):
     """Entrypoint"""
     granule_filename = os.path.basename(input_path)
     granule_prefix, _ = os.path.splitext(granule_filename)
@@ -332,7 +403,7 @@ def convert(input_path, output_path):
     # output_path.
     # The name of this subdirectory is meta['product_name'] converted to
     # lowercase: for this product it will be <ouput_path>/my_custom_product
-    for (meta, geolocation, data, extra) in read_from_file(f_handler):
+    for (meta, geolocation, data, extra) in read_from_file(f_handler, dst_srs):
         # Build the name of the granule so that it is unique within the product
         # It is mandatory to append the datetime here because the input file
         # contain several granules and they would overwrite each other if they

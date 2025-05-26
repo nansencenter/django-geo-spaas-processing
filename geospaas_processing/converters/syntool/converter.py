@@ -512,7 +512,14 @@ class CustomReaderSyntoolConverter(BasicSyntoolConverter):
             matches=lambda d: d.entry_id.startswith('SWOT_'),
             configs=[SyntoolConversionConfig(
                 converter_type='swot',
-                ingest_parameter_files='ingest_geotiff_3413_tiles',)]),
+                ingest_parameter_files=(
+                    ParameterSelector(
+                        matches=lambda p: '_vectorfield' in str(p),
+                        ingest_file='ingest_geotiff_3413_vectorfield'),
+                    ParameterSelector(
+                        matches=lambda p: all(i not in str(p) for i in (
+                            '_raster', '_vectorfield')),
+                        ingest_file='ingest_geotiff_3413_tiles')))]),
         ParameterSelector(
             matches=lambda d: d.entry_id.startswith('nrt_global_al_phy_l3_1hz_'),
             configs=[SyntoolConversionConfig(

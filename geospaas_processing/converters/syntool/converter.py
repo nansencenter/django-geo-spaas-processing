@@ -515,7 +515,7 @@ class CustomReaderSyntoolConverter(BasicSyntoolConverter):
                 ingest_parameter_files=(
                     ParameterSelector(
                         matches=lambda p: 'current' in str(p),
-                        ingest_file='ingest_geotiff_3413_vectorfield'),
+                        ingest_file='ingest_geotiff_3413_angles_vectorfield'),
                     ParameterSelector(
                         matches=lambda p: 'current' not in str(p),
                         ingest_file='ingest_geotiff_3413_tiles')))]),

@@ -30,7 +30,6 @@ try:
 except ImportError:  # pragma: no cover
     Redis = None
 
-import geospaas.catalog.managers
 from geospaas.catalog.models import Dataset
 
 import geospaas_processing.utils as utils
@@ -560,10 +559,9 @@ class DownloadManager():
     """Downloads datasets based on some criteria, using the right downloaders"""
 
     DOWNLOADERS = {
-        geospaas.catalog.managers.OPENDAP_SERVICE: HTTPDownloader,
-        geospaas.catalog.managers.HTTP_SERVICE: HTTPDownloader,
+        'http': HTTPDownloader,
         'ftp': FTPDownloader,
-        geospaas.catalog.managers.LOCAL_FILE_SERVICE: LocalDownloader,
+        'file': LocalDownloader,
     }
 
     def __init__(self, download_directory='.', provider_settings_path=None, max_downloads=100,
@@ -629,12 +627,15 @@ class DownloadManager():
                 raise TooManyDownloadsError(
                     f"Too many downloads in progress for {dataset_uri_prefix}")
             # Try to find a downloader
-            try:
-                downloader = self.DOWNLOADERS[dataset_uri.service]
-            except KeyError:
+            downloader = None
+            for prefix, dl_class in self.DOWNLOADERS.items():
+                if dataset_uri.uri.startswith(prefix):
+                    downloader = dl_class
+                    break
+            if downloader is None:
                 LOGGER.error("No downloader found for %s service",
                             dataset_uri.service, exc_info=True)
-                raise
+                raise RuntimeError(f'Could not find downloader for {dataset_uri.uri}')
 
             LOGGER.debug("Attempting to download from '%s'", dataset_uri.uri)
             file_name = None

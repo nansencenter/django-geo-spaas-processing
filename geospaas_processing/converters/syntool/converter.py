@@ -514,11 +514,10 @@ class CustomReaderSyntoolConverter(BasicSyntoolConverter):
                 converter_type='swot',
                 ingest_parameter_files=(
                     ParameterSelector(
-                        matches=lambda p: '_vectorfield' in str(p),
+                        matches=lambda p: 'current' in str(p),
                         ingest_file='ingest_geotiff_3413_vectorfield'),
                     ParameterSelector(
-                        matches=lambda p: all(i not in str(p) for i in (
-                            '_raster', '_vectorfield')),
+                        matches=lambda p: 'current' not in str(p),
                         ingest_file='ingest_geotiff_3413_tiles')))]),
         ParameterSelector(
             matches=lambda d: d.entry_id.startswith('nrt_global_al_phy_l3_1hz_'),

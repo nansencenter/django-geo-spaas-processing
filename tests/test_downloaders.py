@@ -18,7 +18,6 @@ import oauthlib.oauth2.rfc6749.errors
 import pyotp
 import requests
 import requests_oauthlib
-from geospaas.catalog.managers import LOCAL_FILE_SERVICE
 from geospaas.catalog.models import Dataset
 from redis import Redis
 
@@ -888,8 +887,8 @@ class DownloadManagerTestCase(django.test.TestCase):
                                return_value='test.nc'), \
                 mock.patch('os.makedirs'):
             download_manager.download_dataset(dataset, '/testing_value')
-            self.assertEqual(dataset.dataseturi_set.filter(
-                                dataset=dataset,service=LOCAL_FILE_SERVICE)[0].uri,
+            self.assertEqual(dataset.dataseturi_set.filter(dataset=dataset,
+                                                           uri__startswith='file')[0].uri,
                              os.path.join('/testing_value', dataset.entry_id, 'test.nc'))
 
     def test_save_path_if_file_already_exists(self):
@@ -903,7 +902,8 @@ class DownloadManagerTestCase(django.test.TestCase):
                 mock.patch('os.listdir', return_value=['test.nc']):
             download_manager.download_dataset(dataset, '/testing_value')
             self.assertEqual(
-                dataset.dataseturi_set.filter(dataset=dataset,service=LOCAL_FILE_SERVICE)[0].uri,
+                dataset.dataseturi_set.filter(dataset=dataset,
+                                              uri__startswith='file')[0].uri,
                 os.path.join('/testing_value', dataset.entry_id, 'test.nc'))
 
     def test_download_dataset(self):

@@ -10,8 +10,6 @@ import tempfile
 from pathlib import Path
 from typing import Tuple, Dict, Union
 
-from geospaas.catalog.managers import LOCAL_FILE_SERVICE
-
 from ..base import ConversionError, ConversionManager, Converter, ParameterSelector
 
 
@@ -120,7 +118,7 @@ class SyntoolConverter(Converter):
     @staticmethod
     def _extract_url(dataset):
         """Get the first URL which is not a local path"""
-        dataset_uri = dataset.dataseturi_set.exclude(service=LOCAL_FILE_SERVICE).first()
+        dataset_uri = dataset.dataseturi_set.exclude(uri__startswith='file').first()
         return '' if dataset_uri is None else dataset_uri.uri
 
     def run(self, in_file, out_dir, **kwargs):

@@ -6,7 +6,7 @@ from os.path import exists
 import django
 
 from geospaas.catalog.models import Dataset
-from geospaas.catalog.managers import LOCAL_FILE_SERVICE
+
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'geospaas_processing.settings')
 django.setup()
@@ -36,7 +36,7 @@ class Copier():
             string_to_write += f"entry_title: {dataset.entry_title}{os.linesep}"
             string_to_write += f"source: {dataset.source}{os.linesep}"
             string_to_write += f"data_center: {dataset.data_center}{os.linesep}"
-            for urlname in dataset.dataseturi_set.exclude(service=LOCAL_FILE_SERVICE):
+            for urlname in dataset.dataseturi_set.exclude(uri__startswith='file'):
                 string_to_write += f"- url: {urlname.uri}{os.linesep}"
             string_to_write += f"summary: {dataset.summary}{os.linesep}"
             flag_file.write(string_to_write)
@@ -80,8 +80,8 @@ class Copier():
     def copy(self):
         """ Tries to copy all datasets based on their stored local addresses in the database."""
         for dataset in self._datasets:
-            if dataset.dataseturi_set.filter(service=LOCAL_FILE_SERVICE).exists():
-                source_paths = dataset.dataseturi_set.filter(service=LOCAL_FILE_SERVICE)
+            if dataset.dataseturi_set.filter(uri__startswith='file').exists():
+                source_paths = dataset.dataseturi_set.filter(uri__startswith='file')
                 self.file_or_symlink_copy(source_paths=source_paths, dataset=dataset)
             else:
                 LOGGER.warning("For dataset with id = %s, there is no local file/folder address in "

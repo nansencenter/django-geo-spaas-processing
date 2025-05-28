@@ -561,6 +561,11 @@ class CustomReaderSyntoolConverter(BasicSyntoolConverter):
                 converter_type='cmems_008_044',
                 converter_options={'mission': 'swot'},
                 ingest_parameter_files='ingest_geotiff_4326_trajectorytiles',)]),
+        ParameterSelector(
+            matches=lambda d: d.entry_id.startswith('noaa-crw_mhw_'),
+            configs=[SyntoolConversionConfig(
+                converter_type='marine_heatwaves',
+                ingest_parameter_files='ingest_geotiff_4326_raster_no_shape')]),
     )
 
     def parse_converter_args(self, config, kwargs):

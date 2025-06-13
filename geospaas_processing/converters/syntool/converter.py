@@ -512,7 +512,13 @@ class CustomReaderSyntoolConverter(BasicSyntoolConverter):
             matches=lambda d: d.entry_id.startswith('SWOT_'),
             configs=[SyntoolConversionConfig(
                 converter_type='swot',
-                ingest_parameter_files='ingest_geotiff_3413_tiles',)]),
+                ingest_parameter_files=(
+                    ParameterSelector(
+                        matches=lambda p: 'current' in str(p),
+                        ingest_file='ingest_geotiff_3413_angles_vectorfield'),
+                    ParameterSelector(
+                        matches=lambda p: 'current' not in str(p),
+                        ingest_file='ingest_geotiff_3413_tiles')))]),
         ParameterSelector(
             matches=lambda d: d.entry_id.startswith('nrt_global_al_phy_l3_1hz_'),
             configs=[SyntoolConversionConfig(

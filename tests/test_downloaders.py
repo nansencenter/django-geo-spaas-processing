@@ -804,7 +804,7 @@ class DownloadManagerTestCase(django.test.TestCase):
         Test that datasets are correctly retrieved according to the criteria given in the
         constructor
         """
-        download_manager = downloaders.DownloadManager(source__instrument__short_name='SLSTR')
+        download_manager = downloaders.DownloadManager(keywords__data__short_name='SLSTR')
         self.assertListEqual(
             list(download_manager.datasets),
             [Dataset.objects.get(pk=2), Dataset.objects.get(pk=3)]
@@ -818,7 +818,7 @@ class DownloadManagerTestCase(django.test.TestCase):
     def test_error_on_too_wide_criteria(self):
         """Test that the download manager raises an error when too many datasets are found"""
         with self.assertRaises(ValueError):
-            downloaders.DownloadManager(max_downloads=1, source__instrument__short_name='SLSTR')
+            downloaders.DownloadManager(max_downloads=1, keywords__data__short_name='SLSTR')
 
     def test_load_provider_settings(self):
         """Test that provider settings are correctly loaded"""
@@ -889,7 +889,7 @@ class DownloadManagerTestCase(django.test.TestCase):
             download_manager.download_dataset(dataset, '/testing_value')
             self.assertEqual(dataset.dataseturi_set.filter(dataset=dataset,
                                                            uri__startswith='file')[0].uri,
-                             os.path.join('/testing_value', dataset.entry_id, 'test.nc'))
+                             'file://'+os.path.join('/testing_value', dataset.entry_id, 'test.nc'))
 
     def test_save_path_if_file_already_exists(self):
         """
@@ -904,7 +904,7 @@ class DownloadManagerTestCase(django.test.TestCase):
             self.assertEqual(
                 dataset.dataseturi_set.filter(dataset=dataset,
                                               uri__startswith='file')[0].uri,
-                os.path.join('/testing_value', dataset.entry_id, 'test.nc'))
+                'file://' + os.path.join('/testing_value', dataset.entry_id, 'test.nc'))
 
     def test_download_dataset(self):
         """Test that a dataset is downloaded with the correct arguments"""
@@ -1003,13 +1003,13 @@ class DownloadManagerTestCase(django.test.TestCase):
         with mock.patch('os.makedirs'), \
              mock.patch.object(downloaders.HTTPDownloader, 'check_and_download_url') as mock_dl_url:
             with self.assertLogs(downloaders.LOGGER):
-                with self.assertRaises(KeyError):
+                with self.assertRaises(RuntimeError):
                     download_manager.download_dataset(dataset, '')
             mock_dl_url.assert_not_called()
 
     def test_download_all_matched_datasets(self):
         """Test downloading all datasets matching the criteria"""
-        download_manager = downloaders.DownloadManager(source__instrument__short_name='SLSTR')
+        download_manager = downloaders.DownloadManager(keywords__data__short_name='SLSTR')
         with mock.patch.object(downloaders.DownloadManager, 'download_dataset') as mock_dl_dataset:
             # Append the primary key to the results list instead of actually downloading
             mock_dl_dataset.side_effect = lambda d, _: d.pk

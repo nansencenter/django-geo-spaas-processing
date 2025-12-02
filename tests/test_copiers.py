@@ -11,7 +11,7 @@ class CopyingWarningTestCase(TestCase):
     def test_warning_for_the_destination_path( self, mock_exs, mock_join, mock_basename):
         """Tests warning logs for the cases that there is already a file or folder with same name in
         the destination folder """
-        source_path = mock.MagicMock()
+        source_path = mock.MagicMock(uri='file:///foo')
         dataset = mock.MagicMock()
         dataset.id=3
         test_copier = Copier(type_in_flag_file='', destination_path='')

@@ -24,7 +24,7 @@ def create_cumulative_query(arg):
     """find the requested datasets based on the time, geometry, and query of the arguments of cli"""
     cumulative_query = json.loads(arg.query) if arg.query else {}
     if arg.geometry:
-        cumulative_query['geographic_location__geometry__intersects'] = GEOSGeometry(arg.geometry)
+        cumulative_query['location__intersects'] = GEOSGeometry(arg.geometry)
     designated_begin, designated_end = find_designated_time(
         arg.rel_time_flag, arg.begin, arg.end)
     cumulative_query['time_coverage_start__gte'] = designated_begin

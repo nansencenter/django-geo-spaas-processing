@@ -633,8 +633,7 @@ class DownloadManager():
                     downloader = dl_class
                     break
             if downloader is None:
-                LOGGER.error("No downloader found for %s service",
-                            dataset_uri.service, exc_info=True)
+                LOGGER.error("No downloader found for %s", dataset_uri.uri, exc_info=True)
                 raise RuntimeError(f'Could not find downloader for {dataset_uri.uri}')
 
             LOGGER.debug("Attempting to download from '%s'", dataset_uri.uri)
@@ -661,7 +660,7 @@ class DownloadManager():
     def download_dataset(self, dataset, download_directory):
         """
         Attempt to download a dataset by trying its URIs one by one. For each `DatasetURI`, it
-        selects the appropriate Dowloader based on the `service` property.
+        selects the appropriate Dowloader based on the URL scheme.
         Returns the downloaded file path if the download succeeds, an empty string otherwise.
         """
         errors = []

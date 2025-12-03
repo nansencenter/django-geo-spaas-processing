@@ -26,6 +26,7 @@ jobs:
       GEOSPAAS_DB_USER: 'test'
       GEOSPAAS_DB_PASSWORD: ${{ secrets.GEOSPAAS_DB_PASSWORD }}
       latest: ${{ matrix.python_version == '3.11' && 'true' || '' }}
+      HARVESTING_VERSION: "4.0.0.dev0"
     steps:
       - name: 'Checkout repository'
         uses: actions/checkout@v4
@@ -67,6 +68,7 @@ jobs:
           target: base
           build-args: |
             BASE_IMAGE=${{ env.BASE_IMAGE }}
+            HARVESTING_VERSION=${{ env.HARVESTING_VERSION }}
           push: false
           load: true
           tags: ${{ env.IMAGE_NAME_WORKER }}
@@ -108,6 +110,7 @@ jobs:
           build-args: |
             BASE_IMAGE=${{ env.BASE_IMAGE }}
             IDF_CONVERTER_VERSION=${{ env.IDF_CONVERTER_VERSION }}
+            HARVESTING_VERSION=${{ env.HARVESTING_VERSION }}
           push: ${{ github.event_name == 'release' }}
           tags: |
             ${{ env.IMAGE_NAME_WORKER }}:${{ github.ref_name }}-python${{ matrix.python_version }}

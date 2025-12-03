@@ -20,10 +20,8 @@ RUN pip install --upgrade --no-cache-dir \
     'nco'
 
 ARG HARVESTING_VERSION=3.7.0.dev3
-ARG METANORM_VERSION=4.1.1
 RUN pip install --upgrade --no-cache-dir \
-    https://github.com/nansencenter/django-geo-spaas-harvesting/archive/refs/tags/${HARVESTING_VERSION}.tar.gz \
-    https://github.com/nansencenter/metanorm/releases/download/${METANORM_VERSION}/metanorm-${METANORM_VERSION}-py3-none-any.whl
+    "git+https://github.com/nansencenter/django-geo-spaas-harvesting@${HARVESTING_VERSION}"
 
 FROM base as full
 

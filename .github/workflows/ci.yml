@@ -24,7 +24,7 @@ jobs:
       GEOSPAAS_DB_USER: 'test'
       GEOSPAAS_DB_PASSWORD: ${{ secrets.GEOSPAAS_DB_PASSWORD }}
       latest: ${{ matrix.python_version == '3.11' && 'true' || '' }}
-      HARVESTING_VERSION: "4.0.0.dev0"
+      HARVESTING_VERSION: "4.0.0.dev1"
     steps:
       - name: 'Checkout repository'
         uses: actions/checkout@v4

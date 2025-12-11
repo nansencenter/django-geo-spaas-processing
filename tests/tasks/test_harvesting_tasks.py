@@ -10,18 +10,17 @@ class StartHarvestTestCase(unittest.TestCase):
     """Tests for the start_harvest() task"""
 
     def setUp(self):
+        self.mock_general_config = mock.patch(
+            'geospaas_harvesting.config.GeneralConfiguration').start()
         self.mock_providers_config = mock.patch(
-            'geospaas_processing.tasks.harvesting.ProvidersConfiguration').start()
+            'geospaas_harvesting.config.ProvidersConfiguration').start()
         self.mock_search_config = mock.patch(
-            'geospaas_processing.tasks.harvesting.SearchConfiguration').start()
+            'geospaas_harvesting.config.SearchConfiguration').start()
         self.search_results_mocks = [mock.Mock(), mock.Mock()]
-        self.mock_search_config.from_dict.return_value \
-                               .with_providers.return_value \
-                               .create_provider_searches.return_value = self.search_results_mocks
+        (self.mock_search_config.from_dict.return_value
+                                .create_provider_searches.return_value) = self.search_results_mocks
         self.mock_celery_group = mock.patch('celery.group').start()
-
-    def tearDown(self):
-        mock.patch.stopall()
+        self.addCleanup(mock.patch.stopall)
 
     def test_start_harvest(self):
         """Test starting the harvesting process. This doesn't test
@@ -45,7 +44,7 @@ class HarvestingTestCase(unittest.TestCase):
     def test_update_vocabularies(self):
         """Test updating vocabularies"""
         with mock.patch(
-                'geospaas_processing.tasks.harvesting.ProvidersConfiguration') as mock_config, \
+                'geospaas_harvesting.config.GeneralConfiguration') as mock_config, \
              mock.patch(
                 'geospaas_processing.tasks.harvesting.refresh_vocabularies') as mock_refresh:
             tasks_harvesting.update_vocabularies()

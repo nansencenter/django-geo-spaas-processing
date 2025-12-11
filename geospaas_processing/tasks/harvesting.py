@@ -2,7 +2,6 @@
 import os
 
 import celery
-import celery.result
 import celery.utils
 
 from geospaas_harvesting.cli import refresh_vocabularies, retry_ingest

@@ -6,7 +6,7 @@ import celery.result
 import celery.utils
 
 from geospaas_harvesting.cli import refresh_vocabularies, retry_ingest
-from geospaas_harvesting.config import ProvidersConfiguration, SearchConfiguration
+import geospaas_harvesting.config as harvesting_config
 
 from geospaas_processing.tasks import FaultTolerantTask
 from . import app
@@ -21,9 +21,7 @@ HARVEST_CONFIG_PATH = os.getenv('GEOSPAAS_PROCESSING_HARVEST_CONFIG')
 @app.task(base=FaultTolerantTask, bind=True, track_started=True)
 def start_harvest(self, search_config_dict):
     """Launch harvesting according to the search configuration"""
-    config = ProvidersConfiguration.from_file(HARVEST_CONFIG_PATH)
-    search_config = SearchConfiguration.from_dict(search_config_dict) \
-                                       .with_providers(config.providers) # pylint: disable=no-member
+    search_config = harvesting_config.SearchConfiguration.from_dict(search_config_dict)
     searches = search_config.create_provider_searches()
     logger.info("Running the following searches: %s", searches)
     tasks_to_run = celery.group(
@@ -44,7 +42,7 @@ def save_search_results(self, search_results):
 @app.task(base=FaultTolerantTask, bind=True, track_started=True)
 def update_vocabularies(self):
     """Update vocabularies in the GeoSPaaS database"""
-    config = ProvidersConfiguration.from_file(HARVEST_CONFIG_PATH)
+    config = harvesting_config.GeneralConfiguration.from_file(HARVEST_CONFIG_PATH)
     refresh_vocabularies(config)
 
 

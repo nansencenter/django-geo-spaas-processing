@@ -226,7 +226,7 @@ def read_from_file(f_handler, dst_srs):
             ],
             'vector_variables': [
                 ('ugos_filtered', 'vgos_filtered', 'geos_current', 'geostrophic current velocity', -2., 2., 'm/s'),
-            ]
+            ],
         },
         'swot_l2_2000m': {
             'groups': [],
@@ -235,6 +235,7 @@ def read_from_file(f_handler, dst_srs):
                 ('ssha_karin_2', 'ssha', 'sea surface height anomaly', -50., 50., -4., 4., 'matplotlib_Spectral_r'),
                 ('sig0_karin_2', 'sigma0', 'SAR backscatter', -100., 100., -10, 40, 'matplotlib_gray_r'),
             ],
+            'vector_variables': [],
         },
         'swot_l2_250m': {
             'groups': ['left', 'right'],
@@ -242,6 +243,7 @@ def read_from_file(f_handler, dst_srs):
                 # ('ssh_karin_2', 'ssh', 'sea surface height',-100., 100., -10., 70., 'matplotlib_gist_rainbow_r'),
                 ('sig0_karin_2', 'sigma0', 'SAR backscatter', -100., 100., -15, 55, 'matplotlib_gray_r'),
             ],
+            'vector_variables': [],
         },
     }
 

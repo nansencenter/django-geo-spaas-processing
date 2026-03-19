@@ -570,6 +570,11 @@ class CustomReaderSyntoolConverter(BasicSyntoolConverter):
             configs=[SyntoolConversionConfig(
                 converter_type='marine_heatwaves',
                 ingest_parameter_files='ingest_geotiff_4326_raster_no_shape')]),
+        ParameterSelector(
+            matches=lambda d: d.entry_id.startswith('toxin_forecast_'),
+            configs=[SyntoolConversionConfig(
+                converter_type='eo4sa',
+                ingest_parameter_files='ingest_geotiff_3413_tiles')]),
     )
 
     def parse_converter_args(self, config, kwargs):

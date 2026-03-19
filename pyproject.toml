@@ -31,6 +31,7 @@ dependencies = [
     'requests_oauthlib',
     'requests',
     'scp',
+    'setuptools<81',
 ]
 urls = {Repository = "https://github.com/nansencenter/django-geo-spaas-processing"}
 dynamic = ["version"]

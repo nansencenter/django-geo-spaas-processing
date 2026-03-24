@@ -198,11 +198,11 @@ def convert(input_path, output_path):
     depths = f_handler.variables['depth'][:]
 
     vector_parameters = {
-        'current': (('u', 'v'), 'Sea water velocity', (-3, 3)),
+        'current': (('u_eastward', 'v_northward'), 'Sea water velocity', (-3, 3)),
     }
     scalar_parameters = {
         'salinity': ('salinity', 'Sea water salinity', (0, 40), 'matplotlib_inferno'),
-        'swt': ('temperature', 'Sea water temperature', (0, 25), 'matplotlib_gist_rainbow_r'),
+        'sst': ('temperature', 'Sea surface temperature', (0, 25), 'matplotlib_gist_rainbow_r'),
     }
 
     for parameter_name, properties in vector_parameters.items():

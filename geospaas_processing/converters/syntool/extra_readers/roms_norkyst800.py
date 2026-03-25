@@ -167,7 +167,7 @@ def convert(input_path, output_path):
         'product_name': None,
         'name': None,
         'datetime': stfmt.format_time(dtime),
-        'time_range': ['-12h', '+12h'],
+        'time_range': ['+0h', '+24h'],
         'source_provider': '',
         'processing_center': '',
         'conversion_software': 'Syntool',

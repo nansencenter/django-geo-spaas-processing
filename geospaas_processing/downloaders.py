@@ -472,10 +472,11 @@ class LocalDownloader(Downloader):
 
     @classmethod
     def get_file_name(cls, url, connection, **kwargs):
-        return os.path.basename(url)
+        return os.path.basename(urlparse(url).path)
 
     @classmethod
     def get_file_size(cls, url, connection, auth=(None, None)):
+        url = urlparse(url).path
         try:
             return os.path.getsize(url)
         except FileNotFoundError as error:
@@ -483,7 +484,7 @@ class LocalDownloader(Downloader):
 
     @classmethod
     def download_file(cls, file, url, connection):
-        with open(url, 'rb') as source:
+        with open(urlparse(url).path, 'rb') as source:
             shutil.copyfileobj(source, file)
 
 

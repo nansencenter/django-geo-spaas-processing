@@ -167,7 +167,7 @@ def convert(input_path, output_path):
         'product_name': None,
         'name': None,
         'datetime': stfmt.format_time(dtime),
-        'time_range': ['-12h', '+12h'],
+        'time_range': ['+0h', '+24h'],
         'source_provider': '',
         'processing_center': '',
         'conversion_software': 'Syntool',
@@ -198,11 +198,11 @@ def convert(input_path, output_path):
     depths = f_handler.variables['depth'][:]
 
     vector_parameters = {
-        'current': (('u', 'v'), 'Sea water velocity', (-3, 3)),
+        'current': (('u_eastward', 'v_northward'), 'Sea water velocity', (-3, 3)),
     }
     scalar_parameters = {
         'salinity': ('salinity', 'Sea water salinity', (0, 40), 'matplotlib_inferno'),
-        'swt': ('temperature', 'Sea water temperature', (0, 25), 'matplotlib_gist_rainbow_r'),
+        'sst': ('temperature', 'Sea surface temperature', (0, 25), 'matplotlib_gist_rainbow_r'),
     }
 
     for parameter_name, properties in vector_parameters.items():

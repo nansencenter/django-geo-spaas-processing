@@ -355,12 +355,12 @@ class Sentinel1SyntoolConverter(BasicSyntoolConverter):
     """Syntool converter for Sentinel 1"""
     PARAMETER_SELECTORS = (
         ParameterSelector(
-            matches=lambda d: re.match(r'^S1[ABC]_.*_(GRD[A-Z]?|SLC)_.*$', d.entry_id),
+            matches=lambda d: re.match(r'^S1[A-Z]_.*_(GRD[A-Z]?|SLC)_.*$', d.entry_id),
             configs=[SyntoolConversionConfig(
                 converter_type='sar_roughness',
                 ingest_parameter_files='ingest_geotiff_4326_tiles',)]),
         ParameterSelector(
-            matches=lambda d: re.match(r'^S1[ABC]_.*_OCN_.*$', d.entry_id),
+            matches=lambda d: re.match(r'^S1[A-Z]_.*_OCN_.*$', d.entry_id),
             configs=[SyntoolConversionConfig(
                 converter_type='sar_wind',
                 ingest_parameter_files='ingest_geotiff_4326_tiles',)]),
@@ -440,7 +440,7 @@ class CustomReaderSyntoolConverter(BasicSyntoolConverter):
                         ingest_file='ingest_norkyst800_current'),))],
         ),
         ParameterSelector(
-            matches=lambda d: re.match(r'^S1[AB]_.*_(GRD[A-Z]?|SLC)_.*_denoised$', d.entry_id),
+            matches=lambda d: re.match(r'^S1[A-Z]_.*_(GRD[A-Z]?|SLC)_.*_denoised$', d.entry_id),
             configs=[SyntoolConversionConfig(
                 converter_type='s1_denoised',
                 ingest_parameter_files='ingest_geotiff_4326_tiles',)]),
@@ -450,7 +450,7 @@ class CustomReaderSyntoolConverter(BasicSyntoolConverter):
                 converter_type='sios_chlorophyll',
                 ingest_parameter_files='ingest_geotiff_32662_tiles',)]),
         ParameterSelector(
-            matches=lambda d: re.match(r'^WIND_S1[AB]_.*$', d.entry_id),
+            matches=lambda d: re.match(r'^WIND_S1[A-Z]_.*$', d.entry_id),
             configs=[SyntoolConversionConfig(
                 converter_type='sios_wind',
                 ingest_parameter_files='ingest_geotiff_3413_tiles',)]),

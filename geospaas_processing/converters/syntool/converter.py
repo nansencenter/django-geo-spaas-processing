@@ -10,8 +10,6 @@ import tempfile
 from pathlib import Path
 from typing import Tuple, Dict, Union
 
-from geospaas.catalog.managers import LOCAL_FILE_SERVICE
-
 from ..base import ConversionError, ConversionManager, Converter, ParameterSelector
 
 
@@ -120,7 +118,7 @@ class SyntoolConverter(Converter):
     @staticmethod
     def _extract_url(dataset):
         """Get the first URL which is not a local path"""
-        dataset_uri = dataset.dataseturi_set.exclude(service=LOCAL_FILE_SERVICE).first()
+        dataset_uri = dataset.dataseturi_set.exclude(uri__startswith='file').first()
         return '' if dataset_uri is None else dataset_uri.uri
 
     def run(self, in_file, out_dir, **kwargs):
@@ -357,12 +355,12 @@ class Sentinel1SyntoolConverter(BasicSyntoolConverter):
     """Syntool converter for Sentinel 1"""
     PARAMETER_SELECTORS = (
         ParameterSelector(
-            matches=lambda d: re.match(r'^S1[ABC]_.*_(GRD[A-Z]?|SLC)_.*$', d.entry_id),
+            matches=lambda d: re.match(r'^S1[A-Z]_.*_(GRD[A-Z]?|SLC)_.*$', d.entry_id),
             configs=[SyntoolConversionConfig(
                 converter_type='sar_roughness',
                 ingest_parameter_files='ingest_geotiff_4326_tiles',)]),
         ParameterSelector(
-            matches=lambda d: re.match(r'^S1[ABC]_.*_OCN_.*$', d.entry_id),
+            matches=lambda d: re.match(r'^S1[A-Z]_.*_OCN_.*$', d.entry_id),
             configs=[SyntoolConversionConfig(
                 converter_type='sar_wind',
                 ingest_parameter_files='ingest_geotiff_4326_tiles',)]),
@@ -430,19 +428,22 @@ class CustomReaderSyntoolConverter(BasicSyntoolConverter):
                 ingest_parameter_files='ingest_geotiff_4326_tiles')],
         ),
         ParameterSelector(
-            matches=lambda d: d.entry_id.startswith('NorKyst-800m_'),
+            matches=lambda d: d.entry_id.startswith('norkyst800_his_zdepth_'),
             configs=[SyntoolConversionConfig(
                 converter_type='roms_norkyst800',
                 ingest_parameter_files=(
                     ParameterSelector(
-                        matches=lambda p: any(i in str(p) for i in ('swt', 'salinity')),
-                        ingest_file='ingest_geotiff_3413_raster'),
+                        matches=lambda p: any(i in p.parts for i in (
+                            'roms_norkyst800_sst',
+                            'roms_norkyst800_salinity',
+                            'roms_norkyst800_current_norm')),
+                        ingest_file='ingest_geotiff_3413_tiles'),
                     ParameterSelector(
-                        matches=lambda p: 'roms_norkyst800_current' in str(p),
+                        matches=lambda p: 'roms_norkyst800_current' in p.parts,
                         ingest_file='ingest_norkyst800_current'),))],
         ),
         ParameterSelector(
-            matches=lambda d: re.match(r'^S1[AB]_.*_(GRD[A-Z]?|SLC)_.*_denoised$', d.entry_id),
+            matches=lambda d: re.match(r'^S1[A-Z]_.*_(GRD[A-Z]?|SLC)_.*_denoised$', d.entry_id),
             configs=[SyntoolConversionConfig(
                 converter_type='s1_denoised',
                 ingest_parameter_files='ingest_geotiff_4326_tiles',)]),
@@ -452,7 +453,7 @@ class CustomReaderSyntoolConverter(BasicSyntoolConverter):
                 converter_type='sios_chlorophyll',
                 ingest_parameter_files='ingest_geotiff_32662_tiles',)]),
         ParameterSelector(
-            matches=lambda d: re.match(r'^WIND_S1[AB]_.*$', d.entry_id),
+            matches=lambda d: re.match(r'^WIND_S1[A-Z]_.*$', d.entry_id),
             configs=[SyntoolConversionConfig(
                 converter_type='sios_wind',
                 ingest_parameter_files='ingest_geotiff_3413_tiles',)]),
@@ -572,6 +573,11 @@ class CustomReaderSyntoolConverter(BasicSyntoolConverter):
             configs=[SyntoolConversionConfig(
                 converter_type='marine_heatwaves',
                 ingest_parameter_files='ingest_geotiff_4326_raster_no_shape')]),
+        ParameterSelector(
+            matches=lambda d: d.entry_id.startswith('toxin_forecast_'),
+            configs=[SyntoolConversionConfig(
+                converter_type='eo4sa',
+                ingest_parameter_files='ingest_geotiff_3413_tiles')]),
     )
 
     def parse_converter_args(self, config, kwargs):

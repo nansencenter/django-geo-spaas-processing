@@ -12,13 +12,11 @@ jobs:
     strategy:
       matrix:
         python_version:
-          - '3.7'
-          - '3.8'
           - '3.9'
           - '3.10'
           - '3.11'
     env:
-      BASE_IMAGE: "${{ vars.DOCKER_ORG }}/geospaas:2.5.2-python${{ matrix.python_version }}"
+      BASE_IMAGE: "${{ vars.DOCKER_ORG }}/geospaas:3.0.0.dev1-python${{ matrix.python_version }}"
       IMAGE_NAME_WORKER: "${{ vars.DOCKER_ORG }}/geospaas_processing_worker"
       IMAGE_NAME_CLI: "${{ vars.DOCKER_ORG }}/geospaas_processing_cli"
       IDF_CONVERTER_VERSION: '0.1.426'
@@ -26,6 +24,7 @@ jobs:
       GEOSPAAS_DB_USER: 'test'
       GEOSPAAS_DB_PASSWORD: ${{ secrets.GEOSPAAS_DB_PASSWORD }}
       latest: ${{ matrix.python_version == '3.11' && 'true' || '' }}
+      HARVESTING_VERSION: "4.0.0.dev10"
     steps:
       - name: 'Checkout repository'
         uses: actions/checkout@v4
@@ -67,6 +66,7 @@ jobs:
           target: base
           build-args: |
             BASE_IMAGE=${{ env.BASE_IMAGE }}
+            HARVESTING_VERSION=${{ env.HARVESTING_VERSION }}
           push: false
           load: true
           tags: ${{ env.IMAGE_NAME_WORKER }}
@@ -108,6 +108,7 @@ jobs:
           build-args: |
             BASE_IMAGE=${{ env.BASE_IMAGE }}
             IDF_CONVERTER_VERSION=${{ env.IDF_CONVERTER_VERSION }}
+            HARVESTING_VERSION=${{ env.HARVESTING_VERSION }}
           push: ${{ github.event_name == 'release' }}
           tags: |
             ${{ env.IMAGE_NAME_WORKER }}:${{ github.ref_name }}-python${{ matrix.python_version }}
@@ -157,7 +158,9 @@ jobs:
              docker run --rm
              -v "$(pwd):/src"
              "${{ vars.DOCKER_ORG }}/geospaas:latest"
-             bash -c "pip install build && python -m build -s -w"
+             bash -c "git config --global --add safe.directory /src
+             && pip install build
+             && python -m build -s -w"
 
       - name: 'Deploy package to the Github release'
         env:

@@ -35,7 +35,7 @@ class DownloadingCLITestCase(django.test.TestCase):
             '-g', "POLYGON ((-22 84, -22 74, 32 74, 32 84, -22 84))",
             '-c', "/config_folder/config_file.yml",
             '-q',
-            '{"dataseturi__uri__contains": "osisaf", "source__instrument__short_name__icontains": '
+            '{"dataseturi__uri__contains": "osisaf", "keywords__data__short_name__icontains": '
             + '"AMSR2"}',
         ]
 
@@ -50,7 +50,7 @@ class DownloadingCLITestCase(django.test.TestCase):
         self.assertEqual(arg.safety_limit, '100')
         self.assertEqual(arg.query,
                          '{"dataseturi__uri__contains": "osisaf", '
-                         + '"source__instrument__short_name__icontains": "AMSR2"}')
+                         + '"keywords__data__short_name__icontains": "AMSR2"}')
         # testing the flag presence
         self.assertTrue(arg.rel_time_flag)
         self.assertTrue(arg.save_path)
@@ -69,7 +69,7 @@ class DownloadingCLITestCase(django.test.TestCase):
             cli_download.main()
         self.assertIn(
             ('{"dataseturi__uri__contains": "osisaf", '
-             '"source__instrument__short_name__icontains": "AMSR2"}',),
+             '"keywords__data__short_name__icontains": "AMSR2"}',),
             mock_json.call_args)
 
     @mock.patch('geospaas_processing.downloaders.DownloadManager.__init__', return_value=None)
@@ -101,7 +101,7 @@ class DownloadingCLITestCase(django.test.TestCase):
             'time_coverage_end__lte': datetime(2020, 8, 22, 0, 0, tzinfo=tzutc()),
             'time_coverage_start__gte': datetime(2019, 10, 22, 0, 0, tzinfo=tzutc()),
             'dataseturi__uri__contains': 'osisaf',
-            'source__instrument__short_name__icontains': 'AMSR2',
+            'keywords__data__short_name__icontains': 'AMSR2',
             'save_path': True
         }, mock_download_manager_init.call_args)
 
@@ -116,14 +116,14 @@ class DownloadingCLITestCase(django.test.TestCase):
             cli_download.main()
         self.assertIn({
             'download_directory': '/test_folder/%Y_nh_polstere',
-            'geographic_location__geometry__intersects':
-            GEOSGeometry('POLYGON ((-22 84, -22 74, 32 74, 32 84, -22 84))'),
+            'location__intersects':
+                GEOSGeometry('POLYGON ((-22 84, -22 74, 32 74, 32 84, -22 84))'),
             'max_downloads': 100,
             'provider_settings_path': '/config_folder/config_file.yml',
             'time_coverage_end__lte': datetime(2012, 1, 14, 0, 0, tzinfo=tzutc()),
             'time_coverage_start__gte': datetime(2012, 1, 12, 8, 0, tzinfo=tzutc()),
             'dataseturi__uri__contains': 'osisaf',
-            'source__instrument__short_name__icontains': 'AMSR2',
+            'keywords__data__short_name__icontains': 'AMSR2',
             'save_path': True
         }, mock_download_manager_init.call_args)
 
@@ -158,7 +158,7 @@ class CopyingCLITestCase(django.test.TestCase):
             '-g', "POLYGON ((-22 84, -22 74, 32 74, 32 84, -22 84))",
             '-t', 'test_type',
             '-q',
-            '{"dataseturi__uri__contains": "osisaf", "source__instrument__short_name__icontains": '
+            '{"dataseturi__uri__contains": "osisaf", "keywords__data__short_name__icontains": '
             + '"AMSR2"}'
         ]
         arg = cli_copy.cli_parse_args()
@@ -170,7 +170,7 @@ class CopyingCLITestCase(django.test.TestCase):
         self.assertEqual(arg.time_to_live, '150')
         self.assertEqual(arg.query,
                          '{"dataseturi__uri__contains": "osisaf", '
-                         + '"source__instrument__short_name__icontains": "AMSR2"}')
+                         + '"keywords__data__short_name__icontains": "AMSR2"}')
         # testing the flag presence
         self.assertTrue(arg.rel_time_flag)
         self.assertTrue(arg.flag_file)
@@ -379,8 +379,6 @@ class CopyingCLITestCase(django.test.TestCase):
                 "0179_029_344_5220_LN2_O_NT_003\n"
                 "entry_title: S3A_SL_1_RBT____20180405T004306_20180405T004606_20180406T060255_"
                 "0179_029_344_5220_LN2_O_NT_003\n"
-                "source: SENTINEL-3A/SLSTR\n"
-                "data_center: ESA/EO\n"
                 "- url: https://scihub.copernicus.eu/apihub/odata/v1/"
                 "Products('6127111d-c9bd-4689-bab5-412dd39e1e81')/$value\n"
                 "- url: https://scihub.copernicus.eu/the_second_fakeurl\n"

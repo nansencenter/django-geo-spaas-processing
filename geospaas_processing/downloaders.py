@@ -30,7 +30,6 @@ try:
 except ImportError:  # pragma: no cover
     Redis = None
 
-import geospaas.catalog.managers
 from geospaas.catalog.models import Dataset
 
 import geospaas_processing.utils as utils
@@ -473,10 +472,11 @@ class LocalDownloader(Downloader):
 
     @classmethod
     def get_file_name(cls, url, connection, **kwargs):
-        return os.path.basename(url)
+        return os.path.basename(urlparse(url).path)
 
     @classmethod
     def get_file_size(cls, url, connection, auth=(None, None)):
+        url = urlparse(url).path
         try:
             return os.path.getsize(url)
         except FileNotFoundError as error:
@@ -484,7 +484,7 @@ class LocalDownloader(Downloader):
 
     @classmethod
     def download_file(cls, file, url, connection):
-        with open(url, 'rb') as source:
+        with open(urlparse(url).path, 'rb') as source:
             shutil.copyfileobj(source, file)
 
 
@@ -560,10 +560,9 @@ class DownloadManager():
     """Downloads datasets based on some criteria, using the right downloaders"""
 
     DOWNLOADERS = {
-        geospaas.catalog.managers.OPENDAP_SERVICE: HTTPDownloader,
-        geospaas.catalog.managers.HTTP_SERVICE: HTTPDownloader,
+        'http': HTTPDownloader,
         'ftp': FTPDownloader,
-        geospaas.catalog.managers.LOCAL_FILE_SERVICE: LocalDownloader,
+        'file': LocalDownloader,
     }
 
     def __init__(self, download_directory='.', provider_settings_path=None, max_downloads=100,
@@ -629,12 +628,14 @@ class DownloadManager():
                 raise TooManyDownloadsError(
                     f"Too many downloads in progress for {dataset_uri_prefix}")
             # Try to find a downloader
-            try:
-                downloader = self.DOWNLOADERS[dataset_uri.service]
-            except KeyError:
-                LOGGER.error("No downloader found for %s service",
-                            dataset_uri.service, exc_info=True)
-                raise
+            downloader = None
+            for prefix, dl_class in self.DOWNLOADERS.items():
+                if dataset_uri.uri.startswith(prefix):
+                    downloader = dl_class
+                    break
+            if downloader is None:
+                LOGGER.error("No downloader found for %s", dataset_uri.uri, exc_info=True)
+                raise RuntimeError(f'Could not find downloader for {dataset_uri.uri}')
 
             LOGGER.debug("Attempting to download from '%s'", dataset_uri.uri)
             file_name = None
@@ -660,7 +661,7 @@ class DownloadManager():
     def download_dataset(self, dataset, download_directory):
         """
         Attempt to download a dataset by trying its URIs one by one. For each `DatasetURI`, it
-        selects the appropriate Dowloader based on the `service` property.
+        selects the appropriate Dowloader based on the URL scheme.
         Returns the downloaded file path if the download succeeds, an empty string otherwise.
         """
         errors = []
@@ -691,7 +692,7 @@ class DownloadManager():
             if self.save_path:
                 dataset.dataseturi_set.get_or_create(
                     dataset=dataset,
-                    uri=os.path.join(os.path.realpath(full_dataset_directory), file_name))
+                    uri='file://'+os.path.join(os.path.realpath(full_dataset_directory), file_name))
             return dataset_path
         else:
             shutil.rmtree(full_dataset_directory, ignore_errors=True)

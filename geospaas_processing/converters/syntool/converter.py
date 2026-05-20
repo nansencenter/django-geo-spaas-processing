@@ -433,10 +433,13 @@ class CustomReaderSyntoolConverter(BasicSyntoolConverter):
                 converter_type='roms_norkyst800',
                 ingest_parameter_files=(
                     ParameterSelector(
-                        matches=lambda p: any(i in str(p) for i in ('sst', 'salinity')),
+                        matches=lambda p: any(i in p.parts for i in (
+                            'roms_norkyst800_sst',
+                            'roms_norkyst800_salinity',
+                            'roms_norkyst800_current_norm')),
                         ingest_file='ingest_geotiff_3413_tiles'),
                     ParameterSelector(
-                        matches=lambda p: 'roms_norkyst800_current' in str(p),
+                        matches=lambda p: 'roms_norkyst800_current' in p.parts,
                         ingest_file='ingest_norkyst800_current'),))],
         ),
         ParameterSelector(

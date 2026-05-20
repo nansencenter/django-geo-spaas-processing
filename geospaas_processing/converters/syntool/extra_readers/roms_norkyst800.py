@@ -73,7 +73,7 @@ def process_vector_parameter(parameter_name, units, description, vmin, vmax,
 
     # Add packed module data to the result
     data = []
-    data.append({
+    norm_data = {
         'name': '{}_norm'.format(parameter_name),
         'array': array,
         'scale': scale,
@@ -81,7 +81,9 @@ def process_vector_parameter(parameter_name, units, description, vmin, vmax,
         'description': str(description),
         'unittype': str(units),
         'nodatavalue': 255,
-        'parameter_range': [vmin, vmax]})
+        'parameter_range': [vmin, vmax]
+    }
+    data.append(norm_data)
 
     # add angle band
     vector_direction = numpy.mod(
@@ -113,6 +115,19 @@ def process_vector_parameter(parameter_name, units, description, vmin, vmax,
     # Generate GeoTIFF
     tifffile = stfmt.format_tifffilename(output_path, meta, create_dir=True)
     stfmt.write_geotiff(tifffile, meta, geolocation, data)
+    projection_workaround(tifffile)
+
+    # generate vector norm GeoTIFF
+    meta['product_name'] = '{}_{}_norm'.format(product_base_name, parameter_name)
+    tifffile = stfmt.format_tifffilename(output_path, meta, create_dir=True)
+    n_vmin = 0
+    n_vmax = numpy.floor(numpy.sqrt(numpy.square(vmin) + numpy.square(vmax)))
+    norm_data['parameter_range'] = [n_vmin, n_vmax]
+    norm_data['colortable'] = stfmt.format_colortable(
+        'matplotlib_viridis',
+        vmin=n_vmin, vmax=n_vmax,
+        vmin_pal=n_vmin, vmax_pal=n_vmax)
+    stfmt.write_geotiff(tifffile, meta, geolocation, [norm_data])
     projection_workaround(tifffile)
 
 
@@ -216,10 +231,17 @@ def convert(input_path, output_path):
             for i, depth in [(0, 0)]:
                 # for i, depth in enumerate(depths):
                 meta['name'] = '{}_{}m'.format(granule_prefix, depth)
+                if 'northward' in y_component_name:
+                    angle = numpy.deg2rad(70. - f_handler.variables['lon'][:])
+                    u = x_component_data[i] * numpy.cos(angle) + y_component_data[i] * numpy.sin(angle)
+                    v = -x_component_data[i] * numpy.sin(angle) + y_component_data[i] * numpy.cos(angle)
+                else:
+                    u = x_component_data[i]
+                    v = y_component_data[i]
                 process_vector_parameter(
                     parameter_name, x_component.units, description,
                     vmin, vmax,
-                    x_component_data[i], y_component_data[i],
+                    u, v,
                     x, y,
                     crs, meta, geolocation, product_base_name, output_path)
         elif x_component.dimensions == y_component.dimensions == ('time', 'Y', 'X'):
@@ -229,7 +251,7 @@ def convert(input_path, output_path):
             meta['name'] = granule_prefix
             process_vector_parameter(
                 parameter_name, x_component.units, description,
-                -2, 2,
+                vmin, vmax,
                 x_component_data, y_component_data,
                 x, y,
                 crs, meta, geolocation, product_base_name, output_path)

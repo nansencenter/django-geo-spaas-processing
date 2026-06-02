@@ -3,7 +3,7 @@ import logging
 import subprocess
 import unittest
 import unittest.mock as mock
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import django.test
@@ -241,49 +241,49 @@ class CleanupIngestedTestCase(django.test.TestCase):
         self.mock_rmtree = mock.patch('shutil.rmtree').start()
         self.mock_remove = mock.patch('os.remove').start()
         self.mock_run = mock.patch('subprocess.run').start()
-
-    def tearDown(self):
-        mock.patch.stopall()
+        self.mock_datetime = mock.patch('geospaas_processing.tasks.syntool.datetime').start()
+        self.mock_datetime.now.return_value = datetime(2023, 10, 27, tzinfo=timezone.utc)
+        self.addCleanup(mock.patch.stopall)
 
     def test_cleanup(self):
         """Test standard call, deleting based on creation date"""
-        expected_path = 'ingested/product_name/granule_name/'  # see fixture
+        expected_path = 'ingested/product_name/granule_name_2/'  # see fixture
         with self.assertLogs(tasks_syntool.logger):
-            self.assertListEqual(tasks_syntool.cleanup({'id': 1}), [expected_path])
+            self.assertListEqual(tasks_syntool.cleanup(), [expected_path])
         self.mock_rmtree.assert_called_with(Path(
             geospaas_processing.tasks.WORKING_DIRECTORY,
             expected_path))
         self.mock_run.assert_called_with(
             [
                 'mysql', '-h', 'db', 'syntool', '-e',
-                "DELETE FROM `product_product_name` WHERE dataset_name = 'granule_name';"
+                "DELETE FROM `product_product_name` WHERE dataset_name = 'granule_name_2';"
             ],
             capture_output=True,
             check=True)
-        self.assertFalse(ProcessingResult.objects.filter(id=1).exists())
+        self.assertFalse(ProcessingResult.objects.filter(id=2).exists())
 
     def test_cleanup_file(self):
         """Test deleting a file (usually won't happen)"""
         self.mock_rmtree.side_effect = NotADirectoryError
-        expected_path = 'ingested/product_name/granule_name/'  # see fixture
+        expected_path = 'ingested/product_name/granule_name_2/'  # see fixture
         with self.assertLogs(tasks_syntool.logger):
-            self.assertListEqual(tasks_syntool.cleanup({'id': 1}), [expected_path])
+            self.assertListEqual(tasks_syntool.cleanup(), [expected_path])
 
     def test_cleanup_file_not_found(self):
         """Test behavior when the result files are already deleted
         """
         self.mock_rmtree.side_effect = FileNotFoundError
-        expected_path = 'ingested/product_name/granule_name/'  # see fixture
+        expected_path = 'ingested/product_name/granule_name_2/'  # see fixture
         with self.assertLogs(tasks_syntool.logger, level=logging.WARNING):
-            self.assertListEqual(tasks_syntool.cleanup({'id': 1}), [expected_path])
+            self.assertListEqual(tasks_syntool.cleanup(), [expected_path])
 
     def test_cleanup_stale_file_handle(self):
         """Test behavior when a stale file handle error happens
         """
         self.mock_rmtree.side_effect = OSError(116, '[Errno 116] Stale file handle')
-        expected_path = 'ingested/product_name/granule_name/'  # see fixture
+        expected_path = 'ingested/product_name/granule_name_2/'  # see fixture
         with self.assertLogs(tasks_syntool.logger, level=logging.WARNING):
-            self.assertListEqual(tasks_syntool.cleanup({'id': 1}), [expected_path])
+            self.assertListEqual(tasks_syntool.cleanup(), [expected_path])
 
     def test_cleanup_file_subprocess_error(self):
         """Test behavior when an error occurs running the mysql command
@@ -292,4 +292,4 @@ class CleanupIngestedTestCase(django.test.TestCase):
         self.mock_run.side_effect = subprocess.CalledProcessError(1, '')
         with self.assertLogs(tasks_syntool.logger, level=logging.ERROR), \
              self.assertRaises(subprocess.CalledProcessError):
-            self.assertListEqual(tasks_syntool.cleanup({'id': 1}), [expected_path])
+            self.assertListEqual(tasks_syntool.cleanup(), [expected_path])

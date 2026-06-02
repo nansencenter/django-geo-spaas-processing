@@ -6,14 +6,16 @@ import subprocess
 import tempfile
 from collections.abc import Mapping
 from contextlib import ExitStack
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import celery
+from django.db.models import F
 
 import geospaas_processing.converters.syntool
 import geospaas_processing.utils as utils
 from geospaas.catalog.models import Dataset
+from geospaas_processing.models import ProcessingResult
 from geospaas_processing.tasks import lock_dataset_files, FaultTolerantTask, WORKING_DIRECTORY
 from ..converters.syntool.converter import SyntoolConversionManager
 from ..models import ProcessingResult
@@ -177,15 +179,15 @@ def db_insert(self, args, **kwargs):
 
 
 @app.task(base=FaultTolerantTask, bind=True, track_started=True)
-def cleanup(self, criteria):
-    """Remove ingested files based on the provided criteria.
-    `criteria` is a dictionaryn of Django lookups used to select the
-    ProcessingResults to remove.
+def cleanup(self):
+    """Remove expired ingested files
     """
     syntool_database_host, syntool_database_name = get_db_config()
+
+    now = datetime.now(timezone.utc)
     processing_results = ProcessingResult.objects.filter(
         type=ProcessingResult.ProcessingResultType.SYNTOOL,
-        **criteria)
+        ttl__lt=now-F("created"))
 
     results_dir = os.getenv('GEOSPAAS_PROCESSING_SYNTOOL_RESULTS_DIR', WORKING_DIRECTORY)
 

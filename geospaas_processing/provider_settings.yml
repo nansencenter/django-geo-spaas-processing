@@ -59,4 +59,7 @@
 'https://tds.aviso.altimetry.fr':
   username: !ENV AVISO_USERNAME
   password: !ENV AVISO_PASSWORD
+'https://tds-odatis.aviso.altimetry.fr':
+  username: !ENV AVISO_USERNAME
+  password: !ENV AVISO_PASSWORD
 ...

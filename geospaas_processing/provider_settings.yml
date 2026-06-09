@@ -33,7 +33,7 @@
   totp_secret: !ENV 'CREODIAS_TOTP_SECRET'
   token_placement: 'url'
   token_parameter_name: 'token'
-'https://catalogue.dataspace.copernicus.eu':
+'https://download.dataspace.copernicus.eu':
   username: !ENV 'COPERNICUS_DATA_SPACE_USERNAME'
   password: !ENV 'COPERNICUS_DATA_SPACE_PASSWORD'
   authentication_type: 'oauth2'
@@ -57,6 +57,9 @@
   username: !ENV EARTHDATA_USERNAME
   password: !ENV EARTHDATA_PASSWORD
 'https://tds.aviso.altimetry.fr':
+  username: !ENV AVISO_USERNAME
+  password: !ENV AVISO_PASSWORD
+'https://tds-odatis.aviso.altimetry.fr':
   username: !ENV AVISO_USERNAME
   password: !ENV AVISO_PASSWORD
 ...

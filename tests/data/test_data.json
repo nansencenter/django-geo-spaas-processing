@@ -245,5 +245,27 @@
             "type": "syntool",
             "created": "2023-10-25T15:38:47.000Z"
         }
+    },
+    {
+        "model": "geospaas_processing.processingresult",
+        "pk": 2,
+        "fields": {
+            "dataset": 4,
+            "path": "ingested/product_name/granule_name_2/",
+            "type": "syntool",
+            "created": "2023-10-25T15:38:47.000Z",
+            "ttl": "1 00:00:00"
+        }
+    },
+    {
+        "model": "geospaas_processing.processingresult",
+        "pk": 3,
+        "fields": {
+            "dataset": 4,
+            "path": "ingested/product_name/granule_name_3/",
+            "type": "syntool",
+            "created": "2023-10-25T15:38:47.000Z",
+            "ttl": "10 00:00:00"
+        }
     }
 ]

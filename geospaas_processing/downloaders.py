@@ -18,8 +18,10 @@ import pickle
 import re
 import shutil
 import time
+from pathlib import Path
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
+import boto3
 import oauthlib.oauth2
 import oauthlib.oauth2.rfc6749.errors
 import pyotp
@@ -121,7 +123,7 @@ class Downloader():
         raise NotImplementedError()
 
     @classmethod
-    def download_file(cls, file, url, connection):
+    def download_file(cls, file_path, url, connection):
         """Writes the remote file to the file object contained in the
         `file` argument"""
         raise NotImplementedError()
@@ -148,8 +150,7 @@ class Downloader():
                 utils.LocalStorage(path=download_dir).free_space(file_size)
 
             try:
-                with open(file_path, 'wb') as target_file:
-                    cls.download_file(target_file, url, connection)
+                cls.download_file(file_path, url, connection)
             except OSError as error:
                 if error.errno == errno.ENOSPC:
                     # In case of "No space left on device" error,
@@ -402,7 +403,7 @@ class HTTPDownloader(Downloader):
         return file_size
 
     @classmethod
-    def download_file(cls, file, url, connection):
+    def download_file(cls, file_path, url, connection):
         """Download the file using the Response object contained in the
         `connection` argument
         """
@@ -490,6 +491,62 @@ class LocalDownloader(Downloader):
         shutil.copyfile(urlparse(url).path, file_path)
 
 
+class S3Downloader(Downloader):
+    """Download files from AWS S3"""
+    @classmethod
+    def get_auth(cls, kwargs):
+        if ('access_key' in kwargs) and ('secret_key') in kwargs:
+            return (kwargs['access_key'], kwargs['secret_key'])
+        return (None, None)
+
+    @classmethod
+    def connect(cls, url, auth=(None, None), **kwargs):
+        url_components = urlparse(url)
+        bucket_name = url_components.netloc
+        session = boto3.session.Session(
+                aws_access_key_id=auth[0],
+                aws_secret_access_key=auth[1],
+                region_name=kwargs.get('region_name', 'default'))
+        s3 = session.resource('s3', endpoint_url=kwargs.get('endpoint_url'))
+        return s3.Bucket(bucket_name)
+
+    @classmethod
+    def close_connection(cls, connection):
+        """Not necessary"""
+
+    @classmethod
+    def get_file_name(cls, url, connection, **kwargs):
+        return os.path.basename(urlparse(url).path)
+
+    @classmethod
+    def get_file_size(cls, url, connection, auth=(None, None)):
+        size = 0
+        for file in connection.objects.filter(Prefix=urlparse(url).path.lstrip('/')):
+            size += file.size
+        return size
+
+    @classmethod
+    def download_file(cls, file_path, url, connection):
+        s3_path = Path(urlparse(url).path.lstrip('/'))
+        files = connection.objects.filter(Prefix=str(s3_path))
+        if not list(files):
+            raise DownloadError(f"Could not find any files for {s3_path}")
+        dest = Path(file_path)
+        for remote_file in files:
+            remote_file_path = Path(remote_file.key)
+            file_dest = Path(dest, remote_file_path.relative_to(s3_path))
+            file_dest.parent.mkdir(parents=True, exist_ok=True)
+            if not file_dest.is_dir():
+                if (file_dest.is_file() and file_dest.stat().st_size == remote_file.size):
+                    cls.logger.info("Already downloaded, skipping %s", file_dest)
+                    continue
+                connection.download_file(remote_file.key, file_dest)
+                downloaded_size = file_dest.stat().st_size
+                if downloaded_size != remote_file.size:
+                    raise DownloadError(
+                        f"Downloaded file {file_dest} has the wrong size {downloaded_size}")
+
+
 class DownloadLock():
     """Context manager used to prevent too many simultaneous downloads"""
 
@@ -561,10 +618,14 @@ class DownloadLock():
 class DownloadManager():
     """Downloads datasets based on some criteria, using the right downloaders"""
 
+    # the order defines the priority of Downloaders.
+    # if a local URL is present, it will be tried first, etc.
     DOWNLOADERS = {
-        'http': HTTPDownloader,
-        'ftp': FTPDownloader,
         'file': LocalDownloader,
+        's3': S3Downloader,
+        'https': HTTPDownloader,
+        'ftp': FTPDownloader,
+        'http': HTTPDownloader,
     }
 
     def __init__(self, download_directory='.', provider_settings_path=None, max_downloads=100,

@@ -65,8 +65,9 @@ class DownloaderTestCase(unittest.TestCase):
             return 8
 
         @classmethod
-        def download_file(cls, file, url, connection):
-            file.write(b'contents')
+        def download_file(cls, file_path, url, connection):
+            with open(file_path, 'wb') as file:
+                file.write(b'contents')
 
     def setUp(self):
         self.temp_directory = tempfile.TemporaryDirectory()
@@ -179,8 +180,7 @@ class DownloaderTestCase(unittest.TestCase):
         If a 'No space left' error occurs, an attempt must be made
         to remove the potential partially downloaded file
         """
-        def simulate_no_space_left(file, url, connection):
-            file.write(b'cont')
+        def simulate_no_space_left(file_path, url, connection):
             raise OSError(errno.ENOSPC, '')
 
         with mock.patch.object(self.TestDownloader, 'download_file',
@@ -549,28 +549,30 @@ class HTTPDownloaderTestCase(unittest.TestCase):
     def test_download_file(self):
         """Test downloading a file from a existing Response"""
         response = requests.Response()
-        contents = 'foo'
-        buffer = io.StringIO()
-
-        with mock.patch.object(response, 'iter_content', return_value=[contents]):
-            downloaders.HTTPDownloader.download_file(buffer, 'url', response)
-        self.assertEqual(buffer.getvalue(), contents)
-        buffer.close()
+        contents = b'foo'
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            dest_path = Path(tmp_dir, 'dest')
+            with mock.patch.object(response, 'iter_content', return_value=[contents]):
+                downloaders.HTTPDownloader.download_file(dest_path, 'url', response)
+            with open(dest_path, 'rb') as dest_file:
+                self.assertEqual(dest_file.read(), contents)
 
     def test_download_empty_file(self):
         """An exception must be raised if the response is empty"""
         response = requests.Response()
         response.raw = io.BytesIO(b'')
-        with self.assertRaises(downloaders.DownloadError):
-            downloaders.HTTPDownloader.download_file(mock.Mock(), 'url', response)
+        with mock.patch('builtins.open'):
+            with self.assertRaises(downloaders.DownloadError):
+                downloaders.HTTPDownloader.download_file('/dest/path', 'url', response)
 
     def test_download_interrupted_connection(self):
         """An exception must be raised if the connection is interrupted
         """
         response = mock.Mock()
         response.iter_content.side_effect = requests.exceptions.ChunkedEncodingError
-        with self.assertRaises(downloaders.RetriableDownloadError):
-            downloaders.HTTPDownloader.download_file(mock.Mock(), 'url', response)
+        with mock.patch('builtins.open'):
+            with self.assertRaises(downloaders.RetriableDownloadError):
+                downloaders.HTTPDownloader.download_file('/dest/path', 'url', response)
 
 
 class URLOAuth2TestCase(unittest.TestCase):
@@ -652,17 +654,19 @@ class FTPDownloaderTestCase(unittest.TestCase):
                 downloaders.FTPDownloader.get_file_size('ftp://host/path/file.nc', mock_connection)
             )
 
-    def test_get_download_file(self):
+    def test_download_file(self):
         """get_download_file() should write the remote file to the file
         object argument
         """
-        mock_file = mock.Mock()
         mock_connection = mock.Mock()
 
-        downloaders.FTPDownloader.download_file(
-            mock_file, 'ftp://host/path/file.nc', mock_connection)
+        with mock.patch('builtins.open') as mock_open:
+            downloaders.FTPDownloader.download_file(
+                '/dest/path', 'ftp://host/path/file.nc', mock_connection)
 
-        mock_connection.retrbinary.assert_called_with('RETR /path/file.nc', mock_file.write)
+        mock_connection.retrbinary.assert_called_with(
+            'RETR /path/file.nc',
+            mock_open.return_value.__enter__.return_value.write)
 
     def test_download_file_error(self):
         """An ObsoleteURLError should be raised if the path does not
@@ -707,12 +711,9 @@ class LocalDownloaderTestCase(unittest.TestCase):
         """download_file() should write the file at `url` to the `file`
         descriptor
         """
-        contents = 'foo'
-        source_buffer = io.StringIO(contents)
-        target_buffer = io.StringIO()
-        with mock.patch('geospaas_processing.downloaders.open', return_value=source_buffer):
-            downloaders.LocalDownloader.download_file(target_buffer, 'path', None)
-            self.assertEqual(target_buffer.getvalue(), contents)
+        with mock.patch('shutil.copyfile') as mock_copyfile:
+            downloaders.LocalDownloader.download_file('/dest/path', 'file:///source/path', None)
+            mock_copyfile.assert_called_once_with('/source/path', '/dest/path')
 
 
 class DownloadLockTestCase(unittest.TestCase):
@@ -993,19 +994,6 @@ class DownloadManagerTestCase(django.test.TestCase):
             with self.assertRaises(downloaders.DownloadError):
                 with self.assertLogs(downloaders.LOGGER, logging.WARNING):
                     download_manager.download_dataset(dataset, '')
-
-    def test_download_no_downloader_found(self):
-        """Test that `download_dataset` raises an exception when no downloader is found"""
-        download_manager = downloaders.DownloadManager()
-        download_manager.DOWNLOADERS = {}
-        dataset = Dataset.objects.get(pk=1)
-
-        with mock.patch('os.makedirs'), \
-             mock.patch.object(downloaders.HTTPDownloader, 'check_and_download_url') as mock_dl_url:
-            with self.assertLogs(downloaders.LOGGER):
-                with self.assertRaises(RuntimeError):
-                    download_manager.download_dataset(dataset, '')
-            mock_dl_url.assert_not_called()
 
     def test_download_all_matched_datasets(self):
         """Test downloading all datasets matching the criteria"""

@@ -10,6 +10,7 @@ The Redis instance hostname and port can be set via the following environment va
 import errno
 import ftplib
 import hashlib
+import itertools
 import logging
 import os
 import os.path
@@ -407,8 +408,9 @@ class HTTPDownloader(Downloader):
         """
         chunk = None
         try:
-            for chunk in connection.iter_content(chunk_size=cls.CHUNK_SIZE):
-                file.write(chunk)
+            with open(file_path, 'wb') as file:
+                for chunk in connection.iter_content(chunk_size=cls.CHUNK_SIZE):
+                    file.write(chunk)
         except requests.exceptions.ChunkedEncodingError as error:
             raise RetriableDownloadError(f"Download from {url} was interrupted") from error
         if chunk is None:
@@ -445,11 +447,12 @@ class FTPDownloader(Downloader):
             return None
 
     @classmethod
-    def download_file(cls, file, url, connection):
+    def download_file(cls, file_path, url, connection):
         """Downloads the remote file to the `file` object"""
         path = urlparse(url).path
         if connection.nlst(path):
-            connection.retrbinary(f"RETR {path}", file.write)
+            with open(file_path, 'wb') as file:
+                connection.retrbinary(f"RETR {path}", file.write)
         else:
             raise ObsoleteURLError(f"{url} does not exist")
 
@@ -483,9 +486,8 @@ class LocalDownloader(Downloader):
             raise ObsoleteURLError(f"{url} does not exist") from error
 
     @classmethod
-    def download_file(cls, file, url, connection):
-        with open(urlparse(url).path, 'rb') as source:
-            shutil.copyfileobj(source, file)
+    def download_file(cls, file_path, url, connection):
+        shutil.copyfile(urlparse(url).path, file_path)
 
 
 class DownloadLock():
@@ -588,6 +590,11 @@ class DownloadManager():
         with open(provider_settings_path, 'rb') as file_handler:
             self.provider_settings = utils.yaml_env_safe_load(file_handler)
 
+        self._downloaders_priorities =  {
+            protocol: (priority, downloader)
+            for priority, (protocol, downloader) in enumerate(self.DOWNLOADERS.items())
+        }
+
     def get_provider_settings(self, url_prefix):
         """Finds and returns the settings for the provider matching the `url_prefix`"""
         for prefix in self.provider_settings:
@@ -611,7 +618,7 @@ class DownloadManager():
                 return True
         return False
 
-    def _download_from_uri(self, dataset_uri, directory):
+    def _download_from_uri(self, dataset_uri, downloader, directory):
         """Download the file(s) from `dataset_uri` to `directory`"""
         # Get the extra settings for the provider
         dataset_uri_prefix = "://".join(requests.utils.urlparse(dataset_uri.uri)[0:2])
@@ -627,15 +634,6 @@ class DownloadManager():
             if not acquired:
                 raise TooManyDownloadsError(
                     f"Too many downloads in progress for {dataset_uri_prefix}")
-            # Try to find a downloader
-            downloader = None
-            for prefix, dl_class in self.DOWNLOADERS.items():
-                if dataset_uri.uri.startswith(prefix):
-                    downloader = dl_class
-                    break
-            if downloader is None:
-                LOGGER.error("No downloader found for %s", dataset_uri.uri, exc_info=True)
-                raise RuntimeError(f'Could not find downloader for {dataset_uri.uri}')
 
             LOGGER.debug("Attempting to download from '%s'", dataset_uri.uri)
             file_name = None
@@ -658,6 +656,25 @@ class DownloadManager():
 
             return file_name, download_error
 
+    def sort_uris_by_priority(self, uris):
+        """Returns a list of tuples (DatasetURI, Downloader) sorted by
+        priority. Priorities are defined by the order of Downloaders in
+        self.DOWNLOADERS
+        """
+        urls_by_priority = {i: [] for i in range(len(self.DOWNLOADERS))}
+        for u in uris:
+            protocol = urlparse(u.uri).scheme
+            try:
+                priority, downloader = self._downloaders_priorities[protocol]
+            except KeyError:
+                LOGGER.error("No downloader found for %s", u.uri, exc_info=True)
+            urls_by_priority[priority].append((u, downloader))
+
+        sorted_uris = list(itertools.chain.from_iterable(urls_by_priority.values()))
+        if not sorted_uris:
+            raise RuntimeError(f'Could not find downloader for any of {uris}')
+        return sorted_uris
+
     def download_dataset(self, dataset, download_directory):
         """
         Attempt to download a dataset by trying its URIs one by one. For each `DatasetURI`, it
@@ -677,8 +694,10 @@ class DownloadManager():
                          dataset.pk, dataset_path)
         else:
             os.makedirs(full_dataset_directory, exist_ok=True)
-            for dataset_uri in dataset.dataseturi_set.all():
+
+            for dataset_uri, downloader in self.sort_uris_by_priority(dataset.dataseturi_set.all()):
                 file_name, download_error = self._download_from_uri(dataset_uri,
+                                                                    downloader,
                                                                     full_dataset_directory)
                 if file_name:
                     dataset_path = os.path.join(dataset_directory, file_name)

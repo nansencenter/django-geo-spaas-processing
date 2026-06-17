@@ -18,7 +18,7 @@ import oauthlib.oauth2.rfc6749.errors
 import pyotp
 import requests
 import requests_oauthlib
-from geospaas.catalog.models import Dataset
+from geospaas.catalog.models import Dataset, DatasetURI
 from redis import Redis
 
 import geospaas_processing.downloaders as downloaders
@@ -716,6 +716,139 @@ class LocalDownloaderTestCase(unittest.TestCase):
             mock_copyfile.assert_called_once_with('/source/path', '/dest/path')
 
 
+class S3DownloaderTestCase(unittest.TestCase):
+    """Tests for the S3 downloader"""
+
+    def test_get_auth(self):
+        """Test getting credentials"""
+        self.assertTupleEqual(
+            downloaders.S3Downloader.get_auth({'access_key': 'foo', 'secret_key': 'bar'}),
+            ('foo', 'bar'))
+        self.assertTupleEqual(
+            downloaders.S3Downloader.get_auth({'access_key': 'foo'}),
+            (None, None))
+        self.assertTupleEqual(
+            downloaders.S3Downloader.get_auth({'secret_key': 'bar'}),
+            (None, None))
+
+    def test_connect(self):
+        """connect() should return an S3 Bucket object"""
+        with mock.patch('boto3.session.Session') as mock_session:
+            self.assertEqual(
+                downloaders.S3Downloader.connect(
+                    'https://foo/bar', ('access_key', 'secret_key'), region_name='Europe'),
+                mock_session.return_value.resource.return_value.Bucket.return_value)
+
+    def test_get_file_name(self):
+        """Test extracting the file name from a S3 URL"""
+        self.assertEqual(
+            downloaders.S3Downloader.get_file_name('s3://bucket/foo/bar/baz', None),
+            'baz')
+        self.assertEqual(
+            downloaders.S3Downloader.get_file_name('s3://bucket/foo/bar/baz/', None),
+            'baz')
+
+    def test_get_file_size(self):
+        """Test getting the size of the file to download"""
+        mock_bucket = mock.Mock()
+        mock_bucket.objects.filter.return_value = (
+            mock.Mock(size=10),
+            mock.Mock(size=20),
+            mock.Mock(size=30),
+        )
+        self.assertEqual(
+            downloaders.S3Downloader.get_file_size('https://foo/bar.nc', mock_bucket),
+            60)
+
+    def make_bytes_writer(self, size):
+        def write_bytes(key, dest):
+            with open(dest, 'wb') as f:
+                f.write(bytes(size))
+        return write_bytes
+
+    def test_download_file(self):
+        """Test downloading a single file"""
+        mock_bucket = mock.Mock()
+        mock_bucket.objects.filter.return_value = (mock.Mock(key='foo/bar.nc', size=10),)
+        mock_bucket.download_file.side_effect = self.make_bytes_writer(10)
+        s3_url = 's3://bucket/foo/bar.nc'
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            dest_file = tmp_path / 'test'
+            downloaders.S3Downloader.download_file(dest_file, s3_url, mock_bucket)
+            self.assertEqual(dest_file.stat().st_size, 10)
+            self.assertListEqual(list(tmp_path.iterdir()), [dest_file])
+
+    def test_download_file_already_there(self):
+        """Test downloading a single file"""
+        mock_bucket = mock.Mock()
+        mock_bucket.objects.filter.return_value = (mock.Mock(key='foo/bar.nc', size=10),)
+        mock_bucket.download_file.side_effect = self.make_bytes_writer(10)
+        s3_url = 's3://bucket/foo/bar.nc'
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            dest_file = tmp_path / 'test'
+            self.make_bytes_writer(10)('', dest_file)
+            with self.assertLogs(level=logging.INFO):
+                downloaders.S3Downloader.download_file(dest_file, s3_url, mock_bucket)
+            mock_bucket.download_file.assert_not_called()
+
+    def test_download_file_already_there(self):
+        """Test downloading a single file"""
+        mock_bucket = mock.Mock()
+        mock_bucket.objects.filter.return_value = (mock.Mock(key='foo/bar.nc', size=10),)
+        mock_bucket.download_file.side_effect = self.make_bytes_writer(10)
+        s3_url = 's3://bucket/foo/bar.nc'
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            dest_file = tmp_path / 'test'
+            self.make_bytes_writer(10)('', dest_file)
+            with self.assertLogs(level=logging.INFO):
+                downloaders.S3Downloader.download_file(dest_file, s3_url, mock_bucket)
+            mock_bucket.download_file.assert_not_called()
+
+    def test_download_directory(self):
+        """Test downloading directory"""
+        mock_bucket = mock.Mock()
+        mock_bucket.objects.filter.return_value = (
+            mock.Mock(key='foo/bar.nc', size=10),
+            mock.Mock(key='foo/baz.nc', size=10),
+        )
+        mock_bucket.download_file.side_effect = self.make_bytes_writer(10)
+        s3_url = 's3://bucket/foo/'
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            dest_file = tmp_path / 'test'
+            downloaders.S3Downloader.download_file(dest_file, s3_url, mock_bucket)
+            self.assertListEqual(list(tmp_path.iterdir()), [dest_file])
+            self.assertCountEqual(
+                list(dest_file.iterdir()),
+                [dest_file / 'bar.nc', dest_file / 'baz.nc'])
+            for f in dest_file.iterdir():
+                self.assertEqual(f.stat().st_size, 10)
+
+    def test_download_file_wrong_size(self):
+        """An exception should be raised when no remote files are found
+        """
+        mock_bucket = mock.Mock()
+        mock_bucket.objects.filter.return_value = (mock.Mock(key='foo/bar.nc', size=10),)
+        mock_bucket.download_file.side_effect = self.make_bytes_writer(5)
+        s3_url = 's3://bucket/foo/bar.nc'
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            dest_file = tmp_path / 'test'
+            with self.assertRaises(downloaders.DownloadError):
+                downloaders.S3Downloader.download_file(dest_file, s3_url, mock_bucket)
+
+    def test_download_no_files_error(self):
+        """An exception should be raised when no remote files are found
+        """
+        mock_bucket = mock.Mock()
+        mock_bucket.objects.filter.return_value = []
+        with self.assertRaises(downloaders.DownloadError):
+            downloaders.S3Downloader.download_file('/tmp/test', 's3://b/p', mock_bucket)
+
+
 class DownloadLockTestCase(unittest.TestCase):
     """Tests for the DownloadLock context manager"""
 
@@ -906,6 +1039,41 @@ class DownloadManagerTestCase(django.test.TestCase):
                 dataset.dataseturi_set.filter(dataset=dataset,
                                               uri__startswith='file')[0].uri,
                 'file://' + os.path.join('/testing_value', dataset.entry_id, 'test.nc'))
+
+    def test_sort_uris(self):
+        """Test sorting URIs by descending priority"""
+        class TestDownloadManager(downloaders.DownloadManager):
+            DOWNLOADERS = {
+                'file': downloaders.LocalDownloader,
+                's3': downloaders.S3Downloader,
+                'https': downloaders.HTTPDownloader,
+                'ftp': downloaders.FTPDownloader,
+                'http': downloaders.HTTPDownloader,
+            }
+        download_manager = TestDownloadManager()
+        u1 = DatasetURI(uri='http://foo/bar.nc')
+        u2 = DatasetURI(uri='s3://bucket/foo/bar.nc')
+        u3 = DatasetURI(uri='https://foo/bar.nc')
+        u4 = DatasetURI(uri='ftp:///foo/bar.nc')
+        u5 = DatasetURI(uri='https://baz/bar.nc')
+        u6 = DatasetURI(uri='s3://bucket/baz/bar.nc')
+        u7 = DatasetURI(uri='file:///foo/bar.nc')
+        self.assertListEqual(
+            download_manager.sort_uris([u1, u2, u3, u4, u5, u6, u7]),
+            [
+                (u7, downloaders.LocalDownloader),
+                (u2, downloaders.S3Downloader),
+                (u6, downloaders.S3Downloader),
+                (u3, downloaders.HTTPDownloader),
+                (u5, downloaders.HTTPDownloader),
+                (u4, downloaders.FTPDownloader),
+                (u1, downloaders.HTTPDownloader),
+            ]
+        )
+        with self.assertRaises(RuntimeError), self.assertLogs(level=logging.ERROR):
+            download_manager.sort_uris([
+                DatasetURI(uri='qux://foo/bar.nc'),
+                DatasetURI(uri='quux://foo/bar.nc')])
 
     def test_download_dataset(self):
         """Test that a dataset is downloaded with the correct arguments"""

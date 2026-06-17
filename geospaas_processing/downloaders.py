@@ -517,7 +517,7 @@ class S3Downloader(Downloader):
 
     @classmethod
     def get_file_name(cls, url, connection, **kwargs):
-        return os.path.basename(urlparse(url).path)
+        return Path(urlparse(url).path).name
 
     @classmethod
     def get_file_size(cls, url, connection, auth=(None, None)):
@@ -539,7 +539,7 @@ class S3Downloader(Downloader):
             file_dest.parent.mkdir(parents=True, exist_ok=True)
             if not file_dest.is_dir():
                 if (file_dest.is_file() and file_dest.stat().st_size == remote_file.size):
-                    cls.logger.info("Already downloaded, skipping %s", file_dest)
+                    LOGGER.info("Already downloaded, skipping %s", file_dest)
                     continue
                 connection.download_file(remote_file.key, file_dest)
                 downloaded_size = file_dest.stat().st_size

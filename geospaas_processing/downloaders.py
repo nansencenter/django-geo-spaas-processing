@@ -493,6 +493,7 @@ class LocalDownloader(Downloader):
 
 class S3Downloader(Downloader):
     """Download files from AWS S3"""
+
     @classmethod
     def get_auth(cls, kwargs):
         if ('access_key' in kwargs) and ('secret_key') in kwargs:
@@ -717,10 +718,10 @@ class DownloadManager():
 
             return file_name, download_error
 
-    def sort_uris_by_priority(self, uris):
+    def sort_uris(self, uris):
         """Returns a list of tuples (DatasetURI, Downloader) sorted by
         priority. Priorities are defined by the order of Downloaders in
-        self.DOWNLOADERS
+        self.DOWNLOADERS. URIs with the highest priority come first.
         """
         urls_by_priority = {i: [] for i in range(len(self.DOWNLOADERS))}
         for u in uris:
@@ -729,10 +730,11 @@ class DownloadManager():
                 priority, downloader = self._downloaders_priorities[protocol]
             except KeyError:
                 LOGGER.error("No downloader found for %s", u.uri, exc_info=True)
+                continue
             urls_by_priority[priority].append((u, downloader))
 
         sorted_uris = list(itertools.chain.from_iterable(urls_by_priority.values()))
-        if not sorted_uris:
+        if uris and not sorted_uris:
             raise RuntimeError(f'Could not find downloader for any of {uris}')
         return sorted_uris
 
@@ -756,7 +758,7 @@ class DownloadManager():
         else:
             os.makedirs(full_dataset_directory, exist_ok=True)
 
-            for dataset_uri, downloader in self.sort_uris_by_priority(dataset.dataseturi_set.all()):
+            for dataset_uri, downloader in self.sort_uris(dataset.dataseturi_set.all()):
                 file_name, download_error = self._download_from_uri(dataset_uri,
                                                                     downloader,
                                                                     full_dataset_directory)

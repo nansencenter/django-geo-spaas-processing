@@ -22,6 +22,7 @@ from pathlib import Path
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 import boto3
+import botocore.config
 import oauthlib.oauth2
 import oauthlib.oauth2.rfc6749.errors
 import pyotp
@@ -508,7 +509,13 @@ class S3Downloader(Downloader):
                 aws_access_key_id=auth[0],
                 aws_secret_access_key=auth[1],
                 region_name=kwargs.get('region_name', 'default'))
-        s3 = session.resource('s3', endpoint_url=kwargs.get('endpoint_url'))
+        s3 = session.resource(
+            's3',
+            endpoint_url=kwargs.get('endpoint_url'),
+            config=botocore.config.Config(retries={
+                'total_max_attempts': 5,
+                'mode': 'adaptive'
+            }))
         return s3.Bucket(bucket_name)
 
     @classmethod

@@ -23,6 +23,7 @@ from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 import boto3
 import botocore.config
+import botocore.exceptions
 import oauthlib.oauth2
 import oauthlib.oauth2.rfc6749.errors
 import pyotp
@@ -535,24 +536,27 @@ class S3Downloader(Downloader):
 
     @classmethod
     def download_file(cls, file_path, url, connection):
-        s3_path = Path(urlparse(url).path.lstrip('/'))
-        files = connection.objects.filter(Prefix=str(s3_path))
-        if not list(files):
-            raise DownloadError(f"Could not find any files for {s3_path}")
-        dest = Path(file_path)
-        for remote_file in files:
-            remote_file_path = Path(remote_file.key)
-            file_dest = Path(dest, remote_file_path.relative_to(s3_path))
-            file_dest.parent.mkdir(parents=True, exist_ok=True)
-            if not file_dest.is_dir():
-                if (file_dest.is_file() and file_dest.stat().st_size == remote_file.size):
-                    LOGGER.info("Already downloaded, skipping %s", file_dest)
-                    continue
-                connection.download_file(remote_file.key, file_dest)
-                downloaded_size = file_dest.stat().st_size
-                if downloaded_size != remote_file.size:
-                    raise DownloadError(
-                        f"Downloaded file {file_dest} has the wrong size {downloaded_size}")
+        try:
+            s3_path = Path(urlparse(url).path.lstrip('/'))
+            files = connection.objects.filter(Prefix=str(s3_path))
+            if not list(files):
+                raise DownloadError(f"Could not find any files for {s3_path}")
+            dest = Path(file_path)
+            for remote_file in files:
+                remote_file_path = Path(remote_file.key)
+                file_dest = Path(dest, remote_file_path.relative_to(s3_path))
+                file_dest.parent.mkdir(parents=True, exist_ok=True)
+                if not file_dest.is_dir():
+                    if (file_dest.is_file() and file_dest.stat().st_size == remote_file.size):
+                        LOGGER.info("Already downloaded, skipping %s", file_dest)
+                        continue
+                    connection.download_file(remote_file.key, file_dest)
+                    downloaded_size = file_dest.stat().st_size
+                    if downloaded_size != remote_file.size:
+                        raise DownloadError(
+                            f"Downloaded file {file_dest} has the wrong size {downloaded_size}")
+        except botocore.exceptions.ClientError as error:
+            raise RetriableDownloadError("Too many concurrent requests") from error
 
 
 class DownloadLock():

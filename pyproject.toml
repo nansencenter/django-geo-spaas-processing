@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools", "setuptools_scm"]
+requires = ["setuptools", "setuptools-scm<10"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools_scm]
@@ -20,6 +20,7 @@ classifiers = [
 ]
 requires-python = ">=3.9"
 dependencies = [
+    'boto3',
     'django-geo-spaas',
     'django',
     'freezegun',

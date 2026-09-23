@@ -24,7 +24,7 @@ django_settings = {
             'NAME': os.getenv('GEOSPAAS_DB_NAME', 'geodjango'),
             'USER': os.getenv('GEOSPAAS_DB_USER', 'geodjango'),
             'PASSWORD': os.getenv('GEOSPAAS_DB_PASSWORD'),
-            'CONN_MAX_AGE': 600
+            'CONN_MAX_AGE': int(os.getenv('GEOSPAAS_CONN_MAX_AGE', '600'))
         }
     },
     # Internationalization

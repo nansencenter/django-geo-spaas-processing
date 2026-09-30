@@ -40,8 +40,8 @@ class SyntoolConverter(Converter):
     """
 
     PARAMETERS_DIR = Path(__file__).parent / 'parameters'
-    CONVERTER_COMMAND = 'syntool-converter'
-    INGESTOR_COMMAND = 'syntool-ingestor'
+    CONVERTER_COMMAND = ['syntool-converter']
+    INGESTOR_COMMAND = ['syntool-ingestor']
 
     def __init__(self, **kwargs):
         self.env = kwargs.pop('env', None)
@@ -49,7 +49,7 @@ class SyntoolConverter(Converter):
     def convert(self, in_file, out_dir, options, **kwargs):
         """Convert to GeoTIFF using syntool_converter"""
         with tempfile.TemporaryDirectory() as tmp_dir:
-            command = [self.CONVERTER_COMMAND, *options, '-i', in_file, '-o', tmp_dir]
+            command = [*self.CONVERTER_COMMAND, *options, '-i', in_file, '-o', tmp_dir]
             try:
                 logger.info("Running %s", command)
                 process = subprocess.run(
@@ -74,7 +74,7 @@ class SyntoolConverter(Converter):
         syntool-converter)
         """
         with tempfile.TemporaryDirectory() as tmp_dir:
-            command = [self.INGESTOR_COMMAND, *options, '--output-dir', tmp_dir, in_file]
+            command = [*self.INGESTOR_COMMAND, *options, '--output-dir', tmp_dir, in_file]
             try:
                 logger.info("Running %s", command)
                 process = subprocess.run(
@@ -407,7 +407,7 @@ class CustomReaderSyntoolConverter(BasicSyntoolConverter):
     constructor argument must match the name of a reader module in
     extra_readers
     """
-    CONVERTER_COMMAND = Path('extra_readers', 'runner.py')
+    CONVERTER_COMMAND = ['python2', Path('extra_readers', 'runner.py')]
     PARAMETER_SELECTORS = (
         ParameterSelector(
             matches=lambda d: re.match(r'^dt_arctic_multimission_v.*_sea_level_.*$', d.entry_id),

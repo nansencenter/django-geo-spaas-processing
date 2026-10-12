@@ -12,6 +12,7 @@ import unittest.mock as mock
 from datetime import datetime
 from pathlib import Path
 
+import botocore.exceptions
 import django.test
 import oauthlib.oauth2
 import oauthlib.oauth2.rfc6749.errors
@@ -793,19 +794,13 @@ class S3DownloaderTestCase(unittest.TestCase):
                 downloaders.S3Downloader.download_file(dest_file, s3_url, mock_bucket)
             mock_bucket.download_file.assert_not_called()
 
-    def test_download_file_already_there(self):
+    def test_download_file_client_error(self):
         """Test downloading a single file"""
         mock_bucket = mock.Mock()
-        mock_bucket.objects.filter.return_value = (mock.Mock(key='foo/bar.nc', size=10),)
-        mock_bucket.download_file.side_effect = self.make_bytes_writer(10)
+        mock_bucket.objects.filter.side_effect = botocore.exceptions.ClientError(mock.MagicMock(), '')
         s3_url = 's3://bucket/foo/bar.nc'
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            tmp_path = Path(tmp_dir)
-            dest_file = tmp_path / 'test'
-            self.make_bytes_writer(10)('', dest_file)
-            with self.assertLogs(level=logging.INFO):
-                downloaders.S3Downloader.download_file(dest_file, s3_url, mock_bucket)
-            mock_bucket.download_file.assert_not_called()
+        with self.assertRaises(downloaders.RetriableDownloadError):
+            downloaders.S3Downloader.download_file('foo', s3_url, mock_bucket)
 
     def test_download_directory(self):
         """Test downloading directory"""

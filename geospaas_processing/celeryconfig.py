@@ -13,3 +13,6 @@ task_routes = {
     'geospaas_processing.tasks.harvesting.*': {'queue': 'harvesting'},
 }
 worker_prefetch_multiplier = '1'
+
+result_backend_always_retry = True
+result_backend_max_retries = 10

@@ -6,8 +6,8 @@ RUN apt update && \
     nco
 
 RUN pip install --upgrade --no-cache-dir \
-    'celery==5.2.*' \
-    'django-celery-results==2.2.*' \
+    'celery==5.4.*' \
+    'django-celery-results==2.6.*' \
     'graypy==2.1.*' \
     'importlib-metadata==4.*' \
     'netCDF4==1.6.4' \
